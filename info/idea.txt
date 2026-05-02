@@ -1,0 +1,13 @@
+# Alhamdulillah
+------------------
+
+
+## Course Idea:
+--> Learn more about Software Engineering in ML.
+--> From notebooks to full working applications.
+
+## Tools
+--> Git 
+--> WSL [or windows]
+--> Python | Venv | ...
+
