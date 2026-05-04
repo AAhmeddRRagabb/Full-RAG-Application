@@ -10,3 +10,10 @@ uvicorn main:app --reload --host 0.0.0.0 --port 5000
 --> reload --> reload if a chance applied [for development not production]
 --> host   --> controls who can access
 --> post   --> the port to work on
+
+
+
+## We will use an `MVC` app building:
+-> M: for controlloers [logic functions]
+-> M: for models [working with databases]
+-> 
