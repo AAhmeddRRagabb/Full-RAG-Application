@@ -19,31 +19,38 @@ data_router = APIRouter(
 async def upload_file(
     project_id: str,
     file: UploadFile = File(...),
-    app_settings: CFG.Settings = Depends(dependency = CFG.get_settings),
 ):
+    """
+    Uploading a file to the system & saves it. This route mainly do the following:
+        - validate the uploaded file
+        - clean & standardize its name
+        - save it within the system environment
+    """
     # validate file
     print(" Data Uploading ".center(100, "="))
     data_controller = DataController()
     
-    result = data_controller.validate_uploaded_file(file = file)
-    if result['status'] == "error":
+    validation_results = data_controller.validate_uploaded_file(file = file)
+    if validation_results['status'] == "error":
         return JSONResponse(
             status_code = status.HTTP_400_BAD_REQUEST,
             content = {
-                "message" : result['message']
+                "message" : validation_results['message']
             }
         )
 
-    # saving the given file
+
+    # saving the given file [in chunks]
     cleaned_filename = data_controller.clean_file_name(file_name = file.filename)
     project_path = ProjectController().get_project_path(project_id = project_id)
     file_path = os.path.join(project_path, cleaned_filename)
 
-    # save the file in chunks
+
     try:
         async with aiofiles.open(file = file_path, mode = 'wb') as f:
             while chunk := await file.read(size = CFG.FILE_CHUNK_SIZE_B):
                 await f.write(chunk)
+
     except Exception as e:
         print(f"Error while uploading a file: {e}")
         return JSONResponse(
@@ -54,6 +61,7 @@ async def upload_file(
         )
 
 
+    # return on success
     return JSONResponse(
             status_code = status.HTTP_200_OK,
             content = {
