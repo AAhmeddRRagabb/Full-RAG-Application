@@ -3,11 +3,11 @@
 # ------------------------------------------------------
 
 from fastapi import FastAPI
+from src.api import base
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
 app = FastAPI()
-
-
-@app.get("/welcome")
-def welcome():
-    return {
-        'Hello' : 'Ahmed'
-    }
+app.include_router(router = base.base_router)
