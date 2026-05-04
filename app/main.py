@@ -3,11 +3,9 @@
 # ------------------------------------------------------
 
 from fastapi import FastAPI
-from src.api import base
-from dotenv import load_dotenv
-
-load_dotenv()
+from routes import base, data
 
 
 app = FastAPI()
 app.include_router(router = base.base_router)
+app.include_router(router = data.data_router)
