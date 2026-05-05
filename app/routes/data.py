@@ -3,11 +3,14 @@ from fastapi.responses import JSONResponse
 import aiofiles
 from models import ResponseSignal
 import helpers.config as CFG
-from controllers import DataController, ProjectController
+from controllers import DataController, ProjectController, ProcessController
 import os
 
 import logging
 logger = logging.getLogger("uvicorn.error")
+
+
+from .schemes.data import ProcessRequest
 
 data_router = APIRouter(
     prefix = CFG.DATA_ROUTES_PREFIX,
@@ -65,6 +68,39 @@ async def upload_file(
     return JSONResponse(
             status_code = status.HTTP_200_OK,
             content = {
-                "message" : "File Uploaded Successfully"
+                "message"  : ResponseSignal.FILE_UPLOADED_SUCCESSFULLY.value,
+                "file_name": cleaned_filename
+            }
+        )
+
+
+@data_router.post("/process/{project_id}")
+async def process_uploaded_data(
+    project_id: str,
+    process_request: ProcessRequest,
+):
+    process_controller = ProcessController(project_id = project_id)
+
+    file_content = process_controller.get_file_content(file_id = process_request.file_id)
+    chunks = process_controller.get_chunks(
+        file_content = file_content,
+        chunk_size = process_request.chunk_size,
+        overlap_size = process_request.overlap_size,
+    )
+
+    if not chunks or len(chunks) == 0:
+        return JSONResponse(
+            status_code = status.HTTP_400_BAD_REQUEST,
+            content = {
+                "message": ResponseSignal.FILE_PROCESSING_FAILED.value,
+            }
+        )
+    
+    else:
+        return JSONResponse(
+            status_code = status.HTTP_200_OK,
+            content = {
+                'message': ResponseSignal.FILE_PROCESSING_SUCCEEDED.value,
+                "chunks": [chunk.page_content for chunk in chunks]
             }
         )
