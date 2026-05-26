@@ -1,20 +1,34 @@
-from fastapi import APIRouter, Depends, UploadFile, File, status, Request
+# ------------------------------------------------------
+# Implementing the routes related to the data
+# ------------------------------------------------------
+# ----------------------------------- Dependecies ---------------------------------
+# fastapi utils
+from fastapi import APIRouter, Depends
+from fastapi import status, Request
+from fastapi import File, UploadFile
 from fastapi.responses import JSONResponse
-import aiofiles
-from models import ResponseSignal
-import helpers.config as CFG
-from controllers import DataController, ProjectController, ProcessController
-import os
+
+# models & schemas
+from models import ResponseSignal, AssetTypesEnum
 from models.ProjectModel import ProjectModel
 from models.ChunkModel import ChunkModel
-from models.db_schemas import DataChunk
+from models.db_schemas import DataChunk, Asset
+from models.AssetModel import AssetModel
+from .schemes.data import ProcessRequest
+
+# controllers
+from controllers import DataController, ProjectController, ProcessController
+
+# helpers
+import aiofiles
+import helpers.config as CFG
+import os
 
 import logging
 logger = logging.getLogger("uvicorn.error")
+# -----------------------------------------------------------------------------------
 
-
-from .schemes.data import ProcessRequest
-
+# ------------------------------------ Routers ---------------------------------
 data_router = APIRouter(
     prefix = CFG.DATA_ROUTES_PREFIX,
     tags = ["data"]
@@ -31,17 +45,23 @@ async def upload_file(
     Uploading a file to the system & saves it. This route mainly do the following:
         - validate the uploaded file
         - clean & standardize its name
-        - save it within the system environment
+        - save it within the system environment.
+        - save the file as an asset in the assets collection.
+        - save the project data in the projects collection.
+        
     """
+    # init collection models
+    project_model = await ProjectModel.create_instance(db_client = request.app.mongodb)
+    asset_model = await AssetModel.create_instance(db_client = request.app.mongodb)
+
+    # init controllers
+    data_controller = DataController()
+    project_path = ProjectController().get_project_path(project_id = project_id)
+
 
     
-    project_model = await ProjectModel.create_instance(db_client = request.app.mongodb)
-    project = await project_model.get_project_or_insert_it(project_id = project_id)
-
     # validate file
     print(" Data Uploading ".center(100, "="))
-    data_controller = DataController()
-    
     validation_results = data_controller.validate_uploaded_file(file = file)
     if validation_results['status'] == "error":
         return JSONResponse(
@@ -54,9 +74,7 @@ async def upload_file(
 
     # saving the given file [in chunks]
     cleaned_filename = data_controller.clean_file_name(file_name = file.filename)
-    project_path = ProjectController().get_project_path(project_id = project_id)
     file_path = os.path.join(project_path, cleaned_filename)
-
 
     try:
         async with aiofiles.open(file = file_path, mode = 'wb') as f:
@@ -71,6 +89,18 @@ async def upload_file(
                 "message" : ResponseSignal.FILE_UPLOADED_FAILED.value
             }
         )
+    
+    # saves the project & asset instances
+    project = await project_model.get_project_or_insert_it(project_id = project_id)
+
+    asset = Asset(
+        asset_project_id = project.id,
+        asset_type = AssetTypesEnum.ASSET_FILE.value,
+        asset_name = cleaned_filename,
+        asset_size = os.path.getsize(file_path)
+    )
+
+    asset_record = await asset_model.create_asset(asset)
 
 
     # return on success
@@ -78,10 +108,9 @@ async def upload_file(
             status_code = status.HTTP_200_OK,
             content = {
                 "message"  : ResponseSignal.FILE_UPLOADED_SUCCESSFULLY.value,
-                "file_name": cleaned_filename,
+                "file_name": asset_record.asset_name,
             }
         )
-
 
 
 
@@ -92,12 +121,11 @@ async def process_uploaded_data(
     project_id: str,
     process_request: ProcessRequest,
 ):
-
-    # get project
+    # init collection models
     project_model = await ProjectModel.create_instance(db_client = request.app.mongodb)
-    project = await project_model.get_project_or_insert_it(project_id)
+    chunk_model = await ChunkModel.create_instance(db_client = request.app.mongodb)
 
-    # process the data
+    # init controllers
     process_controller = ProcessController(project_id = str(project_id))
 
 
@@ -118,8 +146,8 @@ async def process_uploaded_data(
         )
     
 
-    # store in db
-    chunk_model = await ChunkModel.create_instance(db_client = request.app.mongodb)
+    # store chunks in db [if required to delete existing records -> delete]
+    project = await project_model.get_project_or_insert_it(project_id)
     chunk_objects = [DataChunk(
             chunk_text = chunk.page_content,
             chunk_project_id = str(project._id),
@@ -130,7 +158,6 @@ async def process_uploaded_data(
         for i, chunk in enumerate(chunks)
     ]
 
-    # delete already existing chunks [if required ]
     if process_request.do_reset:
         await chunk_model.delete_chunks_by_project_id(project_id = str(project._id))
 

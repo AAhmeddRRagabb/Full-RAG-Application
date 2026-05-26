@@ -8,6 +8,9 @@ from .enums.DatabaseEnum import DatabaseEnum
 from .db_schemas import Project
 
 class ProjectModel(BaseDataModel):
+    """
+    Data model for the project collection
+    """
     def __init__(self, db_client):
         super().__init__(db_client)
         self.collection = self.db_client[DatabaseEnum.COLLECTION_PROJECTS_NAME.value]
@@ -16,23 +19,20 @@ class ProjectModel(BaseDataModel):
     @classmethod
     async def create_instance(cls, db_client):
         instance = cls(db_client)
-        await instance.init_collection()
+        await instance.init_collection_indexes()
         return instance
 
-    async def init_collection(self):
-        all_collections = await self.db_client.list_collection_names()
+    async def init_collection_indexes(self):
+        indexes = Project.get_indexes()
 
-        if DatabaseEnum.COLLECTION_PROJECTS_NAME.value not in all_collections:
-            self.collection = self.db_client[DatabaseEnum.COLLECTION_PROJECTS_NAME.value]
-            indexes = Project.get_indexes()
-
-            for idx in indexes:
-                await self.collection.create_index(
-                    idx["key"],
-                    name = idx["name"],
-                    unique = idx["unique"]
-                )
+        for idx in indexes:
+            await self.collection.create_index(
+                idx["key"],
+                name = idx["name"],
+                unique = idx["unique"]
+            )
             
+
 
     async def insert_project(self, project: Project):
         result = await self.collection.insert_one(

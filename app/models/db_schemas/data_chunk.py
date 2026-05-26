@@ -1,5 +1,5 @@
 # ------------------------------------------------
-# Schemas for recording a project in the database
+# Data Chunk Object
 # ------------------------------------------------
 
 from pydantic import BaseModel, Field, ConfigDict

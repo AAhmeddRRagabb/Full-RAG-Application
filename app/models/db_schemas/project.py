@@ -1,5 +1,5 @@
 # ------------------------------------------------
-# Schemas for recording a project in the database
+# Project Class
 # ------------------------------------------------
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
