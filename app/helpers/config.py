@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     # validate env_var
     APP_NAME: str
     APP_VERSION: str
+    MONGODB_URL: str
+    MONGODB_DB: str
     
     class Config:
         env_file = ".env"

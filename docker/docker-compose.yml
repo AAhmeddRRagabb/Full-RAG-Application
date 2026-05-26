@@ -1,0 +1,32 @@
+services:
+  mongodb:
+    image: mongo:8.0.21
+    container_name: mongodb
+
+    ports: 
+      - "27017:27017" 
+
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
+
+    volumes:
+      - mongodb_data:/data/db
+
+    networks:
+      - backend
+
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    restart: always
+
+networks:
+  backend:
+
+volumes:
+  mongodb_data:
