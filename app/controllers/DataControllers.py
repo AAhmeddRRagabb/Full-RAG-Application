@@ -29,6 +29,7 @@ class DataController(BaseController):
             "message": ResponseSignal.FILE_UPLOADED_SUCCESSFULLY.value
         }
     
+    
     def clean_file_name(self, file_name: str):
         """Clean & Standardize the file name"""
         cleaned_fname = re.sub(r'[^\w.]', '', file_name.strip()) # \w --> [A-Z a-z 0-9 _]
