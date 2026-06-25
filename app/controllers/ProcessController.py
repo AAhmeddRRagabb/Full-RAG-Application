@@ -1,16 +1,16 @@
 from .BaseController import BaseController
 from .ProjectController import ProjectController
 import os
-from models import FileExtensionEnum
+from models.enums import FileExtensionsEnum
 from langchain_community.document_loaders import TextLoader, PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter # cares for spaces and about
 
 class ProcessController(BaseController):
-    def __init__(self, project_id: str):
+    def __init__(self, project_name: str):
         super().__init__()
 
-        self.project_id = project_id
-        self.project_path = ProjectController().get_project_path(project_id = project_id)
+        self.project_name = project_name
+        self.project_path = ProjectController().get_project_path(project_name = project_name)
         
 
     def get_file_extension(self, file_name: str):
@@ -21,19 +21,28 @@ class ProcessController(BaseController):
         file_ext = self.get_file_extension(file_name = file_id)
 
         file_path = os.path.join(self.project_path, file_id)
-        if file_ext == FileExtensionEnum.FILE_TXT.value:
+
+        if not os.path.exists(file_path):
+            return None
+
+        if file_ext == FileExtensionsEnum.FILE_TXT.value:
             return TextLoader(file_path, encoding = 'utf-8')
         
-        if file_ext == FileExtensionEnum.FILE_PDF.value:
+        if file_ext == FileExtensionsEnum.FILE_PDF.value:
             return PyMuPDFLoader(file_path)
         
         return None
     
     
-    def get_file_content(self, file_id: str):
+    def get_file_content(self, file_id: str) -> str | None:
         loader = self.get_file_loader(file_id = file_id)
-        return loader.load()
+
+        if loader:
+            return loader.load()
     
+        return None
+
+
     def get_chunks(self, file_content: list, chunk_size: int = 100, overlap_size: int = 100):
         # get content
         contents = [data.page_content for data in file_content]

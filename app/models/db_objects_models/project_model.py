@@ -3,17 +3,17 @@
 # ----------------------------------------------------
 
 
-from .BaseDataModel import BaseDataModel
-from .enums.DatabaseEnum import DatabaseEnum
-from .db_schemas import Project
+from .base_obj_model import BaseObjModel
+from models.enums import DatabaseCollectionsEnum
+from models.db_schemas import Project
 
-class ProjectModel(BaseDataModel):
+class ProjectModel(BaseObjModel):
     """
     Data model for the project collection
     """
     def __init__(self, db_client):
         super().__init__(db_client)
-        self.collection = self.db_client[DatabaseEnum.COLLECTION_PROJECTS_NAME.value]
+        self.collection = self.db_client[DatabaseCollectionsEnum.COLLECTION_PROJECTS_NAME.value]
 
 
     @classmethod
@@ -44,13 +44,13 @@ class ProjectModel(BaseDataModel):
         return project
     
 
-    async def get_project_or_insert_it(self, project_id: str):
+    async def get_project_or_insert_it(self, project_name: str):
         record = await self.collection.find_one({
-            "project_id" : project_id
+            "project_name" : project_name
         })
 
         if record is None or not record:
-            project = Project(project_id = project_id)
+            project = Project(project_name = project_name)
             project = await self.insert_project(project = project)
 
             return project

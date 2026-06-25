@@ -7,8 +7,8 @@ class ProjectController(BaseController):
         super().__init__()
 
     
-    def get_project_path(self, project_id: str):
-        project_path = os.path.join(self.assests_files_path, project_id)
+    def get_project_path(self, project_name: str):
+        project_path = os.path.join(self.assests_files_path, project_name)
         os.makedirs(project_path, exist_ok = True)
         return project_path
     

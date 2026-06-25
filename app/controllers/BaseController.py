@@ -2,7 +2,6 @@
 # Base Controller Module
 # ----------------------------------------------
 
-import helpers.config as CFG
 import os
 
 class BaseController:

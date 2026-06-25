@@ -8,7 +8,7 @@ from bson.objectid import ObjectId
 
 class Project(BaseModel):
     id: Optional[ObjectId] = Field(default = None, alias = "_id")
-    project_id: str = Field(
+    project_name: str = Field(
         ...,
         min_length = 1,
     )
@@ -26,8 +26,8 @@ class Project(BaseModel):
     def _id(self, value):
         self.id = value
 
-    @field_validator("project_id")
-    def validate_project_id(cls, value: str) -> str:
+    @field_validator("project_name")
+    def validate_project_name(cls, value: str) -> str:
         if not value.isalnum():
             raise ValueError("Project id must be alphanumeric")
         return value
@@ -38,10 +38,10 @@ class Project(BaseModel):
         return [
             {
                 "key" : [
-                    ("project_id", 1)  # index by project id & 1 -> asc, | -1 desc
+                    ("project_name", 1)  # index by project id & 1 -> asc, | -1 desc
                 ],
 
-                "name": "project_id_index_1",   # unique name
+                "name": "project_name_index_1",   # unique name
                 "unique": True   # should the index itself should be unique or not
             }
         ]

@@ -4,18 +4,18 @@
 
 
 from bson.objectid import ObjectId
-from .enums.DatabaseEnum import DatabaseEnum
-from .db_schemas import DataChunk
-from .BaseDataModel import BaseDataModel
+from models.enums import DatabaseCollectionsEnum
+from models.db_schemas import DataChunk
+from .base_obj_model import BaseObjModel
 from pymongo import InsertOne
 
-class ChunkModel(BaseDataModel):
+class ChunkModel(BaseObjModel):
     """
     Data model for the chunks collection
     """
     def __init__(self, db_client):
         super().__init__(db_client)
-        self.collection = self.db_client[DatabaseEnum.COLLECTION_CHUNKS_NAME.value]
+        self.collection = self.db_client[DatabaseCollectionsEnum.COLLECTION_CHUNKS_NAME.value]
 
 
     @classmethod
