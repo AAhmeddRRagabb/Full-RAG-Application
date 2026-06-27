@@ -14,3 +14,6 @@ def print_error_message(error_message: str) -> None:
     error_message = f" {error_message} ".center(50, "=")
     print(f"{RED}{error_message}{RESET}")
 
+
+def print_success_message(message: str) -> None:
+    print(f"{GREEN}>>>>> {message} <<<<<{RESET}")

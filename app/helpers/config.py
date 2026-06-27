@@ -17,6 +17,30 @@ class Settings(BaseSettings):
     APP_VERSION: str
     MONGODB_URL: str
     MONGODB_DB: str
+
+    # ----------------------------- Secrets ------------------------------- #
+    GROQ_API_KEY: str
+    GOOGLE_API_KEY: str
+
+    # -------------------------- LLMs Config ----------------------------- #
+    GENERATION_BACKEND: str
+    EMBEDDING_BACKEND: str
+    GENERATION_MODEL_ID: str
+    EMBEDDING_MODEL_ID: str
+
+
+    # cfg
+    EMBEDDING_SIZE: int
+    INPUT_DAFAULT_MAX_CHARACTERS: int
+    GENERATION_DAFAULT_MAX_TOKENS: int
+    GENERATION_DAFAULT_TEMPERATURE: int
+
+    # -------------------------- Vector DBs Config ----------------------------- #
+    VECTOR_DB_BACKEND: str
+    VECTOR_DB_NAME: str
+    VECTOR_DB_DISTANCE_METHOD: str
+
+
     
     class Config:
         env_file = ".env"
