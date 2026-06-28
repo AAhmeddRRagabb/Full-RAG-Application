@@ -1,6 +1,6 @@
 from .provider_names import ProviderNamesEnum
 
-from .message_roles import GroqMessageRolesEnum, GoogleMessageRolesEnum
+from .message_roles import GroqMessageRolesEnum, GoogleMessageRolesEnum, HuggingFaceMessageRolesEnum
 
 from .text_to_embed_types import (
     TextTypesEnum,

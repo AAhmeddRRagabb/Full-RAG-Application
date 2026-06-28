@@ -3,7 +3,7 @@
 # ------------------------------------------------------
 # ----------------------------------- Dependecies ---------------------------------
 # fastapi utils
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from fastapi import status, Request
 from fastapi import File, UploadFile
 from fastapi.responses import JSONResponse
@@ -29,7 +29,7 @@ from controllers import ProcessController
 import aiofiles
 import helpers.config as CFG
 import os
-from helpers.functional import print_error_message
+
 
 import logging
 logger = logging.getLogger("uvicorn.error")

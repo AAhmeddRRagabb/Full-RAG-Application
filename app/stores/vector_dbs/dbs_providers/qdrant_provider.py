@@ -1,5 +1,5 @@
 from .vector_db_interface import VectorDBInterface
-from dbs_enums import DistanceMethodsEnum, VectorDBsErrorsEnum
+from stores.vector_dbs.dbs_enums import DistanceMethodsEnum, VectorDBsErrorsEnum
 from qdrant_client import models, QdrantClient
 import logging
 from typing import Any
@@ -71,7 +71,6 @@ class QDrantProvider(VectorDBInterface):
         return True
 
 
-
     def insert_one(
         self,
         collection_name: str,
@@ -89,9 +88,9 @@ class QDrantProvider(VectorDBInterface):
                 collection_name = collection_name,
                 points = [
                     models.Record(
+                        id = [record_id],
                         vector = vector,
                         payload = {
-                            "record_id": record_id,
                             "text": text,
                             "metadata": metadata
                         }
@@ -131,9 +130,9 @@ class QDrantProvider(VectorDBInterface):
 
             batch_records = [
                 models.Record(
+                    id = batch_ids[x],
                     vector = batch_vectors[x],
                     payload = {
-                        "record_id": batch_ids[x],
                         "text": batch_texts[x],
                         "metadata": batch_metadata[x]
                     }

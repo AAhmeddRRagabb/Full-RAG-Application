@@ -1,4 +1,4 @@
-from .llm_providers import GroqProvider, GoogleProvider
+from .llm_providers import GroqProvider, GoogleProvider, HuggingFaceProvider
 from .llm_enums import ProviderNamesEnum
 from helpers.config import Settings
 
@@ -10,7 +10,7 @@ class LLMAgentFactory:
         self.config = config
 
 
-    def create_agent(self, provider: str) -> GroqProvider | GoogleProvider:
+    def create_agent(self, provider: str) -> GroqProvider | GoogleProvider | HuggingFaceProvider:
         if provider == ProviderNamesEnum.GROQ_PROVIDER.value:
             return GroqProvider(
                 api_key = self.config.GROQ_API_KEY,
@@ -27,5 +27,12 @@ class LLMAgentFactory:
                 embedding_size = self.config.EMBEDDING_SIZE
             )
         
+        if provider == ProviderNamesEnum.HUGGING_FACE.value:
+            return HuggingFaceProvider(
+                api_key = self.config.HF_TOKEN,
+                generation_model_id = self.config.GENERATION_MODEL_ID,
+                embedding_model_id = self.config.EMBEDDING_MODEL_ID,
+                embedding_size = self.config.EMBEDDING_SIZE 
+            )
 
         raise NotImplementedError

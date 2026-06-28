@@ -8,9 +8,10 @@
 # PyMuPDF==1.27.2.3
 # langchain-community==0.4.1
 # pymongo==4.17.0
-
+numpy
 
 # ## Providers
 # groq==1.5.0
 # google-genai==2.10.0
-qdrant-client==1.18.0
+# qdrant-client==1.18.0
+# huggingface-hub==1.21.0

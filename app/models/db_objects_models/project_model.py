@@ -44,7 +44,7 @@ class ProjectModel(BaseObjModel):
         return project
     
 
-    async def get_project_or_insert_it(self, project_name: str):
+    async def get_project_or_insert_it(self, project_name: str) -> Project:
         record = await self.collection.find_one({
             "project_name" : project_name
         })

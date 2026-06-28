@@ -10,3 +10,9 @@ class GoogleMessageRolesEnum(Enum):
     SYSTEM_MESSAGE = "system"
     USER_MESSAGE = "user"
     ASSISTANT_MESSAGE = "model"
+
+
+class HuggingFaceMessageRolesEnum(Enum):
+    SYSTEM_MESSAGE = "system"
+    USER_MESSAGE = "user"
+    ASSISTANT_MESSAGE = "assistant"

@@ -4,7 +4,7 @@ from google.genai.types import GenerateContentResponse, Content, GenerateContent
 from typing import Any
 from .base_provider_class import BaseProviderClass
 
-from llm_enums import TextTypesEnum, GoogleTaskTypes, GoogleEmbeddingModelsEnum, LLM_Errors_Enum, GoogleMessageRolesEnum
+from stores.llm_agents.llm_enums import TextTypesEnum, GoogleTaskTypes, GoogleEmbeddingModelsEnum, LLM_Errors_Enum, GoogleMessageRolesEnum
 
 class GoogleProvider(BaseProviderClass):
     """
@@ -51,8 +51,11 @@ class GoogleProvider(BaseProviderClass):
         if not self._validate_embedding_response(response):
             raise ValueError(LLM_Errors_Enum.INVALID_MODEL_RESPONSE.value)
         
+        try:
+            return [e.values for e in response.embeddings]
 
-        return response.embeddings
+        except:
+            return response.embeddings
         
         
 
