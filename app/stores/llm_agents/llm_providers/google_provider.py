@@ -31,6 +31,8 @@ class GoogleProvider(BaseProviderClass):
             default_temperature = default_temperature,
         )
 
+        self.message_roles_enum = GoogleMessageRolesEnum
+
     
     def init_client(self, api_key: str) -> Client:
         return Client(

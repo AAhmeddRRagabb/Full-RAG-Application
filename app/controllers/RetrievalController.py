@@ -2,7 +2,7 @@ from .BaseController import BaseController
 from models.db_schemas import DataChunk
 
 from stores.vector_dbs import QDrantProvider
-from stores.llm_agents import GoogleProvider, GroqProvider
+from stores.llm_agents import GoogleProvider, GroqProvider, HuggingFaceProvider
 
 import json
 from stores.llm_agents.llm_enums import TextTypesEnum
@@ -12,14 +12,12 @@ class RetrievalController(BaseController):
     def __init__(
         self,
         vector_db_client: QDrantProvider,
-        embedding_client: GoogleProvider | GroqProvider,
-        generation_client: GoogleProvider | GroqProvider,
+        embedding_client: GoogleProvider | GroqProvider | HuggingFaceProvider,
     ):
         super().__init__()
 
         self.vector_db_client = vector_db_client
         self.embedding_client = embedding_client
-        self.generation_client = generation_client
 
     
     def get_collection_name(self, project_name: str) -> str:
@@ -103,9 +101,7 @@ class RetrievalController(BaseController):
         if not retrieved:
             return False
         
-        return json.loads(
-            json.dumps(retrieved, default = lambda x: x.__dict__)
-        )
+        return retrieved
     
 
     

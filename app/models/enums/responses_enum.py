@@ -15,3 +15,6 @@ class ResponsesEnum(Enum):
     VECTOR_DB_SUCCESS_WHILE_INSERTION_CHUNKS = "Chunks inserted successfully"
     VECTOR_DB_GET_COLLECTION_INFO_FAILED = "An Error Occured while retrieving collection info" 
     VECTOR_DB_GET_RETRIEVAL_FAILED = "An Error Occured while retrieving relevant chunks" 
+
+    # Generation
+    GENERATION_ERROR_WHILE_CALLING_AGENT = "An error occured while calling agent, please try again."

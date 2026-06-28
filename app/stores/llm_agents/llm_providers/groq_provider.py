@@ -30,6 +30,7 @@ class GroqProvider(BaseProviderClass):
             default_temperature = default_temperature,
         )
 
+        self.message_roles_enum = GroqMessageRolesEnum
     
     def init_client(self, api_key: str) -> Groq:
         return Groq(

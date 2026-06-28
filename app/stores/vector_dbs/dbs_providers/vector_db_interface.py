@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any
+from models.db_schemas import RetrievedChunk
 
 class VectorDBInterface(ABC):
     # connection
@@ -73,7 +74,7 @@ class VectorDBInterface(ABC):
         collection_name: str,
         vector: list[float],
         limit: int = 5
-    ):
+    ) -> RetrievedChunk:
         pass
 
 

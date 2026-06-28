@@ -3,6 +3,7 @@ from stores.vector_dbs.dbs_enums import DistanceMethodsEnum, VectorDBsErrorsEnum
 from qdrant_client import models, QdrantClient
 import logging
 from typing import Any
+from models.db_schemas import RetrievedChunk
 
 class QDrantProvider(VectorDBInterface):
     def __init__(
@@ -161,16 +162,27 @@ class QDrantProvider(VectorDBInterface):
         collection_name: str,
         vector: list[float],
         limit: int = 5
-    ):
+    ) -> RetrievedChunk:
         if not self.is_collection_existed(collection_name = collection_name):
             self.logger.error(VectorDBsErrorsEnum.SEARCHING_COLLECTION_DOES_NOT_EXIST.value)
             return False
         
-        return self.client.query_points(
+        points = self.client.query_points(
             collection_name = collection_name,
             query = vector,
             limit = limit
-        )
+        ).points
+        if not points or len(points) == 0:
+            return False
+        
+        return [
+            RetrievedChunk(**{
+                "text": point.payload["text"],
+                "score": point.score
+            })
+            for point in points
+        ]
+        
 
 
 

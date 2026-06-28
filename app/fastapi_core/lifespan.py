@@ -9,6 +9,8 @@ from helpers.config import get_settings
 from stores.llm_agents import LLMAgentFactory
 from stores.vector_dbs import VectorDBFactory
 
+from stores.llm_agents.prompt_templates import PromptTemplateParser
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
@@ -38,6 +40,11 @@ async def lifespan(app: FastAPI):
     print_success_message(f"Initiating LLM Agents Successfully")
 
 
+
+    app.prompt_template_parser = PromptTemplateParser(
+        language = settings.PRIMARY_LANGUAGE,
+        default_language = settings.DEFAULT_LANGUAGE
+    )
     yield
 
     await app.mongodb_client.admin.close()

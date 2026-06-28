@@ -66,15 +66,16 @@ class BaseProviderClass:
     ):
         pass
 
-    # validation
+    # # validation
     def _process_text_length(self, prompt: str, return_error: bool = False) -> str:
-        if len(prompt) > self.default_max_input_characters:
-            if return_error:
-                raise ValueError
-            
-            prompt = prompt[:self.default_max_input_characters].strip()
-        
         return prompt
+    #     if len(prompt) > self.default_max_input_characters:
+    #         if return_error:
+    #             raise ValueError
+            
+    #         prompt = prompt[:self.default_max_input_characters].strip()
+        
+    #     return prompt
     
     @abstractmethod
     def _validate_llm_response(self, response) -> bool:

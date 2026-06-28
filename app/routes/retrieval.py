@@ -68,7 +68,6 @@ async def push_chunks_into_vector_db(
     retrieval_controller = RetrievalController(
         vector_db_client = request.app.vector_db_client,
         embedding_client = request.app.embedding_client,
-        generation_client = request.app.generation_client
     )
     retrieval_controller.create_collection(project_name, do_reset = push_request.do_reset)
 
@@ -123,7 +122,6 @@ async def get_project_collection(
         retrieval_controller = RetrievalController(
             vector_db_client = request.app.vector_db_client,
             embedding_client = request.app.embedding_client,
-            generation_client = request.app.generation_client
         )
 
         project_collection_info = retrieval_controller.get_vector_db_collection_info(project_name = project_name)
@@ -154,7 +152,6 @@ async def retrieve_relevant_chunks(
     retrieval_controller = RetrievalController(
         vector_db_client = request.app.vector_db_client,
         embedding_client = request.app.embedding_client,
-        generation_client = request.app.generation_client
     )
 
     relevant_chunks = retrieval_controller.search_vector_db_collection(

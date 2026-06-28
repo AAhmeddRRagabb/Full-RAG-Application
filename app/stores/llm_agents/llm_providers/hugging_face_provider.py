@@ -31,6 +31,7 @@ class HuggingFaceProvider(BaseProviderClass):
             default_temperature = default_temperature,
         )
 
+        self.message_roles_enum = HuggingFaceMessageRolesEnum
     
     def init_client(self, api_key: str) -> InferenceClient:
         return InferenceClient(
