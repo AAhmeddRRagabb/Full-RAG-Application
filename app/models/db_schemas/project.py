@@ -45,3 +45,4 @@ class Project(BaseModel):
                 "unique": True   # should the index itself should be unique or not
             }
         ]
+    

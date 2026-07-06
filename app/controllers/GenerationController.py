@@ -79,7 +79,7 @@ class GenerationController(BaseController):
         ])
 
         answer = self.generation_client.generate_text(
-            user_prompt = full_prompt,
+            prompt = full_prompt,
             chat_history = chat_history
         )
 

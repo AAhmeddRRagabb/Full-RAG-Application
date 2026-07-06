@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: str
     HF_TOKEN: str
     MONGODB_URL: str
+    OPEN_AI_KEY: str
+    OPEN_AI_URL: str | None = None
 
     # -------------------------- LLMs Config ----------------------------- #
     GENERATION_BACKEND: str

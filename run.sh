@@ -19,7 +19,7 @@ APP_DIR="$PROJECT_ROOT/app"
 DOCKER_DIR="$PROJECT_ROOT/docker"
 DOCKER_COMPOSE_FILE="$DOCKER_DIR/docker-compose.yml"
 
-VENV_PATH="/mnt/d/Focus/_____Active_______/AI/venvs/rag_langchain_wsl/bin/activate"
+# VENV_PATH="/mnt/d/Education/venvs/agentic_ai_venv_win/Scripts/activate"
 FASTAPI_APP="main:app"
 FASTAPI_HOST="127.0.0.1"
 FASTAPI_PORT="8000"
@@ -52,16 +52,16 @@ fi
 echo "- Docker services started."
 
 
-echo ""
-echo "- Activating Python virtual environment..."
+# echo ""
+# echo "- Activating Python virtual environment..."
 
-if [ ! -f "$VENV_PATH" ]; then
-    echo "Error: virtual environment not found at:"
-    echo "$VENV_PATH"
-    exit 1
-fi
+# if [ ! -f "$VENV_PATH" ]; then
+#     echo "Error: virtual environment not found at:"
+#     echo "$VENV_PATH"
+#     exit 1
+# fi
 
-source "$VENV_PATH"
+# source "$VENV_PATH"
 
 echo "- Using Python:"
 which python
