@@ -78,7 +78,8 @@ class RetrievalController(BaseController):
         self,
         project_name: str,
         text: str,
-        limit: int = 5
+        limit: int = 5,
+        encode_as_json: bool = False
     ):
         collection_name = self.get_collection_name(project_name = project_name)
 
@@ -100,8 +101,13 @@ class RetrievalController(BaseController):
 
         if not retrieved:
             return False
+
+        if not encode_as_json:
+            return retrieved
         
-        return retrieved
+        return json.loads(
+            json.dumps(retrieved, default = lambda x: x.__dict__)
+        )
     
 
     

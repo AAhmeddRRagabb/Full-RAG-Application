@@ -23,7 +23,6 @@ $ cp .env.example .env
 Put the the required data in the .env file
 
 
-
 8. Run the app from the run.sh file:
     - Making the file executable on Windows: `chmod +x run.sh`
     - Run the file: `./run.sh`

@@ -157,7 +157,8 @@ async def retrieve_relevant_chunks(
     relevant_chunks = retrieval_controller.search_vector_db_collection(
         project_name = project_name,
         text = retrieval_request.query,
-        limit = retrieval_request.limit
+        limit = retrieval_request.limit,
+        encode_as_json = True
     )
 
     if not relevant_chunks:
