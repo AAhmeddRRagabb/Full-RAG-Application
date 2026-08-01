@@ -16,8 +16,12 @@ PyMuPDF==1.28.0
 langchain-community==0.4.1
 
 # databases
-pymongo==4.17.0
 qdrant-client==1.18.0
+SQLAlchemy==2.0.51
+asyncpg==0.31.0
+alembic==1.18.5
+psycopg2==2.9.12
+
 
 # ## Providers
 groq==1.5.0

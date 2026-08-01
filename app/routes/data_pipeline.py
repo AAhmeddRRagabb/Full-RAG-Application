@@ -67,8 +67,8 @@ async def upload_file(
         - save the project data in the projects collection. 
     """
     # init collection models & controllers
-    project_model = await ProjectModel.create_instance(db_client = request.app.mongodb)
-    asset_model = await AssetModel.create_instance(db_client = request.app.mongodb)
+    project_model = await ProjectModel.create_instance(db_client = request.app.db_client)
+    asset_model = await AssetModel.create_instance(db_client = request.app.db_client)
 
     data_controller = DataController()
     project_path = ProjectController().get_project_path(project_name = project_name)
@@ -92,10 +92,10 @@ async def upload_file(
         logger.error(f"Error while uploading a file: {e}")
         return return_bad_request(message = ResponsesEnum.FILE_UPLOADED_FAILED.value)
     
-    # save in mongo_db
+    # save in db
     project = await project_model.get_project_or_insert_it(project_name = project_name)
     asset = Asset(
-        asset_project_id = project.id,
+        asset_project_id = project.project_id,
         asset_type = AssetTypesEnum.ASSET_FILE.value,
         asset_name = cleaned_filename,
         asset_size = os.path.getsize(file_path)
@@ -126,29 +126,29 @@ async def process_uploaded_data(
         >> Choose whetehr to chunk a specific files or all project files
         >> Chunking & Save Chunks
     """
-    # init collection models & controllers
-    project_model = await ProjectModel.create_instance(db_client = request.app.mongodb)
-    chunk_model = await ChunkModel.create_instance(db_client = request.app.mongodb)
-    asset_model = await AssetModel.create_instance(db_client = request.app.mongodb)
+    # init db models & controllers
+    project_model = await ProjectModel.create_instance(db_client = request.app.db_client)
+    chunk_model = await ChunkModel.create_instance(db_client = request.app.db_client)
+    asset_model = await AssetModel.create_instance(db_client = request.app.db_client)
 
     process_controller = ProcessController(project_name = str(project_name))
 
     # setup 
     project = await project_model.get_project_or_insert_it(project_name)
     if process_request.do_reset:
-        await chunk_model.delete_chunks_by_project_id(project_id = project.id)
+        await chunk_model.delete_chunks_by_project_id(project_id = project.project_id)
 
     # get assets to chunk
     if process_request.file_name:
-        asset_record = await asset_model.get_asset_record(project_id = project.id, asset_name = process_request.file_name)
+        asset_record = await asset_model.get_asset_record(project_id = project.project_id, asset_name = process_request.file_name)
         if not asset_record:
             return return_bad_request(message = ResponsesEnum.FILE_INVALID_FILE_NAME.value)
             
-        project_files_ids = {asset_record.id : asset_record.asset_name}
+        project_files_ids = {asset_record.asset_id : asset_record.asset_name}
 
     else:
-        project_assets = await asset_model.get_all_project_assets(project_id = project.id, asset_type = AssetTypesEnum.ASSET_FILE.value)
-        project_files_ids = {record.id : record.asset_name for record in project_assets}
+        project_assets = await asset_model.get_all_project_assets(project_id = project.project_id, asset_type = AssetTypesEnum.ASSET_FILE.value)
+        project_files_ids = {record.asset_id : record.asset_name for record in project_assets}
     
     if len(project_files_ids) == 0:
         return return_bad_request(message = ResponsesEnum.PROJECT_FILES_NOT_FOUND.value)
@@ -177,7 +177,7 @@ async def process_uploaded_data(
         chunk_objects = [
             DataChunk(
                 chunk_text = chunk.page_content,
-                chunk_project_id = project.id,
+                chunk_project_id = project.project_id,
                 chunk_metadata = chunk.metadata,
                 chunk_asset_id = asset_id,
                 chunk_order = i + 1,

@@ -58,11 +58,11 @@ async def push_chunks_into_vector_db(
     push_request: PushChunksRequest
 ):
     # get project
-    project_model = await ProjectModel.create_instance(db_client = request.app.mongodb)
+    project_model = await ProjectModel.create_instance(db_client = request.app.db_client)
     project = await project_model.get_project_or_insert_it(project_name = project_name)
 
     # get project chunks
-    chunk_model = await ChunkModel.create_instance(db_client = request.app.mongodb)
+    chunk_model = await ChunkModel.create_instance(db_client = request.app.db_client)
 
     # database controller
     retrieval_controller = RetrievalController(
@@ -72,20 +72,19 @@ async def push_chunks_into_vector_db(
     retrieval_controller.create_collection(project_name, do_reset = push_request.do_reset)
 
     page_no = 1
-    base_id = 0
     inserted_items_count = 0
 
     while True:
         # get page chunks
         chunks = await chunk_model.get_project_chunks(
-            project_id = project.id,
+            project_id = project.project_id,
             page_no = page_no,
         )
 
         if not chunks or len(chunks) == 0:
             break
 
-        chunks_ids = [(base_id + chunk_id) for chunk_id in range(len(chunks))]
+        chunks_ids = [chunk.chunk_id for chunk in chunks]
         
         # insert
         is_inserted = retrieval_controller.insert_into_vector_db(
@@ -99,7 +98,6 @@ async def push_chunks_into_vector_db(
         
 
         inserted_items_count += len(chunks)
-        base_id += len(chunks)
         page_no += 1
 
     

@@ -24,9 +24,14 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str
     GOOGLE_API_KEY: str
     HF_TOKEN: str
-    MONGODB_URL: str
     OPEN_AI_KEY: str
     OPEN_AI_URL: str | None = None
+
+    # postgres
+    POSTGRES_USERNAME: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_HOST: str
+    POSTGRES_PORT: int
 
     # -------------------------- LLMs Config ----------------------------- #
     GENERATION_BACKEND: str
@@ -49,7 +54,7 @@ class Settings(BaseSettings):
     VECTOR_DB_BACKEND: str
     VECTOR_DB_NAME: str
     VECTOR_DB_DISTANCE_METHOD: str
-    MONGODB_DB: str
+    POSTGRES_MAIN_DB_NAME: str
 
 
     

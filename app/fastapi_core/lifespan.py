@@ -1,6 +1,5 @@
 
 from fastapi import FastAPI
-from pymongo import AsyncMongoClient
 from contextlib import asynccontextmanager
 from helpers.config import get_settings
 from helpers.functional import print_title, print_success_message
@@ -11,6 +10,10 @@ from stores.vector_dbs import VectorDBFactory
 
 from stores.llm_agents.prompt_templates import PromptTemplateParser
 
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.orm import sessionmaker
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
@@ -18,13 +21,26 @@ async def lifespan(app: FastAPI):
     
     print_title("Loading Agents / Clients")
 
-    # Mongo DB
-    print("- Connecting to MongoDB:")
-    app.mongodb_client = AsyncMongoClient(settings.MONGODB_URL)
-    app.mongodb = app.mongodb_client[settings.MONGODB_DB]
+    # connect to PostGres
+    print("- Connecting to PostGres:")
+    db_url = (
+        "postgresql+asyncpg://"
+        f"{settings.POSTGRES_USERNAME}:{settings.POSTGRES_PASSWORD}"
+        f"@{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}"
+        f"/{settings.POSTGRES_MAIN_DB_NAME}"
+    )
 
-    await app.mongodb_client.admin.command("ping")
-    print_success_message(f"Connected to: {app.mongodb.name} Successfully")
+
+    app.db_engine = create_async_engine(url = db_url)
+    app.db_client = sessionmaker(
+        bind = app.db_engine,
+        class_ = AsyncSession,
+        expire_on_commit = False
+    )
+
+    async with app.db_client() as session:
+        await session.execute(text("SELECT 1"))
+    print_success_message(f"Connected to: {settings.POSTGRES_MAIN_DB_NAME} Successfully")
 
     # Vector DB Clients
     print(f"- Connection to Vector DB: {settings.VECTOR_DB_BACKEND}")
@@ -47,7 +63,7 @@ async def lifespan(app: FastAPI):
     )
     yield
 
-    await app.mongodb_client.admin.close()
+    await app.db_engine.dispose()
     app.vector_db_client.disconnet()
     app.generation_client = None
     app.embedding_client = None
