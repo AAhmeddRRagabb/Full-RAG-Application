@@ -8,10 +8,6 @@ class LLMsProviders(Enum):
     OPEN_AI         = "openai"
 
 
-class LLMsErrors(Enum):
-    MODEL_IS_NOT_AVAILABLE = "Model required is not available"
-    INVALID_MODEL_RESPONSE = "Invalid model response, please try again."
-
 
 
 # Embedding Query Types
@@ -51,3 +47,15 @@ class LLMsGenerationMessageTypes(Enum):
 class LLMsEmbeddingModels(Enum):
     GOOGLE_EMBEDDINGS_1 = "gemini-embedding-1"
     GOOGLE_EMBEDDINGS_2 = "gemini-embedding-2"
+
+
+
+# LLMs Errors
+class LLMsClientConnectionError(Exception):
+    pass
+
+class LLMsEmbeddingError(Exception):
+    pass
+
+class LLMsGenerationError(Exception):
+    pass
