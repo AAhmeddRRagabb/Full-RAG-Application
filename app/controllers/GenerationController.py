@@ -31,14 +31,14 @@ class GenerationController(BaseController):
         return f"collection_{project_name}".strip()
     
     # ------------------ Dealing with VectorDB ------------ #
-    def answer_rag_query(
+    async def answer_rag_query(
         self, 
         project_name: str,
         query: str,
         limit: str,
     ):
         # retrieve relevant
-        relevant_documents = RetrievalController(
+        relevant_documents = await RetrievalController(
             vector_db_client = self.vector_db_client,
             embedding_client = self.embedding_client
         ).search_vector_db_collection(project_name = project_name, text = query, limit = limit)

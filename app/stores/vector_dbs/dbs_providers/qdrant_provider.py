@@ -9,45 +9,50 @@ class QDrantProvider(VectorDBInterface):
     def __init__(
         self,
         db_path: str,
-        distance_method: str
+        default_vector_size: int = 384,
+        distance_method: str = None,
     ):
-        self.db_path = db_path
+        super().__init__(
+            db_path             = db_path,
+            distance_method     = distance_method,
+            default_vector_size = default_vector_size
+        )
         
         # distance
-        if distance_method == DistanceMethodsEnum.DOT_DISTANCE.value:
+        if self.distance_method == DistanceMethodsEnum.DOT_DISTANCE.value:
             self.distance_method = models.Distance.DOT
         else:
             self.distance_method = models.Distance.COSINE
 
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger('uvicorn')
         self.client = self.connect()
 
 
     # connection
-    def connect(self) -> QdrantClient:
+    async def connect(self) -> QdrantClient:
         return QdrantClient(
             path = self.db_path
         )
     
-    def disconnect(self):
+    async def disconnect(self):
         self.client = None
 
     # collections info
-    def is_collection_existed(self, collection_name: str) -> bool:
+    async def is_collection_existed(self, collection_name: str) -> bool:
         return self.client.collection_exists(collection_name = collection_name)
     
-    def list_all_collections(self) -> list[str]:
+    async def list_all_collections(self) -> list[str]:
         return self.client.get_collections()
     
-    def get_collection_info(self, collection_name: str) -> dict[str, Any]:
+    async def get_collection_info(self, collection_name: str) -> dict[str, Any]:
         return self.client.get_collection(collection_name = collection_name)
     
     # collections manipulation
-    def delete_collection(self, collection_name: str):
+    async def delete_collection(self, collection_name: str):
         if self.is_collection_existed(collection_name = collection_name):
             self.client.delete_collection(collection_name = collection_name)
 
-    def create_collection(
+    async def create_collection(
         self,
         collection_name: str,
         embedding_size: int,
@@ -72,7 +77,7 @@ class QDrantProvider(VectorDBInterface):
         return True
 
 
-    def insert_one(
+    async def insert_one(
         self,
         collection_name: str,
         record_id: int,
@@ -106,7 +111,7 @@ class QDrantProvider(VectorDBInterface):
         return True
     
 
-    def insert_many(
+    async def insert_many(
         self,
         collection_name: str,
         record_ids: list[int],
@@ -157,7 +162,7 @@ class QDrantProvider(VectorDBInterface):
 
 
     # searching
-    def search_by_vector(
+    async def search_by_vector(
         self,
         collection_name: str,
         vector: list[float],

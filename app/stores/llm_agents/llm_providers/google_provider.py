@@ -39,8 +39,17 @@ class GoogleProvider(BaseProviderClass):
             api_key = api_key
         )
     # --------------------- Embedding --------------------- #
-    def embed_text(self, text: str, text_type: str, document_title: str | None = None):
-        text = self._process_text_length(text)
+    def embed_text(self, text: str | list[str], text_type: str, document_title: str | None = None):
+        is_single_text = isinstance(text, str)
+
+        if isinstance(text, str):
+            text = [text]
+
+        text = [
+            self._process_text_length(t)
+            for t in text
+        ]
+        
         if self.embedding_model_id == GoogleEmbeddingModelsEnum.EMBEDDINGS_1.value:
             response = self._embed_text_1(text, text_type)
         
@@ -50,14 +59,17 @@ class GoogleProvider(BaseProviderClass):
         else:
             raise ValueError(LLM_Errors_Enum.MODEL_IS_NOT_AVAILABLE.value)
         
+        response = response.embeddings if response else None
+
         if not self._validate_embedding_response(response):
             raise ValueError(LLM_Errors_Enum.INVALID_MODEL_RESPONSE.value)
         
-        try:
-            return [e.values for e in response.embeddings]
+        embeddings = [
+            embedding.values
+            for embedding in response
+        ]
 
-        except:
-            return response.embeddings
+        return embeddings[0] if is_single_text else embeddings
         
         
 
@@ -72,7 +84,7 @@ class GoogleProvider(BaseProviderClass):
         return None
         
 
-    def _embed_text_1(self, text: str, text_type: str):
+    def _embed_text_1(self, text: list[str], text_type: str):
         task_type = self._get_task_type(text_type)
 
         if not task_type:
@@ -96,12 +108,18 @@ class GoogleProvider(BaseProviderClass):
         title = "none" if not document_title else document_title
         return f"title: {title} | text: {text}"
     
-    def _embed_text_2(self, text: str, text_type: str, document_title: str | None = None):
+    def _embed_text_2(self, text: list[str], text_type: str, document_title: str | None = None):
         if text_type == TextTypesEnum.SEARCH_QUERY.value:
-            text = self._format_query(text)
+            text = [
+                self._format_query(t)
+                for t in text
+            ]
         
         elif text_type == TextTypesEnum.DOCUMENT.value:
-            text = self._format_document(text, document_title)
+            text = [
+                self._format_document(t, document_title)
+                for t in text
+            ]
 
         else:
             return None
@@ -152,8 +170,9 @@ class GoogleProvider(BaseProviderClass):
     # -------------------------- Validation ------------------------------- #
     def _validate_embedding_response(self, response) -> bool:
         return (
-            response and
-            response.embeddings
+            isinstance(response, list) and
+            len(response) > 0 and
+            all(len(embedding.values) > 0 for embedding in response)
         )
 
 

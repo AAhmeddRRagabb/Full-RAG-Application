@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     DEFAULT_LANGUAGE: str
 
     # -------------------------- DBs Config ----------------------------- #
+    VECTOR_DB_BACKEND_LITERAL: list = []
+    PGVECTOR_INDEXING_THRESHOLD: int
     VECTOR_DB_BACKEND: str
     VECTOR_DB_NAME: str
     VECTOR_DB_DISTANCE_METHOD: str

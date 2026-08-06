@@ -53,7 +53,7 @@ class OpenAIProvider(BaseProviderClass):
 
 
     # --------------------- Embedding --------------------- #
-    def embed_text(self, text: str, document_type: str = None):
+    def embed_text(self, text: str | list[str], text_type: str = None):
         if not self.client:
             self.logger.error("OpenAI client was not set")
             return None
@@ -62,13 +62,24 @@ class OpenAIProvider(BaseProviderClass):
             self.logger.error("Embedding model for OpenAI was not set")
             return None
 
+        is_single_text = isinstance(text, str)
+        input_text = [text] if is_single_text else text
+        input_text = [
+            self._process_text_length(t)
+            for t in input_text
+        ]
+
         response = self.client.embeddings.create(
             model=self.embedding_model_id,
-            input=text,
+            input=input_text,
         )
 
         if self._validate_embedding_response(response):
-            return response.data[0].embedding
+            embeddings = [
+                item.embedding
+                for item in sorted(response.data, key=lambda item: item.index)
+            ]
+            return embeddings[0] if is_single_text else embeddings
 
         self.logger.error("Error while embedding text with OpenAI")
         return None
@@ -78,7 +89,7 @@ class OpenAIProvider(BaseProviderClass):
             response
             and response.data
             and len(response.data) > 0
-            and response.data[0].embedding
+            and all(item.embedding for item in response.data)
         )
 
     # --------------------- Generation --------------------- #

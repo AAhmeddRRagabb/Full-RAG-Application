@@ -40,18 +40,25 @@ class HuggingFaceProvider(BaseProviderClass):
         )
     
     # --------------------- Embedding --------------------- #
-    def embed_text(self, text: str, text_type: str):
+    def embed_text(self, text: str | list[str], text_type: str):
+        is_single_text = isinstance(text, str)
+
+        if isinstance(text, str):
+            text = [text]
+
+        text = [
+            self._process_text_length(t)
+            for t in text
+        ]
+
         embedding = self.client.feature_extraction(
             text = text,
             model = self.embedding_model_id,
             normalize = True
         ).tolist()
 
-        if len(embedding) == 1 and isinstance(embedding[0], list):
-            embedding = embedding[0]
-
         if self._validate_embedding_response(embedding):
-            return embedding
+            return embedding[0] if is_single_text else embedding
 
         raise ValueError(LLM_Errors_Enum.INVALID_MODEL_RESPONSE.value)
 
@@ -61,7 +68,11 @@ class HuggingFaceProvider(BaseProviderClass):
         return (
             isinstance(response, list)
             and len(response) > 0
-            and all(isinstance(x, float) for x in response)
+            and all(isinstance(vector, list) for vector in response)
+            and all(
+                all(isinstance(x, float) for x in vector)
+                for vector in response
+            )
         )
     
 

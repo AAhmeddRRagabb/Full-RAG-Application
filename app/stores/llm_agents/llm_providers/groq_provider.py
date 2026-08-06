@@ -38,11 +38,43 @@ class GroqProvider(BaseProviderClass):
         )
     
     # --------------------- Embedding --------------------- #
-    def embed_text(self, text: str, text_type: str):
-        raise NotImplementedError
+    def embed_text(self, text: str | list[str], text_type: str):
+        if not self.client:
+            self.logger.error("Groq client was not set")
+            return None
+
+        if not self.embedding_model_id:
+            self.logger.error("Embedding model for Groq was not set")
+            return None
+
+        is_single_text = isinstance(text, str)
+        input_text = [text] if is_single_text else text
+        input_text = [
+            self._process_text_length(t)
+            for t in input_text
+        ]
+
+        response = self.client.embeddings.create(
+            model = self.embedding_model_id,
+            input = input_text,
+        )
+
+        if self._validate_embedding_response(response):
+            embeddings = [
+                item.embedding
+                for item in sorted(response.data, key = lambda item: item.index)
+            ]
+            return embeddings[0] if is_single_text else embeddings
+
+        raise ValueError(LLM_Errors_Enum.INVALID_MODEL_RESPONSE.value)
     
     def _validate_embedding_response(self, response):
-        raise NotImplementedError
+        return (
+            response and
+            response.data and
+            len(response.data) > 0 and
+            all(item.embedding for item in response.data)
+        )
     # --------------------- Generation --------------------- #
     def construct_prompt(self, prompt: str, role: str) -> dict[str, str]:
         return {

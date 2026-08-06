@@ -63,7 +63,7 @@ async def retrieve_relevant_chunks(
         prompt_template_parser = request.app.prompt_template_parser
     )
 
-    results = generation_controller.answer_rag_query(
+    results = await generation_controller.answer_rag_query(
         project_name = project_name,
         query = answer_user_query_request.query,
         limit = answer_user_query_request.limit

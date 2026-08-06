@@ -27,6 +27,7 @@ class BaseProviderClass:
         self.logger = logging.getLogger(__name__)
         self.client = self.init_client(api_key = api_key)
 
+
     @abstractmethod
     def init_client(self, api_key: str):
         pass
@@ -43,13 +44,14 @@ class BaseProviderClass:
 
     # embedding
     @abstractmethod
-    def embed_text(self, text: str, text_type: str):
+    def embed_text(self, text: str | list[str], text_type: str):
         """
         Args:
-            text: the text to embed
+            text: the text or texts to embed
             text_type: string determines whether the text is for the search query or the document to retrieve
         """
         pass
+
 
     # generation
     @abstractmethod
@@ -84,5 +86,4 @@ class BaseProviderClass:
     @abstractmethod
     def _validate_embedding_response(self, response) -> bool:
         pass
-
 

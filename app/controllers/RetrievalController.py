@@ -21,31 +21,31 @@ class RetrievalController(BaseController):
 
     
     def get_collection_name(self, project_name: str) -> str:
-        return f"collection_{project_name}".strip()
+        return f"collection_{project_name}_{self.vector_db_client.default_vector_size}".strip()
     
     # ------------------ Dealing with VectorDB ------------ #
-    def reset_vector_db_collection(self, project_name: str):
+    async def reset_vector_db_collection(self, project_name: str):
         collection_name = self.get_collection_name(project_name = project_name)
-        return self.vector_db_client.delete_collection(collection_name = collection_name)
+        return await self.vector_db_client.delete_collection(collection_name = collection_name)
     
-    def get_vector_db_collection_info(self, project_name: str):
+    async def get_vector_db_collection_info(self, project_name: str):
         collection_name = self.get_collection_name(project_name = project_name)
-        collection_info = self.vector_db_client.get_collection_info(collection_name = collection_name)
+        collection_info = await self.vector_db_client.get_collection_info(collection_name = collection_name)
 
         return json.loads(
             json.dumps(collection_info, default = lambda x: x.__dict__)
         )
     
 
-    def create_collection(self, project_name: str, do_reset: bool = False):
+    async def create_collection(self, project_name: str, do_reset: bool = False):
         collection_name = self.get_collection_name(project_name = project_name)
-        self.vector_db_client.create_collection(
+        await self.vector_db_client.create_collection(
             collection_name = collection_name,
             embedding_size = self.embedding_client.embedding_size,
             do_reset = do_reset
         )
 
-    def insert_into_vector_db(
+    async def insert_into_vector_db(
         self,
         project_name: str,
         chunks: list[DataChunk],
@@ -57,13 +57,11 @@ class RetrievalController(BaseController):
         # prepare chunks 
         texts = [c.chunk_text for c in chunks]
         metadata = [c.chunk_metadata for c in chunks]
-        vectors = [
-            self.embedding_client.embed_text(text = c.chunk_text, text_type = TextTypesEnum.DOCUMENT.value) 
-            for c in chunks
-        ]
+        vectors = self.embedding_client.embed_text(text = texts, text_type = TextTypesEnum.DOCUMENT.value) 
+        
 
         # insert
-        is_inserted = self.vector_db_client.insert_many(
+        is_inserted = await self.vector_db_client.insert_many(
             collection_name = collection_name,
             record_ids = chunks_ids,
             texts = texts,
@@ -74,7 +72,7 @@ class RetrievalController(BaseController):
         return is_inserted
     
 
-    def search_vector_db_collection(
+    async def search_vector_db_collection(
         self,
         project_name: str,
         text: str,
@@ -84,18 +82,20 @@ class RetrievalController(BaseController):
         collection_name = self.get_collection_name(project_name = project_name)
 
         # embed query
-        vector = self.embedding_client.embed_text(
+        vectors = self.embedding_client.embed_text(
             text = text,
             text_type = TextTypesEnum.SEARCH_QUERY.value,
         )
 
-        if not vector or len(vector) == 0:
+        if not vectors or len(vectors) == 0:
             return False
 
+        query_vector = vectors[0]
+
         # search query
-        retrieved = self.vector_db_client.search_by_vector(
+        retrieved = await self.vector_db_client.search_by_vector(
             collection_name = collection_name,
-            vector = vector,
+            vector = query_vector,
             limit = limit
         )
 

@@ -69,7 +69,7 @@ async def push_chunks_into_vector_db(
         vector_db_client = request.app.vector_db_client,
         embedding_client = request.app.embedding_client,
     )
-    retrieval_controller.create_collection(project_name, do_reset = push_request.do_reset)
+    await retrieval_controller.create_collection(project_name, do_reset = push_request.do_reset)
 
     page_no = 1
     inserted_items_count = 0
@@ -87,7 +87,7 @@ async def push_chunks_into_vector_db(
         chunks_ids = [chunk.chunk_id for chunk in chunks]
         
         # insert
-        is_inserted = retrieval_controller.insert_into_vector_db(
+        is_inserted = await retrieval_controller.insert_into_vector_db(
             project_name = project_name,
             chunks = chunks,
             chunks_ids = chunks_ids,
@@ -122,7 +122,7 @@ async def get_project_collection(
             embedding_client = request.app.embedding_client,
         )
 
-        project_collection_info = retrieval_controller.get_vector_db_collection_info(project_name = project_name)
+        project_collection_info = await retrieval_controller.get_vector_db_collection_info(project_name = project_name)
 
         return JSONResponse(
             status_code = status.HTTP_200_OK,
@@ -152,7 +152,7 @@ async def retrieve_relevant_chunks(
         embedding_client = request.app.embedding_client,
     )
 
-    relevant_chunks = retrieval_controller.search_vector_db_collection(
+    relevant_chunks = await retrieval_controller.search_vector_db_collection(
         project_name = project_name,
         text = retrieval_request.query,
         limit = retrieval_request.limit,

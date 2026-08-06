@@ -1,33 +1,49 @@
 from abc import ABC, abstractmethod
 from typing import Any
 from models.db_schemas import RetrievedChunk
+from sqlalchemy.ext.asyncio import AsyncSession
 
 class VectorDBInterface(ABC):
+    def __init__(
+        self,
+        db_path            : str | None = None,
+        db_client          : AsyncSession | None = None,
+        index_threshold    : int = 100,
+        default_vector_size: int = 384,
+        distance_method    : str = None,
+    ):
+        self.db_path             = db_path
+        self.db_client           = db_client
+        self.index_threshold     = index_threshold
+        self.default_vector_size = default_vector_size
+        self.distance_method     = distance_method
+
+
     # connection
     @abstractmethod
-    def connect(self):
+    async def connect(self):
         pass
 
     @abstractmethod
-    def disconnect(self):
+    async def disconnect(self):
         pass
 
     # collections info
     @abstractmethod 
-    def is_collection_existed(self, collection_name: str) -> bool:
+    async def is_collection_existed(self, collection_name: str) -> bool:
         pass
     
     @abstractmethod 
-    def list_all_collections(self) -> list[str]:
+    async def list_all_collections(self) -> list[str]:
         pass
 
     @abstractmethod
-    def get_collection_info(self, collection_name: str) -> dict[str, Any]:
+    async def get_collection_info(self, collection_name: str) -> dict[str, Any]:
         pass
 
     # collections manipulation
     @abstractmethod
-    def create_collection(
+    async def create_collection(
         self,
         collection_name: str,
         embedding_size: int,
@@ -36,7 +52,7 @@ class VectorDBInterface(ABC):
         pass
 
     @abstractmethod
-    def delete_collection(
+    async def delete_collection(
         self,
         collection_name: str
     ) -> bool:
@@ -44,7 +60,7 @@ class VectorDBInterface(ABC):
 
 
     @abstractmethod
-    def insert_one(
+    async def insert_one(
         self,
         collection_name: str,
         record_id: int,
@@ -55,7 +71,7 @@ class VectorDBInterface(ABC):
         pass
 
     @abstractmethod
-    def insert_many(
+    async def insert_many(
         self,
         collection_name: str,
         record_ids: list[int],
@@ -69,7 +85,7 @@ class VectorDBInterface(ABC):
 
     # search collections
     @abstractmethod
-    def search_by_vector(
+    async def search_by_vector(
         self,
         collection_name: str,
         vector: list[float],

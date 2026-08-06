@@ -24,6 +24,7 @@ from models.ip_schemas import ProcessRequest
 from controllers import DataController
 from controllers import ProjectController
 from controllers import ProcessController
+from controllers import RetrievalController
 
 # helpers
 import aiofiles
@@ -132,11 +133,20 @@ async def process_uploaded_data(
     asset_model = await AssetModel.create_instance(db_client = request.app.db_client)
 
     process_controller = ProcessController(project_name = str(project_name))
+    retrieval_controller = RetrievalController(
+        vector_db_client = request.app.vector_db_client,
+        embedding_client = request.app.embedding_client,
+    )
 
     # setup 
     project = await project_model.get_project_or_insert_it(project_name)
     if process_request.do_reset:
+        # delete chunks
         await chunk_model.delete_chunks_by_project_id(project_id = project.project_id)
+
+        # delete vectors
+        collection_name = retrieval_controller.get_collection_name(project_name)
+        await retrieval_controller.vector_db_client.delete_collection(collection_name)
 
     # get assets to chunk
     if process_request.file_name:

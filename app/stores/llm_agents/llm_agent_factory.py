@@ -1,5 +1,5 @@
 from .llm_providers import GroqProvider, GoogleProvider, HuggingFaceProvider, OpenAIProvider
-from .llm_enums import ProviderNamesEnum
+from .config import LLMsProviders
 from helpers.config import Settings
 
 class LLMAgentFactory:
