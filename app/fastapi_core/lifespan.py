@@ -5,14 +5,18 @@ from helpers.config import get_settings
 from helpers.functional import print_title, print_success_message
 
 from helpers.config import get_settings
-from stores.llm_agents import LLMAgentFactory
-from stores.vector_dbs import VectorDBFactory
+from clients.llms import LLMAgentFactory
+from clients.vector_dbs import VectorDBFactory
+from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
 
-from stores.llm_agents.prompt_templates import PromptTemplateParser
+from clients.llms.prompt_templates import PromptTemplateParser
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
+
+import logging
+logger = logging.getLogger('uvicorn')
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -44,8 +48,16 @@ async def lifespan(app: FastAPI):
 
     # Vector DB Clients
     print(f"- Connection to Vector DB: {settings.VECTOR_DB_BACKEND}")
-    vector_db_factory = VectorDBFactory(config = settings)
+    vector_db_factory = VectorDBFactory(config = settings, db_client = app.db_client)
     app.vector_db_client = vector_db_factory.create_vector_db(provider = settings.VECTOR_DB_BACKEND)
+
+    if isinstance(app.vector_db_client, PGVectorVDBClient):
+        connection = await app.vector_db_client.connect()
+        if not connection.success:
+            logger.error(f"Error While Connecting to PGVector: {connection.error}")
+            exit()
+
+    
     print_success_message(f"Connected to: {settings.VECTOR_DB_BACKEND} Successfully")
 
 

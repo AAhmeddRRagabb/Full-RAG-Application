@@ -21,7 +21,13 @@ class LLMsGoogleEmbeddingQueryTypes(Enum):
     EMB1_RETRIEVAL_DOCUMENT = "RETRIEVAL_DOCUMENT"
     EMB2_SEARCH_QUERY = "search result"
 
+class LLMsHuggingfaceEmbeddingQueryTypes(Enum):
+    QUERY = "query"
+    DOCUMENT = "document"
 
+class LLMsOpenAIEmbeddingQueryTypes(Enum):
+    QUERY = "query"
+    DOCUMENT = "document"
 
 # Generation Message Types
 class LLMsGenerationMessageTypes(Enum):

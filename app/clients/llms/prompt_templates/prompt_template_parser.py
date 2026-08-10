@@ -49,7 +49,7 @@ class PromptTemplateParser:
         
 
         module_to_use = __import__(
-            f"stores.llm_agents.prompt_templates.locales.{targeted_language}.{group}",
+            f"clients.llms.prompt_templates.locales.{targeted_language}.{group}",
             fromlist = [group]
         )
 

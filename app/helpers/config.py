@@ -2,11 +2,12 @@
 # Contain App Configurations
 # -----------------------------------------
 from pydantic_settings import BaseSettings
+from typing import List, Literal
 
 BASE_ROUTES_PREFIX = "/api/v1"
 DATA_ROUTES_PREFIX = f"{BASE_ROUTES_PREFIX}/data"
-RETRIEVAL_ROUTES_PREFIX = f"{BASE_ROUTES_PREFIX}/retrieval"
-GENERATION_ROUTES_PREFIX = f"{BASE_ROUTES_PREFIX}/generation"
+NLP_ROUTES_PREFIX = f"{BASE_ROUTES_PREFIX}/nlp"
+
 
 FILE_ALLOWED_TYPES = ['text/plain', 'application/pdf']
 FILE_CHUNK_SIZE_B = 512 * 1024
@@ -51,10 +52,13 @@ class Settings(BaseSettings):
     DEFAULT_LANGUAGE: str
 
     # -------------------------- DBs Config ----------------------------- #
-    VECTOR_DB_BACKEND_LITERAL: list = []
-    PGVECTOR_INDEXING_THRESHOLD: int
+    VECTOR_DB_BACKEND_LITERAL: List[Literal["qdrant", "pgvector", "milvus"]]
+
     VECTOR_DB_BACKEND: str
     VECTOR_DB_NAME: str
+    
+    PGVECTOR_INDEXING_THRESHOLD: int
+
     VECTOR_DB_DISTANCE_METHOD: str
     POSTGRES_MAIN_DB_NAME: str
 

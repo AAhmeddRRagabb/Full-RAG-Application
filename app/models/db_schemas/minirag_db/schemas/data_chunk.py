@@ -1,6 +1,6 @@
 from .minirag_base import SQLAlchemyBase
 
-from sqlalchemy import Column, Integer, DateTime, func, String, ForeignKey, Index
+from sqlalchemy import Column, Integer, String, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 import uuid
 
@@ -8,12 +8,13 @@ from sqlalchemy.orm import relationship
 
 from pydantic import BaseModel
 
+
 class DataChunk(SQLAlchemyBase):
     # table name
     __tablename__ = 'chunks'
 
     # columns
-    chunk_id = Column(Integer, primary_key = True, autoincrement = True)
+    chunk_id   = Column(Integer, primary_key = True, autoincrement = True)
     chunk_uuid = Column(UUID(as_uuid = True), unique = True, default = uuid.uuid4, nullable = False)
 
     chunk_text = Column(String, nullable = False)

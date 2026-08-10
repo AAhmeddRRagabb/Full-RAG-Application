@@ -1,13 +1,12 @@
 
-from typing import Any
 
-from .base_provider_class import BaseProviderClass
-from clients.llm_agents.config import (
+from .base_llm_client import BaseLLMClient
+from clients.llms.config import (
     LLMsGeneralEmbeddingQueryTypes,
     LLMsGoogleEmbeddingQueryTypes,
     LLMsEmbeddingModels,
 
-    LLMsGenerationMessageTypes
+    LLMsGenerationMessageTypes,
 
     # errors
     LLMsClientConnectionError,
@@ -27,30 +26,31 @@ from google.genai.types import (
 )
 
 
-
-class GoogleProvider(BaseProviderClass):
+class GoogleLLMClient(BaseLLMClient):
     """
     Using Google as a model provider
     """
     def __init__(
-        self, 
+        self,
         api_key: str,
         generation_model_id: str,
         embedding_model_id: str,
         embedding_size: int,
-        default_max_input_characters: int = 1000,
-        default_max_output_characters: int = 1000,
+        api_url: str | None = None,
+        max_input_tokens: int = 1000,
+        default_max_output_tokens: int = 1000,
         default_temperature: float = 0.1
     ) -> None:
         
         super().__init__(
-            api_key = api_key,
-            generation_model_id = generation_model_id,
-            embedding_model_id = embedding_model_id,
-            embedding_size = embedding_size,
-            default_max_input_characters = default_max_input_characters,
-            default_max_output_characters = default_max_output_characters,
-            default_temperature = default_temperature,
+            api_key                   = api_key,
+            generation_model_id       = generation_model_id,
+            embedding_model_id        = embedding_model_id,
+            embedding_size            = embedding_size,
+            max_input_tokens          = max_input_tokens,
+            default_max_output_tokens = default_max_output_tokens,
+            default_temperature       = default_temperature,
+            api_url                   = api_url
         )
 
         self.embedding_query_types = LLMsGoogleEmbeddingQueryTypes
@@ -67,7 +67,9 @@ class GoogleProvider(BaseProviderClass):
 
         except Exception as e:
             raise LLMsClientConnectionError from e
+        
     # --------------------- Embedding --------------------- #
+
     def get_embedding_specific_prompt_type(self, model_name: str, general_type: str) -> str:
         if model_name == LLMsEmbeddingModels.GOOGLE_EMBEDDINGS_1.value:
             if general_type == LLMsGeneralEmbeddingQueryTypes.DOCUMENT.value:
@@ -79,13 +81,14 @@ class GoogleProvider(BaseProviderClass):
     # using google-embedding-1
     def _embed_text_1(self, text: list[str], prompt_type: str):
         return self.client.models.embed_content(
-            model = LLMsEmbeddingModels.GOOGLE_EMBEDDING_MODEL_1.value,
+            model = LLMsEmbeddingModels.GOOGLE_EMBEDDINGS_1.value,
             contents = text,
             config = EmbedContentConfig(
                 task_type = prompt_type,
                 output_dimensionality = self.embedding_size
             )
         )
+
     
     # using google-embedding-2
     def _format_query(self, text: str):
@@ -95,7 +98,6 @@ class GoogleProvider(BaseProviderClass):
         title = "none" if not document_title else document_title
         return f"title: {title} | text: {text}"
 
-    
     def _embed_text_2(self, text: list[str], prompt_type: str, document_title: str | None = None):
         if prompt_type == LLMsGeneralEmbeddingQueryTypes.DOCUMENT.value:
             text = [self._format_document(t, document_title) for t in text]
@@ -104,7 +106,7 @@ class GoogleProvider(BaseProviderClass):
             text = [self._format_query(t) for t in text]
 
         return self.client.models.embed_content(
-            model = LLMsEmbeddingModels.GOOGLE_EMBEDDING_MODEL_2.value,
+            model = LLMsEmbeddingModels.GOOGLE_EMBEDDINGS_2.value,
             contents = text,
             config = EmbedContentConfig(
                 output_dimensionality = self.embedding_size
@@ -114,7 +116,6 @@ class GoogleProvider(BaseProviderClass):
         
     def embed_text(
         self, 
-        model_name    : str, 
         text          : str | list[str], 
         prompt_type   : str | None = None, 
         document_title: str | None = None
@@ -123,7 +124,6 @@ class GoogleProvider(BaseProviderClass):
         Embedding the give text / texts
 
         Args:
-            model_name (str)           : google embedding model to use [gemini-embedding-001 | gemini-embedding-2]
             text (str | list[str])     : a string or a list of strings
             prompt_type (str)          : a string represents the prompt type [query - document]
             document_title (str | None)
@@ -140,9 +140,10 @@ class GoogleProvider(BaseProviderClass):
 
         text = [self.pre_process_input_prompt(t) for t in text]
         response: EmbedContentResponse = None
+
         
         # embed
-        if model_name == LLMsEmbeddingModels.GOOGLE_EMBEDDINGS_2.value:
+        if self.embedding_model_id == LLMsEmbeddingModels.GOOGLE_EMBEDDINGS_2.value:
             try:
                 response = self._embed_text_2(text, prompt_type, document_title)
             except Exception as e:
@@ -183,11 +184,11 @@ class GoogleProvider(BaseProviderClass):
         
     
     # --------------------- Generation --------------------- #
-    def _create_contents(self, user_prompt: str) -> list[Content]:
+    def create_prompt(self, prompt: str, role: str):
         return [
             Content(
-                role = LLMsGenerationMessageTypes.GOOGLE_USER_MESSAGE.value,
-                parts = [Part.from_text(text = user_prompt)]
+                role = role,
+                parts = [Part.from_text(text = prompt)]
             )
         ]
     
@@ -198,7 +199,31 @@ class GoogleProvider(BaseProviderClass):
         max_output_tokens: int | None = None, 
         temperature: float | None = None
     ) -> str:
-        contents = self._create_contents(user_prompt = user_prompt)
+        
+        """
+        Generate text based on the given inputs:
+
+        Args:
+            user_prompt (str)      : string query
+            chat_history (list)    : previous chat history [optional]
+            max_output_tokens (int): max number of output tokens required
+            temperature (flaot)    : generation temperature
+        
+        Returns:
+            response:
+                - the whole response (GenerateContentResponse) if (return_whole_response == True)
+                - None if invalid response
+                - the text part otherwise
+        
+        Raises:
+            LLMsGenerationError: if error found during generation
+        """
+
+        contents = self.create_prompt(
+            prompt = self.pre_process_input_prompt(user_prompt),
+            role   = LLMsGenerationMessageTypes.GOOGLE_USER_MESSAGE
+        )
+        
         chat_history.append(contents)
 
         try:
@@ -206,28 +231,22 @@ class GoogleProvider(BaseProviderClass):
                 model    = self.generation_model_id,
                 contents = chat_history,
                 config   = GenerateContentConfig(
-                    temperature = temperature if temperature else self.default_temperature,
-                    max_output_tokens = max_output_tokens if max_output_tokens else self.default_max_output_characters
+                    temperature       = temperature if temperature else self.default_temperature,
+                    max_output_tokens = max_output_tokens if max_output_tokens else self.default_max_output_tokens
                 )
             )
+
         except Exception as e:
-            raise LLMsGenerationError from e # stopped here
+            raise LLMsGenerationError from e
 
-        if self._validate_llm_response(response):
-            return response.text
+        if not self.validate_generation_response(response):
+            self.logger.error("Invalid Generation Response")
+            return None
+
         
-        raise ValueError(LLMsErrors.INVALID_MODEL_RESPONSE.value)
-
-    # -------------------------- Validation ------------------------------- #
-    def _validate_embedding_response(self, response) -> bool:
-        return (
-            isinstance(response, list) and
-            len(response) > 0 and
-            all(len(embedding.values) > 0 for embedding in response)
-        )
-
-
-    def _validate_llm_response(self, response):
+        return response.text
+ 
+    def validate_generation_response(self, response: GenerateContentResponse ) -> bool:
         return (
             response and
             response.text

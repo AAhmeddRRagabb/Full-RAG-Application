@@ -1,2 +1,0 @@
-from .qdrant_provider import QDrantProvider
-from .pgvector_provider import PGVectorProvider

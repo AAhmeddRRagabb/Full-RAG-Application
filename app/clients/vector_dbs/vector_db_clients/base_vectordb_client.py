@@ -3,7 +3,10 @@ from typing import Any
 from models.db_schemas import RetrievedChunk
 from sqlalchemy.ext.asyncio import AsyncSession
 
-class VectorDBInterface(ABC):
+from ..config import VectorDBResult
+import logging
+
+class BaseVectorClient(ABC):
     def __init__(
         self,
         db_path            : str | None = None,
@@ -17,9 +20,23 @@ class VectorDBInterface(ABC):
         self.index_threshold     = index_threshold
         self.default_vector_size = default_vector_size
         self.distance_method     = distance_method
+        self.logger              = logging.getLogger("uvicorn")
 
 
-    # connection
+    def _return_success(self, content: Any | None = None):
+        return VectorDBResult(
+            success = True,
+            content = content
+        )
+
+    def _return_failure(self, error_type: int, error: Any | None = None):
+        return VectorDBResult(
+            success = False,
+            error_type = error_type,
+            error = error
+        )
+    
+    # --------------------------- Connection ----------------------------------
     @abstractmethod
     async def connect(self):
         pass
@@ -28,7 +45,7 @@ class VectorDBInterface(ABC):
     async def disconnect(self):
         pass
 
-    # collections info
+    # --------------------------- Collections Manipulation ------------------------
     @abstractmethod 
     async def is_collection_existed(self, collection_name: str) -> bool:
         pass
@@ -41,7 +58,6 @@ class VectorDBInterface(ABC):
     async def get_collection_info(self, collection_name: str) -> dict[str, Any]:
         pass
 
-    # collections manipulation
     @abstractmethod
     async def create_collection(
         self,
@@ -58,7 +74,7 @@ class VectorDBInterface(ABC):
     ) -> bool:
         pass
 
-
+    # --------------------------- Inserting ----------------------------------
     @abstractmethod
     async def insert_one(
         self,
