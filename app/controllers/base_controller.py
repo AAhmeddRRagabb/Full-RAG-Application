@@ -4,15 +4,7 @@
 
 import os
 from typing import Any
-from pydantic import BaseModel
-
-
-class ControllerResult(BaseModel):
-    success: bool
-    content: Any | None = None
-    error  : Any | None = None
-    message: str | None = None
-
+from models.system_schemas import ComponentResult
 
 class BaseController:
 
@@ -39,15 +31,15 @@ class BaseController:
 
 
 
-    def _return_success(self, content: Any | None = None, message: str | None = None):
-        return ControllerResult(
+    def _return_success(self, content: Any | None = None, message: str | None = None) -> ComponentResult:
+        return ComponentResult(
             success = True,
             content = content,
             message = message
         )
 
-    def _return_failure(self, error: Any | None = None, message: str | None = None):
-        return ControllerResult(
+    def _return_failure(self, error: Any | None = None, message: str | None = None) -> ComponentResult:
+        return ComponentResult(
             success = False,
             error = error,
             message = message

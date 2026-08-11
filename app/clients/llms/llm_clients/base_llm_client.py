@@ -1,5 +1,8 @@
 from abc import abstractmethod
 import logging
+from typing import Any
+
+from models.system_schemas import ComponentResult
 
 class BaseLLMClient:
     """
@@ -43,6 +46,20 @@ class BaseLLMClient:
 
         self.client = None
 
+    def _return_success(self, content: Any | None = None, message: str | None = None) -> ComponentResult:
+        return ComponentResult(
+            success = True,
+            content = content,
+            message = message
+        )
+
+    def _return_failure(self, error: Any | None = None, message: str | None = None) -> ComponentResult:
+        return ComponentResult(
+            success = False,
+            error = error,
+            message = message
+        )
+
     
     # setting CFG
     def set_generation_model(self, model_id: str):
@@ -82,11 +99,16 @@ class BaseLLMClient:
     @abstractmethod
     def embed_text(
         self, 
-        model_name    : str, 
         text          : str | list[str], 
         prompt_type   : str | None = None, 
         document_title: str | None = None
-    ) -> list[list[float]] | None:
+    ) -> ComponentResult:
+        """
+        Returns:
+            ComponentResult:
+                if success -> content: list of embeddings
+                if failure -> error & respone message
+        """
         pass
 
     @abstractmethod
@@ -105,7 +127,13 @@ class BaseLLMClient:
         chat_history: list = [], 
         max_output_tokens: int | None = None, 
         temperature: float | None = None
-    ):
+    ) -> ComponentResult:
+        """
+        Returns:
+            ComponentResult:
+                if success -> content: generated text
+                if failure -> error & respone message
+        """
         pass    
 
     @abstractmethod

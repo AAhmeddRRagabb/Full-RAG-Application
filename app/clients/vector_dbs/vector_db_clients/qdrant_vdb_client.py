@@ -5,12 +5,9 @@ from .base_vectordb_client import BaseVectorClient
 
 from clients.vector_dbs.config import (
     VectorDBDistanceMethods,
-
-    VECTOR_DB_ERROR_COLLECTION_NOT_FOUND,
-    VECTOR_DB_ERROR_INVALID_DATA,
-    VECTOR_DB_CLIENT_ERROR,
-    VectorDBResult
 )
+from models.enums import ResponsesEnum
+from models.system_schemas import ComponentResult
 
 from qdrant_client import models, QdrantClient
 import logging
@@ -47,102 +44,108 @@ class QDrantVDBClient(BaseVectorClient):
                 path = self.db_path
             )
         except Exception as e:
-            return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
         
     
     async def disconnect(self):
         self.client = None
 
     # collections info
-    async def is_collection_existed(self, collection_name: str) -> VectorDBResult:
+    async def is_collection_existed(self, collection_name: str) -> ComponentResult:
         """
         Check if the given collection name exists or not
 
         Returns:
-            VectorDBResult
-                - if success -> bool content whether the collection exists or not
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: whether the collection exists or not
+                if failure -> error & respone message
         """
         try:
             is_existed = self.client.collection_exists(collection_name = collection_name)
         except Exception as e:
-            return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
         return self._return_success(is_existed)
 
 
     
-    async def list_all_collections(self) -> VectorDBResult:
+    async def list_all_collections(self) -> ComponentResult:
         """
         List the collections exist in the database
 
         Returns:
-            VectorDBResult
-                - if success -> list of collection name
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: list of collection names
+                if failure -> error & respone message
         """
         try:
             collections = self.client.get_collections()
         except Exception as e:
-            return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
         return self._return_success(collections)
 
 
     
-    async def get_collection_info(self, collection_name: str) -> VectorDBResult:
+    async def get_collection_info(self, collection_name: str) -> ComponentResult:
         """
         Get info about the given collection name
 
         Returns:
-            VectorDBResult
-                - if success -> dict contains the collection info
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: collection info
+                if failure -> error & respone message
         """
 
         # check for existance
         is_collection_existed = await self.is_collection_existed(collection_name)
-        if not is_collection_existed.success or not is_collection_existed.content:
-            return self._return_failure(error_type = VECTOR_DB_ERROR_COLLECTION_NOT_FOUND) 
+        if not is_collection_existed.success:
+            return self._return_failure(error = is_collection_existed.error, message = is_collection_existed.message)
+
+        if not is_collection_existed.content:
+            return self._return_failure(error = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value, message = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value)
 
         try: 
             info = self.client.get_collection(collection_name = collection_name)
         except Exception as e:
-            return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
         return self._return_success(info)
 
 
     
     # collections manipulation
-    async def delete_collection(self, collection_name: str) -> VectorDBResult:
+    async def delete_collection(self, collection_name: str) -> ComponentResult:
         """
         Delete the given collection
 
         Returns:
-            VectorDBResult
-                - if success -> None
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: None
+                if failure -> error & respone message
         """
         is_collection_existed = await self.is_collection_existed(collection_name)
-        if is_collection_existed.success and is_collection_existed.content:
+        if not is_collection_existed.success:
+            return self._return_failure(error = is_collection_existed.error, message = is_collection_existed.message)
+
+        if is_collection_existed.content:
             try:
                 self.client.delete_collection(collection_name = collection_name)
             except Exception as e:
-                return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+                return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
         return self._return_success()
 
 
     
-    async def create_collection(self, collection_name, embedding_size: int | None = None, do_reset = False) -> VectorDBResult:
+    async def create_collection(self, collection_name, embedding_size: int | None = None, do_reset = False) -> ComponentResult:
         """
         Create a collection with the given name
 
         Returns:
-            VectorDBResult
-                - if success -> None
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: None
+                if failure -> error & respone message
         """
         embedding_size = embedding_size if embedding_size else self.default_vector_size
 
@@ -151,6 +154,9 @@ class QDrantVDBClient(BaseVectorClient):
 
         
         is_collection_existed = await self.is_collection_existed(collection_name)
+        if not is_collection_existed.success:
+            return self._return_failure(error = is_collection_existed.error, message = is_collection_existed.message)
+
         if not is_collection_existed.content:
             self.logger.info(f"Creating Collection: {collection_name}")
 
@@ -163,10 +169,10 @@ class QDrantVDBClient(BaseVectorClient):
                     )
                 )
 
-                return True
+                return self._return_success()
 
             except Exception as e:
-                return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+                return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
         return self._return_success()
 
@@ -179,22 +185,25 @@ class QDrantVDBClient(BaseVectorClient):
         text: str,
         vector: list[float],
         metadata: dict[str, Any],
-    ) -> VectorDBResult:
+    ) -> ComponentResult:
         """
         Insert a record into the given collection
 
         Returns:
-            VectorDBResult
-                - if success -> None
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: None
+                if failure -> error & respone message
         """
 
         is_collection_existed = await self.is_collection_existed(collection_name)
+        if not is_collection_existed.success:
+            return self._return_failure(error = is_collection_existed.error, message = is_collection_existed.message)
+
         if not is_collection_existed.content:
-            return self._return_failure(error_type = VECTOR_DB_ERROR_COLLECTION_NOT_FOUND)
+            return self._return_failure(error = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value, message = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value)
 
         if not record_id and record_id != 0:
-            return self._return_failure(error_type = VECTOR_DB_ERROR_INVALID_DATA)
+            return self._return_failure(error = ResponsesEnum.VECTOR_DB_INVALID_DATA.value, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
         
         try:
             self.client.upload_points(
@@ -212,7 +221,7 @@ class QDrantVDBClient(BaseVectorClient):
             )
 
         except Exception as e:
-            return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
         return self._return_success()
 
@@ -226,7 +235,7 @@ class QDrantVDBClient(BaseVectorClient):
         vectors: list[list[float]],
         metadata: list[dict[str, Any]],
         batch_size: int = 50
-    ) -> VectorDBResult:
+    ) -> ComponentResult:
         """
         Insert records into the given collection
 
@@ -239,17 +248,20 @@ class QDrantVDBClient(BaseVectorClient):
             batch_size      (int) : batch size while inserting
 
         Returns:
-            VectorDBResult
-                - if success -> None
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: None
+                if failure -> error & respone message
         """
 
         is_collection_existed = await self.is_collection_existed(collection_name)
+        if not is_collection_existed.success:
+            return self._return_failure(error = is_collection_existed.error, message = is_collection_existed.message)
+
         if not is_collection_existed.content:
-            return self._return_failure(error_type = VECTOR_DB_ERROR_COLLECTION_NOT_FOUND)
+            return self._return_failure(error = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value, message = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value)
 
         if len(record_ids) != len(texts) or len(vectors) != len(texts):
-            return self._return_failure(error_type = VECTOR_DB_ERROR_INVALID_DATA)
+            return self._return_failure(error = ResponsesEnum.VECTOR_DB_INVALID_DATA.value, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
 
         # insertion
@@ -279,7 +291,7 @@ class QDrantVDBClient(BaseVectorClient):
                 )
             
             except Exception as e:
-                return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+                return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
         
         return self._return_success()
     
@@ -291,19 +303,22 @@ class QDrantVDBClient(BaseVectorClient):
         collection_name: str,
         vector: list[float],
         limit: int = 5
-    ) -> VectorDBResult:
+    ) -> ComponentResult:
         """
         Insert records into the given collection
 
         Returns:
-            VectorDBResult
-                - if success -> content represents the list[Retrieved Chunks]
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: list of retrieved chunks
+                if failure -> error & respone message
         """
 
         is_collection_existed = await self.is_collection_existed(collection_name)
+        if not is_collection_existed.success:
+            return self._return_failure(error = is_collection_existed.error, message = is_collection_existed.message)
+
         if not is_collection_existed.content:
-            return self._return_failure(error_type = VECTOR_DB_ERROR_COLLECTION_NOT_FOUND)
+            return self._return_failure(error = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value, message = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value)
 
         try:
             points = self.client.query_points(
@@ -313,7 +328,7 @@ class QDrantVDBClient(BaseVectorClient):
             ).points
 
         except Exception as e:
-            return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
 
         return self._return_success(

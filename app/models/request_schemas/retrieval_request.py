@@ -3,7 +3,6 @@ from typing import Optional
 
 
 
-
-class AnswerUserQueryRequest(BaseModel):
+class RetrievalRequest(BaseModel):
     query: str
     limit: int = 5

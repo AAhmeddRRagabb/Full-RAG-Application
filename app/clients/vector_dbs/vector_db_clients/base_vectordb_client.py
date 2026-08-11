@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Any
 from models.db_schemas import RetrievedChunk
+from models.system_schemas import ComponentResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import VectorDBResult
 import logging
 
 class BaseVectorClient(ABC):
@@ -23,17 +23,18 @@ class BaseVectorClient(ABC):
         self.logger              = logging.getLogger("uvicorn")
 
 
-    def _return_success(self, content: Any | None = None):
-        return VectorDBResult(
+    def _return_success(self, content: Any | None = None, message: str | None = None) -> ComponentResult:
+        return ComponentResult(
             success = True,
-            content = content
+            content = content,
+            message = message
         )
 
-    def _return_failure(self, error_type: int, error: Any | None = None):
-        return VectorDBResult(
+    def _return_failure(self, error: Any | None = None, message: str | None = None) -> ComponentResult:
+        return ComponentResult(
             success = False,
-            error_type = error_type,
-            error = error
+            error = error,
+            message = message
         )
     
     # --------------------------- Connection ----------------------------------
@@ -47,15 +48,15 @@ class BaseVectorClient(ABC):
 
     # --------------------------- Collections Manipulation ------------------------
     @abstractmethod 
-    async def is_collection_existed(self, collection_name: str) -> bool:
+    async def is_collection_existed(self, collection_name: str) -> ComponentResult:
         pass
     
     @abstractmethod 
-    async def list_all_collections(self) -> list[str]:
+    async def list_all_collections(self) -> ComponentResult:
         pass
 
     @abstractmethod
-    async def get_collection_info(self, collection_name: str) -> dict[str, Any]:
+    async def get_collection_info(self, collection_name: str) -> ComponentResult:
         pass
 
     @abstractmethod
@@ -64,14 +65,14 @@ class BaseVectorClient(ABC):
         collection_name: str,
         embedding_size: int,
         do_reset: bool = False
-    ):
+    ) -> ComponentResult:
         pass
 
     @abstractmethod
     async def delete_collection(
         self,
         collection_name: str
-    ) -> bool:
+    ) -> ComponentResult:
         pass
 
     # --------------------------- Inserting ----------------------------------
@@ -83,7 +84,7 @@ class BaseVectorClient(ABC):
         text: str,
         vector: list[float],
         metadata: dict[str, Any],
-    ):
+    ) -> ComponentResult:
         pass
 
     @abstractmethod
@@ -95,7 +96,7 @@ class BaseVectorClient(ABC):
         vectors: list[list[float]],
         metadata: list[dict[str, Any]],
         batch_size: int = 50
-    ):
+    ) -> ComponentResult:
         pass
 
 
@@ -106,7 +107,7 @@ class BaseVectorClient(ABC):
         collection_name: str,
         vector: list[float],
         limit: int = 5
-    ) -> RetrievedChunk:
+    ) -> ComponentResult:
         pass
 
 

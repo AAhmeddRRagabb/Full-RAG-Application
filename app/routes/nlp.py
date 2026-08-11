@@ -1,68 +1,54 @@
+# ------------------------------------------------------
+# Implementing the routes related to the NLP workflows
+# -------------------------------------------------------
+
 # fastapi utils
 from fastapi import APIRouter
 from fastapi import status, Request
-from fastapi import File, UploadFile
 from fastapi.responses import JSONResponse
 
 # models & schemas
-from models.db_objects_models import ProjectModel
+from models.db_objects_models import UserModel
 from models.db_objects_models import ChunkModel
-from models.db_objects_models import AssetModel
 
 from models.enums import ResponsesEnum
-from models.enums import AssetTypesEnum
 
-from models.db_schemas import DataChunk, Asset
-from models.ip_schemas import PushChunksRequest, RetrievalRequest, AnswerUserQueryRequest
-
+from models.request_schemas import PushChunksRequest
+from models.request_schemas import RetrievalRequest
+from models.request_schemas import GenerationRequest
 
 # controllers
-from controllers import DataController
-from controllers import ProjectController
 from controllers import NLPController
 
 # helpers
-import aiofiles
 import helpers.config as CFG
-import os
+from helpers.functional import parse_component_result, FAILURE, return_bad_request
 
 
-import logging
-logger = logging.getLogger("uvicorn.error")
-
-# ------------------------------------ Utils ---------------------------------
-def return_bad_request(message: str) -> JSONResponse:
-    return JSONResponse(
-        status_code = status.HTTP_400_BAD_REQUEST,
-        content = {
-            "success": False,
-            "message": message
-        }
-    )
-
-# ------------------------------------ Routers ---------------------------------
 nlp_router = APIRouter(
     prefix = CFG.NLP_ROUTES_PREFIX,
     tags = ["nlp"]
-) 
+)
 
 
 # --- Add Chunks into Vector DBs
-@nlp_router.post("/push/{project_name}")
+@nlp_router.post("/push/{user_name}")
 async def push_chunks_into_vector_db(
     request: Request,
-    project_name: str,
+    user_name: str,
     push_request: PushChunksRequest
-):
-    # setup
-    project_model = ProjectModel(db_client = request.app.db_client)
-    project_result = await project_model.get_project_or_insert_it(project_name = project_name)
-    if not project_result.success:
-        if project_result.error:
-            logger.error(project_result.error)
-        return return_bad_request(message = project_result.message)
-    project = project_result.content
+) -> JSONResponse:
+    """
+    Push processed user chunks into the vector database.
 
+    This route mainly does the following:
+        - gets or creates the user record.
+        - creates the user's vector collection.
+        - reads user chunks in pages.
+        - embeds and inserts chunks into the vector database.
+    """
+    # setup
+    user_model = UserModel(db_client = request.app.db_client)
     chunk_model = ChunkModel(db_client = request.app.db_client)
 
     nlp_controller = NLPController(
@@ -70,48 +56,56 @@ async def push_chunks_into_vector_db(
         embedding_client = request.app.embedding_client,
     )
 
-    creation_result = await nlp_controller.create_collection(project_name, do_reset = push_request.do_reset)
-    if not creation_result.success:
-        logger.error(f"Error while creating collection: {creation_result.error}")
-        return return_bad_request(message = creation_result.message)
+    flag, user_or_failure = parse_component_result(
+        await user_model.get_user_or_insert_it(user_name = user_name),
+        error_message = "Error while accessing the user"
+    )
+    
+    if flag == FAILURE:
+        return user_or_failure
 
+    flag, creation_or_failure = parse_component_result(
+        await nlp_controller.create_collection(user_name, do_reset = push_request.do_reset),
+        error_message = "Error while creating collection"
+    )
+    if flag == FAILURE:
+        return creation_or_failure
 
     # get chunks to store
     page_no = 1
     inserted_items_count = 0
 
     while True:
-        chunks_result = await chunk_model.get_project_chunks(
-            project_id = project.project_id,
-            page_no = page_no,
+        flag, chunks_or_failure = parse_component_result(
+            await chunk_model.get_user_chunks(
+                user_id = user_or_failure.user_id,
+                page_no = page_no,
+            ),
+            error_message = "Error while accessing user chunks"
         )
+        if flag == FAILURE:
+            return chunks_or_failure
 
-        if not chunks_result.success:
-            logger.error(f"Error while accessing project chunks: {chunks_result.error}")
-            return return_bad_request(message = chunks_result.message)
-
-        chunks = chunks_result.content
-        if len(chunks) == 0 or not chunks:
+        if not chunks_or_failure or len(chunks_or_failure) == 0:
             break
 
-        chunks_ids = [chunk.chunk_id for chunk in chunks]
-        
+        chunks_ids = [chunk.chunk_id for chunk in chunks_or_failure]
+
         # insert
-        insertion_result = await nlp_controller.insert_into_vector_db(
-            project_name = project_name,
-            chunks = chunks,
-            chunks_ids = chunks_ids,
+        flag, insertion_or_failure = parse_component_result(
+            await nlp_controller.insert_into_vector_db(
+                user_name = user_name,
+                chunks = chunks_or_failure,
+                chunks_ids = chunks_ids,
+            ),
+            error_message = "Error while inserting chunks"
         )
+        if flag == FAILURE:
+            return insertion_or_failure
 
-        if not insertion_result.success:
-            logger.error(f"Error while inserting chunks: {insertion_result.error}")
-            return return_bad_request(message = insertion_result.message)
-
-        
-        inserted_items_count += len(chunks)
+        inserted_items_count += len(chunks_or_failure)
         page_no += 1
 
-    
     return JSONResponse(
         status_code = status.HTTP_200_OK,
         content = {
@@ -122,79 +116,86 @@ async def push_chunks_into_vector_db(
     )
 
 
-
-@nlp_router.get("/get_project_collection/{project_name}")
-async def get_project_collection(
+@nlp_router.get("/collections/{user_name}")
+async def get_user_collection(
     request: Request,
-    project_name: str
-):
+    user_name: str
+) -> JSONResponse:
+    """
+    Return vector database collection info for the given user.
+    """
     nlp_controller = NLPController(
         vector_db_client = request.app.vector_db_client,
         embedding_client = request.app.embedding_client,
     )
 
-    project_collection_info_result = await nlp_controller.get_vector_db_collection_info(project_name = project_name)
-    if not project_collection_info_result.success:
-        logger.error(f"Error Retrieving Collection Info: {project_collection_info_result.error}")
-        return return_bad_request(message = project_collection_info_result.message)
+    flag, collection_info_or_failure = parse_component_result(
+        await nlp_controller.get_vector_db_collection_info(user_name = user_name),
+        error_message = "Error Retrieving Collection Info"
+    )
+    if flag == FAILURE:
+        return collection_info_or_failure
 
-    project_collection_info = project_collection_info_result.content
     return JSONResponse(
         status_code = status.HTTP_200_OK,
         content = {
             "success": True,
-            "project_collection_info": project_collection_info
+            "user_collection_info": collection_info_or_failure
         }
     )
-    
+
 
 # ---- Retrieve
-@nlp_router.post("/retrieve/{project_name}")
+@nlp_router.post("/retrieve/{user_name}")
 async def retrieve_relevant_chunks(
-    project_name: str,
+    user_name: str,
     request: Request,
     retrieval_request: RetrievalRequest
-):
-    
+) -> JSONResponse:
+    """
+    Retrieve the most relevant vector database chunks for a user query.
+    """
     nlp_controller = NLPController(
         vector_db_client = request.app.vector_db_client,
         embedding_client = request.app.embedding_client,
     )
 
-    retrieval_result = await nlp_controller.search_vector_db_collection(
-        project_name = project_name,
-        text = retrieval_request.query,
-        limit = retrieval_request.limit,
-        encode_as_json = True
+    flag, chunks_or_failure = parse_component_result(
+        await nlp_controller.search_vector_db_collection(
+            user_name = user_name,
+            text = retrieval_request.query,
+            limit = retrieval_request.limit,
+            encode_as_json = True
+        ),
+        error_message = "Error While Retrieving"
     )
+    if flag == FAILURE:
+        return chunks_or_failure
 
-    if not retrieval_result.success:
-        logger.error(f"Error While Retrieving: {retrieval_result.error}")
-        return return_bad_request(message = retrieval_result.message)
-
-    relevant_chunks = retrieval_result.content
-    if not relevant_chunks or len(relevant_chunks) == 0:
+    if not chunks_or_failure or len(chunks_or_failure) == 0:
         return return_bad_request(
             message = f"{ResponsesEnum.VECTOR_DB_INNER_ERROR.value}"
         )
-    
+
     return JSONResponse(
         status_code = status.HTTP_200_OK,
         content = {
             "success": True,
-            "relevant_chunks": relevant_chunks
+            "relevant_chunks": chunks_or_failure
         }
     )
 
 
-# --- Generation 
-@nlp_router.post("/answer_user_query/{project_name}")
-async def retrieve_relevant_chunks(
-    project_name: str,
+# --- Generation
+@nlp_router.post("/answer_user_query/{user_name}")
+async def answer_user_query(
+    user_name: str,
     request: Request,
-    answer_user_query_request: AnswerUserQueryRequest
-):
-    
+    generation_request: GenerationRequest
+) -> JSONResponse:
+    """
+    Answer a user query by retrieving relevant chunks and generating a response.
+    """
     nlp_controller = NLPController(
         vector_db_client = request.app.vector_db_client,
         generation_client = request.app.generation_client,
@@ -202,21 +203,21 @@ async def retrieve_relevant_chunks(
         prompt_template_parser = request.app.prompt_template_parser
     )
 
-    answer_result = await nlp_controller.answer_rag_query(
-        project_name = project_name,
-        query = answer_user_query_request.query,
-        retrieval_limit = answer_user_query_request.limit
+    flag, answer_or_failure = parse_component_result(
+        await nlp_controller.answer_rag_query(
+            user_name = user_name,
+            query = generation_request.query,
+            retrieval_limit = generation_request.limit
+        ),
+        error_message = "Error While Generating"
     )
+    if flag == FAILURE:
+        return answer_or_failure
 
-    if not answer_result.success:
-        logger.error(f"Error While Generating: {answer_result.error}")
-        return return_bad_request(message = answer_result.message)
-
-    
     return JSONResponse(
         status_code = status.HTTP_200_OK,
         content = {
             "success": True,
-            **answer_result.content
+            **answer_or_failure
         }
     )

@@ -1,9 +1,10 @@
 from clients.llms.config import (
     LLMsGenerationMessageTypes,
 
-    LLMsGenerationError,
     LLMsClientConnectionError
 )
+from models.enums import ResponsesEnum
+from models.system_schemas import ComponentResult
 
 from .base_llm_client import BaseLLMClient
 from groq import Groq
@@ -54,7 +55,6 @@ class GroqLLMClient(BaseLLMClient):
         
     def embed_text(
         self, 
-        model_name    : str, 
         text          : str | list[str], 
         prompt_type   : str | None = None, 
         document_title: str | None = None
@@ -83,24 +83,12 @@ class GroqLLMClient(BaseLLMClient):
         chat_history: list = [], 
         max_output_tokens: int | None = None, 
         temperature: float | None = None
-    ) -> str:                
+    ) -> ComponentResult:
         """
-        Generate text based on the given inputs:
-
-        Args:
-            user_prompt (str)      : string query
-            chat_history (list)    : previous chat history [optional]
-            max_output_tokens (int): max number of output tokens required
-            temperature (flaot)    : generation temperature
-        
         Returns:
-            response:
-                - the whole response (ChatCompletion) if (return_whole_response == True)
-                - None if invalid response
-                - the text part otherwise
-        
-        Raises:
-            LLMsGenerationError: if error found during generation
+            ComponentResult:
+                if success -> content: generated text
+                if failure -> error & respone message
         """
         
         messages = self.create_prompt(
@@ -123,13 +111,13 @@ class GroqLLMClient(BaseLLMClient):
             )
 
         except Exception as e:
-            raise LLMsGenerationError from e
+            return self._return_failure(error = e, message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
                 
         if not self.validate_generation_response(response):
             self.logger.error("Invalid Generation Response")
-            return None
+            return self._return_failure(message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
     
-        return response.choices[0].message.content
+        return self._return_success(content = response.choices[0].message.content)
 
 
     def validate_generation_response(self, response: ChatCompletion) -> bool:

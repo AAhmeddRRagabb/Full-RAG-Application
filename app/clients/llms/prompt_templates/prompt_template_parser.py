@@ -1,5 +1,8 @@
 import os
 
+from models.enums import ResponsesEnum
+from models.system_schemas import ComponentResult
+
 
 class PromptTemplateParser:
     def __init__(
@@ -28,15 +31,19 @@ class PromptTemplateParser:
         group: str,
         key: str,
         vars: dict = {}
-    ):
+    ) -> ComponentResult:
         """
-        Args:
-            group: the group of prompts (RAG, ..)
-            key  : whether system, documents, or footer prompt.
-            vars : the variables used to construct the prompts
+        Returns:
+            ComponentResult:
+                if success -> content: the rendered prompt
+                if failure -> error & respone message
         """
         if not group or not key:
-            return False
+            return ComponentResult(
+                success = False,
+                error = {"group": group, "key": key},
+                message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value
+            )
         
         targeted_language = self.language
         group_path = os.path.join(self.current_path, "locales", self.language, f"{group}.py")
@@ -45,7 +52,11 @@ class PromptTemplateParser:
             targeted_language = self.default_language
 
         if not os.path.exists(group_path):
-            return False
+            return ComponentResult(
+                success = False,
+                error = group_path,
+                message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value
+            )
         
 
         module_to_use = __import__(
@@ -54,7 +65,21 @@ class PromptTemplateParser:
         )
 
         if not module_to_use:
-            return False
+            return ComponentResult(
+                success = False,
+                error = group,
+                message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value
+            )
         
-        key_attribute: str = getattr(module_to_use, key)
-        return key_attribute.substitute(vars)
+        try:
+            key_attribute: str = getattr(module_to_use, key)
+            return ComponentResult(
+                success = True,
+                content = key_attribute.substitute(vars)
+            )
+        except Exception as e:
+            return ComponentResult(
+                success = False,
+                error = e,
+                message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value
+            )

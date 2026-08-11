@@ -10,9 +10,9 @@ from clients.llms.config import (
 
     # errors
     LLMsClientConnectionError,
-    LLMsEmbeddingError,
-    LLMsGenerationError
 )
+from models.enums import ResponsesEnum
+from models.system_schemas import ComponentResult
 
 from google.genai import Client
 from google.genai.types import (
@@ -119,21 +119,12 @@ class GoogleLLMClient(BaseLLMClient):
         text          : str | list[str], 
         prompt_type   : str | None = None, 
         document_title: str | None = None
-    ) -> list[list[float]] | None:
+    ) -> ComponentResult:
         """
-        Embedding the give text / texts
-
-        Args:
-            text (str | list[str])     : a string or a list of strings
-            prompt_type (str)          : a string represents the prompt type [query - document]
-            document_title (str | None)
-
         Returns:
-            embeddings (list[[float]]): the list of each embedding list corresponding to the given texts
-                                        Or None for invalid responses
-
-        Raises:
-            LLMsEmbeddingError: if error found during embedding
+            ComponentResult:
+                if success -> content: list of embeddings
+                if failure -> error & respone message
         """
         if isinstance(text, str):
             text = [text]
@@ -147,26 +138,26 @@ class GoogleLLMClient(BaseLLMClient):
             try:
                 response = self._embed_text_2(text, prompt_type, document_title)
             except Exception as e:
-                raise LLMsEmbeddingError from e
+                return self._return_failure(error = e, message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
 
         else: # embedding #1 [default]
-            prompt_type = self.get_embedding_specific_prompt_type(prompt_type)
+            prompt_type = self.get_embedding_specific_prompt_type(self.embedding_model_id, prompt_type)
             try:
                 response = self._embed_text_1(text, prompt_type)
             except Exception as e:
-                raise LLMsEmbeddingError from e
+                return self._return_failure(error = e, message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
 
 
         # parse response
         if not self.validate_embedding_response(response, expected_count = len(text)):
             self.logger.error(f"Invalid Embedding Response.")
-            return None
+            return self._return_failure(message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
         
         embeddings = []
         for embedding in response.embeddings:
             embeddings.append(embedding.values)
 
-        return embeddings
+        return self._return_success(content = embeddings)
     
     def validate_embedding_response(self, response: EmbedContentResponse, expected_count: int) -> bool:
         return (
@@ -198,25 +189,13 @@ class GoogleLLMClient(BaseLLMClient):
         chat_history: list = [], 
         max_output_tokens: int | None = None, 
         temperature: float | None = None
-    ) -> str:
+    ) -> ComponentResult:
         
         """
-        Generate text based on the given inputs:
-
-        Args:
-            user_prompt (str)      : string query
-            chat_history (list)    : previous chat history [optional]
-            max_output_tokens (int): max number of output tokens required
-            temperature (flaot)    : generation temperature
-        
         Returns:
-            response:
-                - the whole response (GenerateContentResponse) if (return_whole_response == True)
-                - None if invalid response
-                - the text part otherwise
-        
-        Raises:
-            LLMsGenerationError: if error found during generation
+            ComponentResult:
+                if success -> content: generated text
+                if failure -> error & respone message
         """
 
         contents = self.create_prompt(
@@ -237,14 +216,14 @@ class GoogleLLMClient(BaseLLMClient):
             )
 
         except Exception as e:
-            raise LLMsGenerationError from e
+            return self._return_failure(error = e, message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
 
         if not self.validate_generation_response(response):
             self.logger.error("Invalid Generation Response")
-            return None
+            return self._return_failure(message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
 
         
-        return response.text
+        return self._return_success(content = response.text)
  
     def validate_generation_response(self, response: GenerateContentResponse ) -> bool:
         return (

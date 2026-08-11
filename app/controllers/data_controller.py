@@ -1,11 +1,11 @@
 import re
 import aiofiles
 
-from .base_controller import BaseController
-
+from models.system_schemas import ComponentResult
 from models.enums import ResponsesEnum
 from helpers.config import FILE_ALLOWED_TYPES, FILE_MAX_SIZE_MB, FILE_CHUNK_SIZE_B
 
+from .base_controller import BaseController
 from fastapi import UploadFile
 
 class DataController(BaseController):
@@ -13,8 +13,21 @@ class DataController(BaseController):
         super().__init__()
         self.mb_2_b = 1024 * 1024
 
-    def validate_uploaded_file(self, file: UploadFile):
-        """Validate the uploaded file size & type"""
+
+    def validate_uploaded_file(self, file: UploadFile) -> ComponentResult:
+        """
+        Validate the uploaded file size & type
+
+        Returns:
+            ComponentResult:
+                if valid ->
+                    - success = True
+                    - message = valid message
+                if not valid ->
+                    - success = False
+                    - message = not valid message
+        """
+        
         if file.content_type not in FILE_ALLOWED_TYPES:
             return self._return_failure(message = ResponsesEnum.FILE_TYPE_NOT_SUPPORTED.value)
         
@@ -30,10 +43,10 @@ class DataController(BaseController):
         cleaned_fname = cleaned_fname.replace(' ', '_')
         return self._return_success(content = cleaned_fname)
 
-    async def save_file(self, file, file_path: str):
+    async def save_file(self, file, file_path: str) -> ComponentResult:
         """
         Returns:
-            ControllerResult:
+            ComponentResult:
                 if success -> content: None
                 if error   -> error & error type
         """
@@ -42,6 +55,6 @@ class DataController(BaseController):
                 while chunk := await file.read(size = FILE_CHUNK_SIZE_B):
                     await f.write(chunk)
         except Exception as e:
-            return self._return_failure(error = e, message = ResponsesEnum.FILE_INNER_ERROR.value)
+            return self._return_failure(error = e, message = ResponsesEnum.FILE_UPLOADING_INNER_ERROR.value)
 
         return self._return_success()

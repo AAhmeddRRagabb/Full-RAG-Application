@@ -1,7 +1,7 @@
 import json
-from helpers.config import get_settings
-from .base_controller import BaseController, ControllerResult
+from .base_controller import BaseController
 
+from models.system_schemas import ComponentResult
 from models.enums import ResponsesEnum
 from models.db_schemas import DataChunk
 
@@ -10,14 +10,6 @@ from clients.vector_dbs.vector_db_clients import (
     QDrantVDBClient,
     PGVectorVDBClient
 )
-
-from clients.vector_dbs.config import (
-    VECTOR_DB_CLIENT_ERROR,
-    VECTOR_DB_ERROR_COLLECTION_NOT_FOUND,
-    VECTOR_DB_ERROR_INVALID_DATA,
-    VectorDBResult
-)
-
 
 # llms utils
 from clients.llms.llm_clients import (
@@ -31,6 +23,9 @@ from clients.llms.config import LLMsGeneralEmbeddingQueryTypes, LLMsGenerationMe
 
 
 class NLPController(BaseController):
+    """
+    Controller for vector database and RAG generation workflows.
+    """
     # -------------------- Setup ------------------------- #
     def __init__(
         self,
@@ -48,48 +43,58 @@ class NLPController(BaseController):
         self.prompt_template_parser   = prompt_template_parser
 
     # -------------------------------------------- Vector DB Functionalities --------------------------------------------- #
-    def _parse_vector_db_result(self, vector_db_result: VectorDBResult, return_json: bool = False) -> ControllerResult:
+    def _parse_vector_db_result(self, vector_db_result: ComponentResult, return_json: bool = False, message_on_success: str | None = None) -> ComponentResult:
+        """
+        Returns:
+            ComponentResult:
+                if success -> content: parsed vector database client content
+                if failure -> error & respone message
+        """
         if vector_db_result.success:
             return self._return_success(
                 content = json.dumps(
                     vector_db_result.content,
                     default = lambda x : x.__dict__
-                ) if return_json else vector_db_result.content
+                ) if return_json else vector_db_result.content,
+                message = message_on_success
             )
             
 
-        if vector_db_result.error_type == VECTOR_DB_CLIENT_ERROR:
-            return self._return_failure(error = vector_db_result.error, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
-
-        if vector_db_result.error_type == VECTOR_DB_ERROR_COLLECTION_NOT_FOUND:
-            return self._return_failure(error = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
-
-        if vector_db_result.error_type == VECTOR_DB_ERROR_INVALID_DATA:
-            return self._return_failure(error = ResponsesEnum.VECTOR_DB_INVALID_DATA.value, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
+        return self._return_failure(error = vector_db_result.error, message = vector_db_result.message)
 
 
 
-    def get_collection_name(self, project_name: str) -> str:
-        return f"collection_{project_name}_{self.vector_db_client.default_vector_size}".strip()
-
-
-
-    async def get_vector_db_collection_info(self, project_name: str) -> ControllerResult:
+    def get_collection_name(self, user_name: str) -> str:
         """
         Returns:
-            ControllerResults:
+            str: vector database collection name for the given user.
+        """
+        return f"collection_{user_name}_{self.vector_db_client.default_vector_size}".strip()
+
+
+
+    async def get_vector_db_collection_info(self, user_name: str) -> ComponentResult:
+        """
+        Returns:  
+            ComponentResult:  
                 if success -> content: Json-serializable collection info
                 if failure -> error 
         """
-        collection_name = self.get_collection_name(project_name = project_name)
+        collection_name = self.get_collection_name(user_name = user_name)
 
         collection_info_result = await self.vector_db_client.get_collection_info(collection_name = collection_name)
         return self._parse_vector_db_result(collection_info_result)
 
 
+    async def create_collection(self, user_name: str, do_reset: bool = False) -> ComponentResult:
+        """
+        Returns:  
+            ComponentResult:  
+                if success -> content: None  
+                if failure -> error 
+        """
 
-    async def create_collection(self, project_name: str, do_reset: bool = False):
-        collection_name = self.get_collection_name(project_name = project_name)
+        collection_name = self.get_collection_name(user_name = user_name)
 
         creation_result = await self.vector_db_client.create_collection(
             collection_name = collection_name,
@@ -100,27 +105,45 @@ class NLPController(BaseController):
         return self._parse_vector_db_result(creation_result)
 
 
-    async def delete_collection(self, project_name: str) -> ControllerResult:
-        collection_name = self.get_collection_name(project_name = project_name)
+    async def delete_collection(self, user_name: str) -> ComponentResult:
+        """
+        Returns:  
+            ComponentResult:  
+                if success -> content: None  
+                if failure -> error 
+        """
+        collection_name = self.get_collection_name(user_name = user_name)
         delete_result = await self.vector_db_client.delete_collection(collection_name = collection_name)
         return self._parse_vector_db_result(delete_result)
 
 
     async def insert_into_vector_db(
         self,
-        project_name: str,
+        user_name: str,
         chunks      : list[DataChunk],
         chunks_ids  : list[int],
-    ):
-        collection_name = self.get_collection_name(project_name = project_name)
+    ) -> ComponentResult:
+        """
+        Returns:  
+            ComponentResult:  
+                if success -> content: None  
+                if failure -> error 
+        """
+
+        collection_name = self.get_collection_name(user_name = user_name)
             
-        # prepare chunks 
+        # Prepare chunks 
         texts    = [c.chunk_text for c in chunks]
         metadata = [c.chunk_metadata for c in chunks]
-        vectors  = self.embedding_client.embed_text(
+        vectors_result  = self.embedding_client.embed_text(
             text = texts, 
             prompt_type = LLMsGeneralEmbeddingQueryTypes.DOCUMENT.value,
-        ) 
+        )
+
+        if not vectors_result.success:
+            return self._return_failure(error = vectors_result.error, message = vectors_result.message)
+
+        vectors = vectors_result.content
             
         # insert
         is_inserted = await self.vector_db_client.insert_many(
@@ -137,21 +160,35 @@ class NLPController(BaseController):
 
     async def search_vector_db_collection(
         self,
-        project_name: str,
+        user_name: str,
         text: str,
         limit: int = 5,
         encode_as_json: bool = False
-    ):
-        collection_name = self.get_collection_name(project_name = project_name)
+    ) -> ComponentResult:
+        """
+        Returns:  
+            ComponentResult:  
+                if success -> content: list of retrieved chunks    
+                if failure -> error 
+        """
+        collection_name = self.get_collection_name(user_name = user_name)
 
-        # embed query
-        vectors = self.embedding_client.embed_text(text = text, prompt_type = LLMsGeneralEmbeddingQueryTypes.SEARCH_QUERY.value,)
+        # Embed query
+        vectors_result = self.embedding_client.embed_text(
+            text = text,
+            prompt_type = LLMsGeneralEmbeddingQueryTypes.SEARCH_QUERY.value,
+        )
+
+        if not vectors_result.success:
+            return self._return_failure(error = vectors_result.error, message = vectors_result.message)
+
+        vectors = vectors_result.content
         if not vectors or len(vectors) == 0:
-            return False
+            return self._return_failure(message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
 
         query_vector = vectors[0]
 
-        # search query
+        # Search query
         retrieved = await self.vector_db_client.search_by_vector(
             collection_name = collection_name,
             vector = query_vector,
@@ -163,6 +200,10 @@ class NLPController(BaseController):
     # -------------------------------------------- Generation Functionalities --------------------------------------------- #
 
     def _get_system_prompt_role(self) -> str:
+        """
+        Returns:
+            str: provider-specific system prompt role.
+        """
         if isinstance(self.generation_client, GroqLLMClient):
             return LLMsGenerationMessageTypes.GROQ_SYSTEM_MESSAGE.value
 
@@ -175,13 +216,19 @@ class NLPController(BaseController):
 
     async def answer_rag_query(
         self, 
-        project_name: str,
+        user_name: str,
         query: str,
         retrieval_limit: str,
-    ) -> ControllerResult:
-        # retrieve relevant
+    ) -> ComponentResult:
+        """
+        Returns:  
+            ComponentResult:  
+                if success -> content: list of retrieved chunks    
+                if failure -> error 
+        """
+        # Retrieve relevant
         relevant_documents_result = await self.search_vector_db_collection(
-            project_name = project_name,
+            user_name = user_name,
             text = query,
             limit = retrieval_limit
         )
@@ -192,19 +239,34 @@ class NLPController(BaseController):
         relevant_documents = relevant_documents_result.content
             
         # construct prompts
-        system_prompt = self.prompt_template_parser.get_prompt("rag", "system_prompt")
+        system_prompt_result = self.prompt_template_parser.get_prompt("rag", "system_prompt")
+        if not system_prompt_result.success:
+            return self._return_failure(error = system_prompt_result.error, message = system_prompt_result.message)
+
+        system_prompt = system_prompt_result.content
     
-        documents_prompt = "\n".join([
-            self.prompt_template_parser.get_prompt("rag", "document_prompt", {
+        document_prompts = []
+        for idx, doc in enumerate(relevant_documents, start = 1):
+            document_prompt_result = self.prompt_template_parser.get_prompt("rag", "document_prompt", {
                 "doc_num": idx,
                 "doc_text": self.generation_client.pre_process_input_prompt(doc.text)
             })
-            for idx, doc in enumerate(relevant_documents, start = 1)
-        ])
+
+            if not document_prompt_result.success:
+                return self._return_failure(error = document_prompt_result.error, message = document_prompt_result.message)
+
+            document_prompts.append(document_prompt_result.content)
+
+        documents_prompt = "\n".join(document_prompts)
     
-        footer_prompt = self.prompt_template_parser.get_prompt("rag", "footer_prompt", {
+        footer_prompt_result = self.prompt_template_parser.get_prompt("rag", "footer_prompt", {
             "query": query
         })
+
+        if not footer_prompt_result.success:
+            return self._return_failure(error = footer_prompt_result.error, message = footer_prompt_result.message)
+
+        footer_prompt = footer_prompt_result.content
     
         chat_history = [
             self.generation_client.create_prompt(
@@ -218,17 +280,16 @@ class NLPController(BaseController):
             footer_prompt,
         ])
     
-        answer = self.generation_client.generate_text(
+        answer_result = self.generation_client.generate_text(
             user_prompt = full_prompt,
             chat_history = chat_history
         )
     
-        if not answer:
-            return self._return_failure()
-
+        if not answer_result.success:
+            return self._return_failure(error = answer_result.error, message = answer_result.message)
 
         return self._return_success(content = {
-            "answer"      : answer,
+            "answer"      : answer_result.content,
             "full_prompt" : full_prompt,
             "chat_history": chat_history
         })

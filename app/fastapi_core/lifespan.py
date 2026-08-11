@@ -49,7 +49,12 @@ async def lifespan(app: FastAPI):
     # Vector DB Clients
     print(f"- Connection to Vector DB: {settings.VECTOR_DB_BACKEND}")
     vector_db_factory = VectorDBFactory(config = settings, db_client = app.db_client)
-    app.vector_db_client = vector_db_factory.create_vector_db(provider = settings.VECTOR_DB_BACKEND)
+    vector_db_result = vector_db_factory.create_vector_db(provider = settings.VECTOR_DB_BACKEND)
+    if not vector_db_result.success:
+        logger.error(f"Error While Creating Vector DB Client: {vector_db_result.error}")
+        exit()
+
+    app.vector_db_client = vector_db_result.content
 
     if isinstance(app.vector_db_client, PGVectorVDBClient):
         connection = await app.vector_db_client.connect()
@@ -63,8 +68,18 @@ async def lifespan(app: FastAPI):
 
     # LLM Agents
     llm_agent_factory = LLMAgentFactory(config = settings)
-    app.generation_client = llm_agent_factory.create_agent(provider = settings.GENERATION_BACKEND)
-    app.embedding_client = llm_agent_factory.create_agent(provider = settings.EMBEDDING_BACKEND)
+    generation_client_result = llm_agent_factory.create_agent(provider = settings.GENERATION_BACKEND)
+    if not generation_client_result.success:
+        logger.error(f"Error While Creating Generation Client: {generation_client_result.error}")
+        exit()
+
+    embedding_client_result = llm_agent_factory.create_agent(provider = settings.EMBEDDING_BACKEND)
+    if not embedding_client_result.success:
+        logger.error(f"Error While Creating Embedding Client: {embedding_client_result.error}")
+        exit()
+
+    app.generation_client = generation_client_result.content
+    app.embedding_client = embedding_client_result.content
     print_success_message(f"Initiating LLM Agents Successfully")
 
 

@@ -6,13 +6,9 @@ from .base_vectordb_client import BaseVectorClient
 from clients.vector_dbs.config import (
     VectorDBPGVectorTableColumns,
     VectorDBPGVectorIndexTypes,
-
-    # errors
-    VECTOR_DB_ERROR_COLLECTION_NOT_FOUND,
-    VECTOR_DB_ERROR_INVALID_DATA,
-    VECTOR_DB_CLIENT_ERROR,
-    VectorDBResult
 )
+from models.enums import ResponsesEnum
+from models.system_schemas import ComponentResult
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import text as sql_text
@@ -53,7 +49,7 @@ class PGVectorVDBClient(BaseVectorClient):
                     ))
 
         except Exception as e:
-            return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
         return self._return_success()
 
@@ -62,14 +58,14 @@ class PGVectorVDBClient(BaseVectorClient):
 
 
     # --------------------------- Collections Manipulation ------------------------
-    async def is_collection_existed(self, collection_name) -> VectorDBResult:
+    async def is_collection_existed(self, collection_name) -> ComponentResult:
         """
         Check if the given collection name exists or not
 
         Returns:
-            VectorDBResult
-                - if success -> bool content whether the collection exists or not
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: whether the collection exists or not
+                if failure -> error & respone message
         """
         session: AsyncSession
 
@@ -88,21 +84,21 @@ class PGVectorVDBClient(BaseVectorClient):
                     record = results.scalar_one_or_none()
 
         except Exception as e:
-            return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
 
         return self._return_success(content = bool(record))
 
 
 
-    async def list_all_collections(self) -> VectorDBResult:
+    async def list_all_collections(self) -> ComponentResult:
         """
         List the collections exist in the database
 
         Returns:
-            VectorDBResult
-                - if success -> list of collection name
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: list of collection names
+                if failure -> error & respone message
         """
         session: AsyncSession
         records = []
@@ -122,30 +118,30 @@ class PGVectorVDBClient(BaseVectorClient):
                     records = results.scalars().all()
 
         except Exception as e:
-            return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
         return self._return_success(content = records)
 
 
 
-    async def get_collection_info(self, collection_name: str) -> VectorDBResult:
+    async def get_collection_info(self, collection_name: str) -> ComponentResult:
         """
         Get info about the given collection name
 
         Returns:
-            VectorDBResult
-                - if success -> dict contains the collection info
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: collection info
+                if failure -> error & respone message
         """
         session: AsyncSession
 
         # check for existance
         is_collection_existed = await self.is_collection_existed(collection_name)
         if not is_collection_existed.success:
-            return self._return_failure(error_type = is_collection_existed.error_type, error = is_collection_existed.error)
+            return self._return_failure(error = is_collection_existed.error, message = is_collection_existed.message)
 
         if not is_collection_existed.content:
-            return self._return_failure(error_type = VECTOR_DB_ERROR_COLLECTION_NOT_FOUND) 
+            return self._return_failure(error = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value, message = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value)
 
 
         try:
@@ -165,7 +161,7 @@ class PGVectorVDBClient(BaseVectorClient):
 
                     table_info = table_info_stmt_exc.fetchone()
                     if not table_info:
-                        return None
+                        return self._return_failure(error = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
                     # num_records
                     count_stmt = sql_text(f'SELECT COUNT(*) FROM {collection_name}')
@@ -180,18 +176,18 @@ class PGVectorVDBClient(BaseVectorClient):
                     )
            
         except Exception as e:
-            return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
 
 
-    async def delete_collection(self, collection_name) -> VectorDBResult:
+    async def delete_collection(self, collection_name) -> ComponentResult:
         """
         Delete the given collection
 
         Returns:
-            VectorDBResult
-                - if success -> None
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: None
+                if failure -> error & respone message
         """
 
         session: AsyncSession
@@ -205,20 +201,20 @@ class PGVectorVDBClient(BaseVectorClient):
                     await session.commit()
 
         except Exception as e:
-            return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
         return self._return_success()
 
 
 
-    async def create_collection(self, collection_name, embedding_size: int | None = None, do_reset = False) -> VectorDBResult:
+    async def create_collection(self, collection_name, embedding_size: int | None = None, do_reset = False) -> ComponentResult:
         """
         Create a collection with the given name
 
         Returns:
-            VectorDBResult
-                - if success -> None
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: None
+                if failure -> error & respone message
         """
         session: AsyncSession
         embedding_size = embedding_size if embedding_size else self.default_vector_size
@@ -229,6 +225,9 @@ class PGVectorVDBClient(BaseVectorClient):
 
         # check for existance
         is_collection_existed = await self.is_collection_existed(collection_name)
+        if not is_collection_existed.success:
+            return self._return_failure(error = is_collection_existed.error, message = is_collection_existed.message)
+
         if not is_collection_existed.content:
             self.logger.info(f"Creating Collection: {collection_name}")
 
@@ -252,7 +251,7 @@ class PGVectorVDBClient(BaseVectorClient):
 
                         await session.commit()
             except Exception as e:
-                return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+                return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
         return self._return_success()
 
@@ -266,27 +265,27 @@ class PGVectorVDBClient(BaseVectorClient):
         record_id: int,
         vector: list[float],
         metadata: dict[str, Any],
-    ) -> VectorDBResult:
+    ) -> ComponentResult:
         """
         Insert a record into the given collection
 
         Returns:
-            VectorDBResult
-                - if success -> None
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: None
+                if failure -> error & respone message
         """
         session: AsyncSession
         vector = "[" + ",".join([str(v) for v in vector]) + "]" # postgres needs string_list '[1, 2, 3]'
 
         is_collection_existed = await self.is_collection_existed(collection_name = collection_name)
         if not is_collection_existed.success:
-            return self._return_failure(error_type = is_collection_existed.error_type, error = is_collection_existed.error)
+            return self._return_failure(error = is_collection_existed.error, message = is_collection_existed.message)
 
-        if not self.is_collection_existed.content:
-            return self._return_failure(error_type = VECTOR_DB_ERROR_COLLECTION_NOT_FOUND)
+        if not is_collection_existed.content:
+            return self._return_failure(error = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value, message = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value)
 
         if not record_id and record_id != 0:
-            return self._return_failure(error_type = VECTOR_DB_ERROR_INVALID_DATA)
+            return self._return_failure(error = ResponsesEnum.VECTOR_DB_INVALID_DATA.value, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
         try:
             async with self.db_client() as session:
@@ -315,7 +314,7 @@ class PGVectorVDBClient(BaseVectorClient):
                     await session.commit()
 
         except Exception as e:
-            return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
         return self._return_success()
 
@@ -329,7 +328,7 @@ class PGVectorVDBClient(BaseVectorClient):
         vectors: list[list[float]],
         metadata: list[dict[str, Any]] | None = None,
         batch_size: int = 50
-    ) -> VectorDBResult:
+    ) -> ComponentResult:
         """
         Insert records into the given collection
 
@@ -343,21 +342,21 @@ class PGVectorVDBClient(BaseVectorClient):
 
         
         Returns:
-            VectorDBResult
-                - if success -> None
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: None
+                if failure -> error & respone message
         """
         session: AsyncSession
 
         is_collection_existed = await self.is_collection_existed(collection_name)
         if not is_collection_existed.success:
-            return self._return_failure(error_type = is_collection_existed.error_type, error = is_collection_existed.error)
+            return self._return_failure(error = is_collection_existed.error, message = is_collection_existed.message)
 
         if not is_collection_existed.content:
-            return self._return_failure(error_type = VECTOR_DB_ERROR_COLLECTION_NOT_FOUND)
+            return self._return_failure(error = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value, message = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value)
 
         if len(record_ids) != len(texts) or len(vectors) != len(texts):
-            return self._return_failure(error_type = VECTOR_DB_ERROR_INVALID_DATA)
+            return self._return_failure(error = ResponsesEnum.VECTOR_DB_INVALID_DATA.value, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
 
 
@@ -403,7 +402,7 @@ class PGVectorVDBClient(BaseVectorClient):
                         await session.commit()
 
         except Exception as e:
-            return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
         return self._return_success()
 
@@ -413,23 +412,23 @@ class PGVectorVDBClient(BaseVectorClient):
         collection_name: str,
         vector: list[float],
         limit: int = 5
-    ) -> VectorDBResult:
+    ) -> ComponentResult:
         """
         Insert records into the given collection
 
         Returns:
-            VectorDBResult
-                - if success -> content represents the list[Retrieved Chunks]
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: list of retrieved chunks
+                if failure -> error & respone message
         """
         session: AsyncSession
 
         is_collection_existed = await self.is_collection_existed(collection_name)
         if not is_collection_existed.success:
-            return self._return_failure(error_type = is_collection_existed.error_type, error = is_collection_existed.error)
+            return self._return_failure(error = is_collection_existed.error, message = is_collection_existed.message)
 
         if not is_collection_existed.content:
-            return self._return_failure(error_type = VECTOR_DB_ERROR_COLLECTION_NOT_FOUND)
+            return self._return_failure(error = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value, message = ResponsesEnum.VECTOR_DB_COLLECTION_NOT_FOUND.value)
 
 
         vector = '[' + ",".join([str(v) for v in vector]) + ']'
@@ -463,18 +462,18 @@ class PGVectorVDBClient(BaseVectorClient):
                     )
    
         except Exception as e:
-            return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
     # ------------------------------- indices functions -------------------------------
 
-    async def is_index_existed(self, collection_name: str) -> VectorDBResult:
+    async def is_index_existed(self, collection_name: str) -> ComponentResult:
         """
         Check if an index existed
 
         Returns:
-            VectorDBResult
-                - if success -> bool content determines whether the index exists or not
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: whether the index exists or not
+                if failure -> error & respone message
         """
         session: AsyncSession
         index_name = self.table_index_name(collection_name)
@@ -492,19 +491,19 @@ class PGVectorVDBClient(BaseVectorClient):
                     results = await session.execute(index_check_stmt)
 
         except Exception as e:
-                return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+                return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
         return self._return_success(bool(results.scalar_one_or_none()))
 
 
-    async def create_vector_index(self, collection_name: str, index_type: VectorDBPGVectorIndexTypes.HNSW.value) -> VectorDBResult:
+    async def create_vector_index(self, collection_name: str, index_type: VectorDBPGVectorIndexTypes.HNSW.value) -> ComponentResult:
         """
         Create a PGVector Index [HNSW | IVFFLAT]
 
         Returns:
-            VectorDBResult
-                - if success -> None
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: None
+                if failure -> error & respone message
         """
         session: AsyncSession
 
@@ -522,7 +521,7 @@ class PGVectorVDBClient(BaseVectorClient):
                     num_records = num_records_stmt_exe.scalar_one()
 
                     if num_records < self.index_threshold:
-                        return False
+                        return self._return_success()
 
 
                     # create the index
@@ -538,20 +537,20 @@ class PGVectorVDBClient(BaseVectorClient):
                     self.logger(f"End: Created index for {collection_name}")
 
         except Exception as e:
-            return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)
+            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
         return self._return_success()
                 
 
     # resetting index in case of many data points came -> so I need better clusters
-    async def reset_vector_index(self, collection_name: str, index_type: VectorDBPGVectorIndexTypes.HNSW.value) -> VectorDBResult:
+    async def reset_vector_index(self, collection_name: str, index_type: VectorDBPGVectorIndexTypes.HNSW.value) -> ComponentResult:
         """
         Resetting a PGVector Index [HNSW | IVFFLAT]
 
         Returns:
-            VectorDBResult
-                - if success -> None
-                - if failure -> error & error type
+            ComponentResult:
+                if success -> content: None
+                if failure -> error & respone message
         """
         session: AsyncSession
         index_name = self.table_index_name(collection_name)
@@ -573,4 +572,4 @@ class PGVectorVDBClient(BaseVectorClient):
             return await self.create_vector_index(collection_name = collection_name, index_type = index_type)
 
         except Exception as e:
-            return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e) 
+            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value) 

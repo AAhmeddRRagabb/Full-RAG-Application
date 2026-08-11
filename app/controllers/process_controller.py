@@ -1,23 +1,24 @@
 import os
-from .base_controller import BaseController, ControllerResult
-from .project_controller import ProjectController
+from .base_controller import BaseController
+from .user_controller import UserController
+from models.system_schemas import ComponentResult
 
 from models.enums import FileExtensionsEnum
 from langchain_community.document_loaders import TextLoader, PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter # cares for spaces and about
 
 class ProcessController(BaseController):
-    def __init__(self, project_name: str):
+    def __init__(self, user_name: str):
         super().__init__()
 
-        self.project_name = project_name
-        self.project_path = ProjectController().get_project_path(project_name = project_name)
+        self.user_name = user_name
+        self.user_path = UserController().get_user_path(user_name = user_name)
         
 
     def get_file_extension(self, file_name: str):
         """
         Returns:
-            ControllerResult:
+            :
                 if success -> content: file extension
         """
 
@@ -27,13 +28,13 @@ class ProcessController(BaseController):
     def get_file_loader(self, file_id: str):
         """
         Returns:
-            ControllerResult:
+            :
                 if success -> content: loaded file
                 if failure -> content: None
         """
 
         file_ext = self.get_file_extension(file_name = file_id)
-        file_path = os.path.join(self.project_path, file_id)
+        file_path = os.path.join(self.user_path, file_id)
 
         if not os.path.exists(file_path):
             return None
@@ -58,12 +59,12 @@ class ProcessController(BaseController):
 
 
 
-    def get_chunks(self, file_content: list, chunk_size: int = 100, overlap_size: int = 100) -> ControllerResult:
+    def get_chunks(self, file_content: list, chunk_size: int = 100, overlap_size: int = 100) -> ComponentResult:
         """
-        Returns:
-            ControllerResult:
-                if success -> content: chunks
-                if failure -> content: None
+        Returns:  
+            ComponentResult:  
+                if success -> content: chunks  
+                if failure -> content: None  
         """
         
         # get content

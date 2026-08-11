@@ -3,10 +3,10 @@ from clients.llms.config import (
     LLMsGeneralEmbeddingQueryTypes,
     LLMsHuggingfaceEmbeddingQueryTypes,
     LLMsGenerationMessageTypes,
-    LLMsEmbeddingError,
-    LLMsGenerationError,
     LLMsClientConnectionError
 )
+from models.enums import ResponsesEnum
+from models.system_schemas import ComponentResult
 
 import numpy as np
 from .base_llm_client import BaseLLMClient
@@ -69,21 +69,12 @@ class HuggingfaceLLMClient(BaseLLMClient):
         text          : str | list[str], 
         prompt_type   : str | None = None, 
         document_title: str | None = None
-    ) -> list[list[float]] | None:
+    ) -> ComponentResult:
         """
-        Embedding the give text / texts
-
-        Args:
-            text (str | list[str])     : a string or a list of strings
-            prompt_type (str)          : a string represents the prompt type [query - document]
-            document_title (str | None)
-
         Returns:
-            embeddings (list[[float]]): the list of each embedding list corresponding to the given texts
-                                        Or None for invalid responses
-
-        Raises:
-            LLMsEmbeddingError: if error found during embedding
+            ComponentResult:
+                if success -> content: list of embeddings
+                if failure -> error & respone message
         """
 
         if isinstance(text, str):
@@ -105,14 +96,14 @@ class HuggingfaceLLMClient(BaseLLMClient):
             embeddings = np.asarray(response, dtype = np.float32).tolist()
             
         except Exception as e:
-            raise LLMsEmbeddingError from e
+            return self._return_failure(error = e, message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
 
         # parse
         if not self.validate_embedding_response(embeddings,expected_count = len(text)):
             self.logger.error(f"Invalid Embedding Response.")
-            return None
+            return self._return_failure(message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
         
-        return embeddings
+        return self._return_success(content = embeddings)
 
 
     def validate_embedding_response(self, response: list[list[float]], expected_count: int) -> bool:
@@ -127,9 +118,8 @@ class HuggingfaceLLMClient(BaseLLMClient):
 
     def get_embedding_size(self, model_name: str) -> int:
         _response = self.embed_text(
-            model_name = model_name,
             text = "Hello",
-        )[0]
+        ).content[0]
 
         return len(_response)
 
@@ -147,24 +137,12 @@ class HuggingfaceLLMClient(BaseLLMClient):
         chat_history: list = [], 
         max_output_tokens: int | None = None, 
         temperature: float | None = None
-    ) -> str:
+    ) -> ComponentResult:
         """
-        Generate text based on the given inputs:
-
-        Args:
-            user_prompt (str)      : string query
-            chat_history (list)    : previous chat history [optional]
-            max_output_tokens (int): max number of output tokens required
-            temperature (flaot)    : generation temperature
-        
         Returns:
-            response:
-                - the whole response (ChatCompletion) if (return_whole_response == True)
-                - None if invalid response
-                - the text part otherwise
-        
-        Raises:
-            LLMsGenerationError: if error found during generation
+            ComponentResult:
+                if success -> content: generated text
+                if failure -> error & respone message
         """
         
         messages = self.create_prompt(
@@ -189,13 +167,13 @@ class HuggingfaceLLMClient(BaseLLMClient):
             )
 
         except Exception as e:
-            raise LLMsGenerationError from e
+            return self._return_failure(error = e, message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
         
         if not self.validate_generation_response(response):
             self.logger.error("Invalid Generation Response")
-            return None
+            return self._return_failure(message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
     
-        return response.choices[0].message.content
+        return self._return_success(content = response.choices[0].message.content)
 
 
     def validate_generation_response(self, response: ChatCompletion) -> bool:
