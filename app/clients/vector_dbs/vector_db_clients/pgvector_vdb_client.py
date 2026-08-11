@@ -46,10 +46,11 @@ class PGVectorVDBClient(BaseVectorClient):
             async with self.db_client() as session:
                 async with session.begin():
                     await session.execute(sql_text(
+                        "SELECT pg_advisory_xact_lock(747191100)"
+                    ))
+                    await session.execute(sql_text(
                         "CREATE EXTENSION IF NOT EXISTS vector"
                     ))
-
-                await session.commit()
 
         except Exception as e:
             return self._return_failure(error_type = VECTOR_DB_CLIENT_ERROR, error = e)

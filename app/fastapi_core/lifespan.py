@@ -76,7 +76,7 @@ async def lifespan(app: FastAPI):
     yield
 
     await app.db_engine.dispose()
-    app.vector_db_client.disconnet()
+    await app.vector_db_client.disconnect()
     app.generation_client = None
     app.embedding_client = None
 

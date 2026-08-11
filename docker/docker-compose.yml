@@ -1,52 +1,211 @@
 services:
-  mongodb:
-    image: mongo:8.0.21
-    container_name: mongodb
 
-    ports: 
-      - "27017:27017" 
+  # ----------------------------- FullRAG ---------------------------
 
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
-      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
+  fullrag:
+    container_name: FullRAG
+
+    build:
+      context: ..
+      dockerfile: docker/full_rag_app/DockerFile
+
+    ports:
+      - "8000:8000"
 
     volumes:
-      - mongodb_data:/data/db
+      - ./data/app_data:/final_app/assets
+
+    env_file:
+      - ./env/.env.app
 
     networks:
-      - backend
-
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - full-rag-network
 
     restart: always
 
-  
+    depends_on:
+      pgvector:
+        condition: service_healthy
+
+
+  # ----------------------------- Nginx Service ---------------------------
+
+  Nginx:
+    container_name: Nginx
+
+    image: nginx:stable-trixie
+
+    ports:
+      - "80:80"
+
+    networks:
+      - full-rag-network
+
+    volumes:
+      - ./config/nginx/default.conf:/etc/nginx/conf.d/default.conf
+
+    restart: always
+
+    depends_on:
+      - fullrag
+
+
+  # ----------------------------- PostGreSQL [pgvector] & Postgres Exporter ---------------------------
+
   pgvector:
-    image: pgvector/pgvector:0.8.5-pg18-trixie
+    image: pgvector/pgvector:0.8.6-pg18-trixie
+
     container_name: pgvector
 
     ports:
-      - "5432:5432"
-    
+      - "5433:5432"
+
     volumes:
-      - pgvector_data:/var/lib/postgresql
+      - ./data/pgvector_data:/var/lib/postgresql
     
     environment:
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: /var/lib/postgresql/pgdata
+
+    env_file:
+      - ./env/.env.postgres
 
     networks:
-      - backend
-    
+      - full-rag-network
+
     restart: always
 
-networks:
-  backend:
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U $$POSTGRES_USER
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
-volumes:
-  mongodb_data:
-  pgvector_data:
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:master
+
+    container_name: postgres-exporter
+
+    ports:
+      - "9187:9187"
+
+    env_file:
+      - ./env/.env.postgres-exporter
+
+    depends_on:
+      pgvector:
+        condition: service_healthy
+
+    networks:
+      - full-rag-network
+
+    restart: always
+
+
+  # ----------------------------- QDrant ---------------------------
+
+  qdrant:
+    image: qdrant/qdrant:dev
+
+    container_name: qdrant
+
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+
+    volumes:
+      - ./data/qdrant_data:/qdrant/storage
+
+    networks:
+      - full-rag-network
+
+    restart: always
+
+
+  # ----------------------------- Prometheus Monitoring ---------------------------
+
+  prometheus:
+    image: prom/prometheus:main
+
+    container_name: prometheus
+
+    ports:
+      - "9090:9090"
+
+    volumes:
+      - ./data/prometheus_data:/prometheus
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+
+    networks:
+      - full-rag-network
+
+    restart: always
+
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+
+
+  # ----------------------------- Grafana for metrics Visualization ---------------------------
+
+  grafana:
+    image: grafana/grafana:nightly-slim
+
+    container_name: grafana
+
+    ports:
+      - "3300:3000"
+
+    volumes:
+      - ./data/grafana_data:/var/lib/grafana
+
+    env_file:
+      - ./env/.env.grafana
+
+    depends_on:
+      - prometheus
+
+    networks:
+      - full-rag-network
+
+    restart: always
+
+
+  # ----------------------------- Node Exporter for system-metrics [cpu - ...] ---------------------------
+
+  node-exporter:
+    image: prom/node-exporter:master-distroless
+
+    container_name: node-exporter
+
+    ports:
+      - "9100:9100"
+
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+
+    networks:
+      - full-rag-network
+
+    restart: always
+
+
+# ----------------------------- Networks ---------------------------
+
+networks:
+  full-rag-network:
+    driver: bridge

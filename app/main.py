@@ -7,9 +7,11 @@ from routes import base
 from routes import data_pipeline
 from routes import nlp
 from fastapi_core.lifespan import lifespan
-
+from fastapi_core.metrics import setup_metrics
 
 app = FastAPI(lifespan = lifespan)
+setup_metrics(app = app)
+
 app.include_router(router = base.base_router)
 app.include_router(router = data_pipeline.data_pipeline_router)
 app.include_router(router = nlp.nlp_router)

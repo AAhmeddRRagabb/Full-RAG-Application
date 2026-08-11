@@ -1,4 +1,6 @@
 from logging.config import fileConfig
+import os
+from urllib.parse import quote_plus
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
@@ -14,6 +16,28 @@ from minirag_db.schemas import SQLAlchemyBase
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+
+def get_database_url() -> str | None:
+    username = os.getenv("POSTGRES_USERNAME") or os.getenv("POSTGRES_USER")
+    password = os.getenv("POSTGRES_PASSWORD")
+    host = os.getenv("POSTGRES_HOST", "pgvector")
+    port = os.getenv("POSTGRES_PORT", "5432")
+    database = os.getenv("POSTGRES_MAIN_DB_NAME") or os.getenv("POSTGRES_DB")
+
+    if not username or not password or not database:
+        return None
+
+    return (
+        "postgresql+psycopg2://"
+        f"{quote_plus(username)}:{quote_plus(password)}"
+        f"@{host}:{port}/{database}"
+    )
+
+
+database_url = get_database_url()
+if database_url:
+    config.set_main_option("sqlalchemy.url", database_url)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

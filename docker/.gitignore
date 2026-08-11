@@ -1,2 +1,10 @@
-mongodb
-.env
+data/
+env/.env*
+
+!env/.env.example.*
+
+config/prometheus/prometheus.yml
+
+full_rag_app/alembic.ini
+
+config/nginx/default.conf
