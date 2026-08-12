@@ -22,7 +22,7 @@ class Asset(SQLAlchemyBase):
         nullable = True
     )
 
-    asset_user_id = Column(Integer, ForeignKey('users.user_id'), nullable = False)
+    asset_user_id = Column(Integer, ForeignKey('users.user_id', ondelete = 'CASCADE'), nullable = False)
 
 
     # linking

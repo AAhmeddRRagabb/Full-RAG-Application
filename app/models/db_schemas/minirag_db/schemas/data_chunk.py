@@ -25,8 +25,8 @@ class DataChunk(SQLAlchemyBase):
         nullable = True
     )
 
-    chunk_user_id = Column(Integer, ForeignKey('users.user_id'), nullable = False)
-    chunk_asset_id = Column(Integer, ForeignKey('assets.asset_id'), nullable = False)
+    chunk_user_id = Column(Integer, ForeignKey('users.user_id', ondelete = 'CASCADE'), nullable = False)
+    chunk_asset_id = Column(Integer, ForeignKey('assets.asset_id', ondelete = 'CASCADE'), nullable = False)
 
 
     user = relationship("User", back_populates = 'chunks')
