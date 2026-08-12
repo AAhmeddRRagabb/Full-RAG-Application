@@ -6,6 +6,8 @@ from .base_vectordb_client import BaseVectorClient
 from clients.vector_dbs.config import (
     VectorDBPGVectorTableColumns,
     VectorDBPGVectorIndexTypes,
+    VectorDBDistanceMethods,
+    VectorDBPGVectorDistanceMethods
 )
 from models.enums import ResponsesEnum
 from models.system_schemas import ComponentResult
@@ -33,6 +35,11 @@ class PGVectorVDBClient(BaseVectorClient):
 
         self.pgvector_table_prefix  = VectorDBPGVectorTableColumns.TABLE_PREFIX.value
         self.table_index_name       = lambda collection_name: f"{self.pgvector_table_prefix}_{collection_name}_vector_idx"
+
+        if self.distance_method == VectorDBDistanceMethods.DOT_DISTANCE.value:
+            self.distance_method = VectorDBPGVectorDistanceMethods.DOT.value
+        self.distance_method = VectorDBPGVectorDistanceMethods.COSINE.value
+
 
     # --------------------------- Connection ----------------------------------
     async def connect(self):
@@ -316,8 +323,14 @@ class PGVectorVDBClient(BaseVectorClient):
         except Exception as e:
             return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
-        return self._return_success()
 
+        create_index_result = await self.create_vector_index(collection_name = collection_name, index_type = VectorDBPGVectorIndexTypes.HNSW.value)
+        if create_index_result.success:
+            return self._return_success()
+
+        return self._return_failure(
+            error = f'Error While Creating Vector Index: {create_index_result.error}',
+        )
 
 
     async def insert_many(
@@ -404,7 +417,17 @@ class PGVectorVDBClient(BaseVectorClient):
         except Exception as e:
             return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
 
-        return self._return_success()
+
+        create_index_result = await self.create_vector_index(collection_name = collection_name, index_type = VectorDBPGVectorIndexTypes.HNSW.value)
+        if create_index_result.success:
+            return self._return_success()
+
+        return self._return_failure(
+            error = f'Error While Creating Vector Index: {create_index_result.error}',
+        )
+
+
+        
 
 
     async def search_by_vector(
@@ -496,7 +519,7 @@ class PGVectorVDBClient(BaseVectorClient):
         return self._return_success(bool(results.scalar_one_or_none()))
 
 
-    async def create_vector_index(self, collection_name: str, index_type: VectorDBPGVectorIndexTypes.HNSW.value) -> ComponentResult:
+    async def create_vector_index(self, collection_name: str, index_type: str = VectorDBPGVectorIndexTypes.HNSW.value) -> ComponentResult:
         """
         Create a PGVector Index [HNSW | IVFFLAT]
 
@@ -524,25 +547,26 @@ class PGVectorVDBClient(BaseVectorClient):
 
 
                     # create the index
-                    self.logger(f"Start: Creating index for {collection_name}")
+                    self.logger.info(f"Start: Creating index for {collection_name}")
                     index_name = self.table_index_name(collection_name)
+
                     create_idx_stmt = sql_text(
-                        f'CREATE INDEX {index_name} ON {collection_name}'
+                        f'CREATE INDEX IF NOT EXISTS {index_name} ON {collection_name} '
                         f'USING {index_type} ({VectorDBPGVectorTableColumns.VECTOR.value} {self.distance_method})'
                     )
 
                     await session.execute(create_idx_stmt)
                     await session.commit()
-                    self.logger(f"End: Created index for {collection_name}")
+                    self.logger.info(f"End: Created index for {collection_name}")
 
         except Exception as e:
-            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value)
+            return self._return_failure(error = e)
 
         return self._return_success()
                 
 
     # resetting index in case of many data points came -> so I need better clusters
-    async def reset_vector_index(self, collection_name: str, index_type: VectorDBPGVectorIndexTypes.HNSW.value) -> ComponentResult:
+    async def reset_vector_index(self, collection_name: str, index_type: str = VectorDBPGVectorIndexTypes.HNSW.value) -> ComponentResult:
         """
         Resetting a PGVector Index [HNSW | IVFFLAT]
 
@@ -553,8 +577,6 @@ class PGVectorVDBClient(BaseVectorClient):
         """
         session: AsyncSession
         index_name = self.table_index_name(collection_name)
-
-
 
         self.logger(f"Start: Resetting index for {collection_name}")
         try:
@@ -571,4 +593,4 @@ class PGVectorVDBClient(BaseVectorClient):
             return await self.create_vector_index(collection_name = collection_name, index_type = index_type)
 
         except Exception as e:
-            return self._return_failure(error = e, message = ResponsesEnum.VECTOR_DB_INNER_ERROR.value) 
+            return self._return_failure(error = e) 

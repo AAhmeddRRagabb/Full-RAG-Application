@@ -21,6 +21,7 @@ from models.request_schemas import GenerationRequest
 from controllers import NLPController
 
 # helpers
+from tqdm.auto import tqdm
 import helpers.config as CFG
 from helpers.functional import parse_component_result, FAILURE, return_bad_request
 
@@ -75,6 +76,16 @@ async def push_chunks_into_vector_db(
     page_no = 1
     inserted_items_count = 0
 
+    flag, total_chunks_or_failure = parse_component_result(
+        await chunk_model.get_total_chunks_per_user(user_id = user_or_failure.user_id),
+        error_message = "Error while Accessing N.Chun;s"
+    )
+
+    if flag == FAILURE:
+        return total_chunks_or_failure
+
+    pbar = tqdm(total = total_chunks_or_failure, desc="Vector Indexing", position=0)
+
     while True:
         flag, chunks_or_failure = parse_component_result(
             await chunk_model.get_user_chunks(
@@ -104,7 +115,10 @@ async def push_chunks_into_vector_db(
             return insertion_or_failure
 
         inserted_items_count += len(chunks_or_failure)
+        pbar.update(inserted_items_count)
         page_no += 1
+
+
 
     return JSONResponse(
         status_code = status.HTTP_200_OK,

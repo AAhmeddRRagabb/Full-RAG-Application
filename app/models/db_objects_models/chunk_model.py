@@ -154,3 +154,28 @@ class ChunkModel(BaseObjModel):
             return self._return_failure(message = ResponsesEnum.CHUNK_INNER_ERROR.value, error = e)
 
         return self._return_success(content = count > 0)
+
+
+    async def get_total_chunks_per_user(self, user_id: int) -> ComponentResult:
+        """
+        Returns:
+            ComponentResult:
+                if success -> number of user chunks 
+                if failure -> error & respone message
+        """
+        session: AsyncSession
+
+        total_count = 0
+
+        try:
+            async with self.db_client() as session:
+                count_sql = select(func.count(DataChunk.chunk_id)).where(DataChunk.chunk_user_id == user_id)
+                records_count = await session.execute(count_sql)
+                total_count = records_count.scalar()
+        except Exception as e:
+            return self._return_failure(
+                error = e,
+                message = ResponsesEnum.CHUNK_INNER_ERROR.value
+            )
+        
+        return self._return_success(content = total_count)
