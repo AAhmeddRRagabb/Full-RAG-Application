@@ -1,4 +1,4 @@
-from .minirag_base import SQLAlchemyBase
+from .fullrag_base import SQLAlchemyBase
 
 from sqlalchemy import Column, Integer, String, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB

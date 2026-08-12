@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 parent_db = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(parent_db))
-from minirag_db.schemas import SQLAlchemyBase
+from fullrag_db.schemas import SQLAlchemyBase
 target_metadata = SQLAlchemyBase.metadata
 
 # other values from the config, defined by the needs of env.py,

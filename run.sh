@@ -9,7 +9,7 @@
 set -e
 
 echo "===================================="
-echo " Starting MiniRAG Project"
+echo " Starting FullRAG Project"
 echo "===================================="
 
 # project dir

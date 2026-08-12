@@ -1,5 +1,5 @@
 
-from .minirag_base import SQLAlchemyBase
+from .fullrag_base import SQLAlchemyBase
 
 from sqlalchemy import Column, Integer, DateTime, String, func
 from sqlalchemy.dialects.postgresql import UUID
