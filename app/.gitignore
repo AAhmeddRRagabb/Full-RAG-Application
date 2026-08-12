@@ -222,4 +222,17 @@ __marimo__/
 
 .vscode/
 
+# Local runtime configuration and secrets
+.env
+.env.*
+!.env.example
+
+# User uploads and local vector stores
+assets/files/
+assets/vector_databases/
+*.sqlite
+*.sqlite3
+*.db
+
+# Local notes / scratch files
 what_lasts

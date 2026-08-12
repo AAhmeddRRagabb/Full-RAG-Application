@@ -1,10 +1,11 @@
 data/
-env/.env*
 
+env/.env*
 !env/.env.example.*
 
+app/alembic.ini
+config/nginx/default.conf
 config/prometheus/prometheus.yml
 
-app/alembic.ini
-
-config/nginx/default.conf
+*.log
+*.pid

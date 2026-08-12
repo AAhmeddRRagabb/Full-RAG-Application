@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+/.venv/
+/venv/
+/env/
+/ENV/
+
+# Editors and local OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Secrets and local environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.secret
+*.secrets
+secrets/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Runtime data and user uploads
+app/assets/files/
+app/assets/vector_databases/
+docker/data/
+
+# Local generated service config
+docker/env/.env*
+!docker/env/.env.example.*
+docker/app/alembic.ini
+docker/config/nginx/default.conf
+docker/config/prometheus/prometheus.yml
+
+# Logs and temporary files
+*.log
+logs/
+tmp/
+temp/

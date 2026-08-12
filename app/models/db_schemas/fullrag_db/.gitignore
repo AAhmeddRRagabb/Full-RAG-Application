@@ -1,2 +1,4 @@
 alembic.ini
 alembic_guide.txt
+__pycache__/
+*.py[cod]

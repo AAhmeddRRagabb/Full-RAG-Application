@@ -1,2 +1,3 @@
-files
-vector_databases
+*
+!.gitignore
+!.gitkeep
