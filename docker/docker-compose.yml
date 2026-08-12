@@ -2,18 +2,19 @@ services:
 
   # ----------------------------- FullRAG ---------------------------
 
-  fullrag:
-    container_name: FullRAG
+  full-rag:
+    image: full-rag-v1
+    container_name: full-rag-v1
 
     build:
       context: ..
-      dockerfile: docker/full_rag_app/DockerFile
+      dockerfile: docker/app/DockerFile
 
     ports:
       - "8000:8000"
 
     volumes:
-      - ./data/app_data:/final_app/assets
+      - ./data/app_data:/app/assets
 
     env_file:
       - ./env/.env.app
@@ -27,11 +28,10 @@ services:
       pgvector:
         condition: service_healthy
 
-
   # ----------------------------- Nginx Service ---------------------------
 
-  Nginx:
-    container_name: Nginx
+  nginx:
+    container_name: nginx
 
     image: nginx:stable-trixie
 
@@ -47,7 +47,7 @@ services:
     restart: always
 
     depends_on:
-      - fullrag
+      - full-rag
 
 
   # ----------------------------- PostGreSQL [pgvector] & Postgres Exporter ---------------------------
@@ -58,7 +58,7 @@ services:
     container_name: pgvector
 
     ports:
-      - "5433:5432"
+      - "5434:5432"
 
     volumes:
       - ./data/pgvector_data:/var/lib/postgresql
@@ -77,7 +77,7 @@ services:
     healthcheck:
       test:
         - CMD-SHELL
-        - pg_isready -U $$POSTGRES_USER
+        - pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB
       interval: 5s
       timeout: 5s
       retries: 5
@@ -143,6 +143,12 @@ services:
       - full-rag-network
 
     restart: always
+
+    depends_on:
+      - full-rag
+      - postgres-exporter
+      - qdrant
+      - node-exporter
 
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'

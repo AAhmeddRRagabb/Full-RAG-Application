@@ -5,6 +5,6 @@ env/.env*
 
 config/prometheus/prometheus.yml
 
-full_rag_app/alembic.ini
+app/alembic.ini
 
 config/nginx/default.conf
