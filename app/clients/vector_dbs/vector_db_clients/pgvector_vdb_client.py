@@ -241,7 +241,7 @@ class PGVectorVDBClient(BaseVectorClient):
                                 f'{VectorDBPGVectorTableColumns.CHUNK_ID.value} integer, '
                                 f'{VectorDBPGVectorTableColumns.VECTOR.value}   vector({embedding_size}), '
                                 f'{VectorDBPGVectorTableColumns.METADATA.value} jsonb DEFAULT \'{{}}\', '
-                                f'FOREIGN KEY ({VectorDBPGVectorTableColumns.CHUNK_ID.value}) REFERENCES chunks(chunk_id)'
+                                f'FOREIGN KEY ({VectorDBPGVectorTableColumns.CHUNK_ID.value}) REFERENCES chunks(chunk_id) ON DELETE CASCADE'
                             ')'    
                         )
             
@@ -510,7 +510,6 @@ class PGVectorVDBClient(BaseVectorClient):
         is_index_existed = await self.is_index_existed(collection_name)
         if is_index_existed.content:
             return self._return_success()
-
 
         try:
             async with self.db_client() as session:
