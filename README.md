@@ -205,6 +205,11 @@ curl http://127.0.0.1/docs
 curl http://127.0.0.1:9090/-/ready
 ```
 
+
+## Inspiration
+
+This project is inspired by the [Mini RAG Series by Abubakar on YouTube](https://www.youtube.com/playlist?list=PLvLvlVqNQGHCUR2p0b8a0QpVjDUg50wQj).
+
 ## Notes
 
 - Existing Docker data volumes keep their original database initialization. If you change Postgres user, password, or database name after the volume exists, recreate the volume or migrate the database manually.
