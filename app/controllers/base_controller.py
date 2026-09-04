@@ -3,8 +3,7 @@
 # ----------------------------------------------
 
 import os
-from typing import Any
-from models.system_schemas import ComponentResult
+import logging
 
 class BaseController:
 
@@ -19,6 +18,8 @@ class BaseController:
         self.vector_database_dir = os.path.join(self.base_dir, "assets/vector_databases")
         os.makedirs(self.vector_database_dir, exist_ok = True)
 
+
+        self.logger = logging.getLogger("uvicorn")
     
     def get_vector_database_path(self, vector_db_name: str) -> str:
         vector_db_path = os.path.join(
@@ -28,19 +29,3 @@ class BaseController:
 
         os.makedirs(vector_db_path, exist_ok = True)
         return vector_db_path
-
-
-
-    def _return_success(self, content: Any | None = None, message: str | None = None) -> ComponentResult:
-        return ComponentResult(
-            success = True,
-            content = content,
-            message = message
-        )
-
-    def _return_failure(self, error: Any | None = None, message: str | None = None) -> ComponentResult:
-        return ComponentResult(
-            success = False,
-            error = error,
-            message = message
-        )

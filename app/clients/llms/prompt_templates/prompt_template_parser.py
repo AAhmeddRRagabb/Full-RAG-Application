@@ -1,7 +1,6 @@
 import os
-
+import logging
 from models.enums import ResponsesEnum
-from models.system_schemas import ComponentResult
 
 
 class PromptTemplateParser:
@@ -13,6 +12,7 @@ class PromptTemplateParser:
         self.current_path = os.path.dirname(os.path.abspath(__file__))
         self.default_language = default_language
         self.set_language(language)
+        self.logger = logging.getLogger("uvicorn")
 
 
     def set_language(self, language: str):
@@ -31,32 +31,26 @@ class PromptTemplateParser:
         group: str,
         key  : str,
         vars : dict = {}
-    ) -> ComponentResult:
+    ) -> str | None:
         """
         Returns:
-            ComponentResult:
-                if success -> content: the rendered prompt
-                if failure -> error & respone message
+            if success -> the system prompt   
+            if failure -> None
         """
         if not group or not key:
-            return ComponentResult(
-                success = False,
-                error = {"group": group, "key": key},
-                message = ResponsesEnum.GEN_ERROR_WHILE_CALLING_AGENT.value
-            )
+            self.logger.error(f"Error While Getting System Prompt in group | key.\n>>Group: {group}.\n>>Key: {key}")
+            return None
         
         targeted_language = self.language
         group_path = os.path.join(self.current_path, "locales", self.language, f"{group}.py")
+
         if not os.path.exists(group_path):
             group_path = os.path.join(self.current_path, "locales", self.default_language, f"{group}.py" )
             targeted_language = self.default_language
 
         if not os.path.exists(group_path):
-            return ComponentResult(
-                success = False,
-                error = group_path,
-                message = ResponsesEnum.GEN_ERROR_WHILE_CALLING_AGENT.value
-            )
+            self.logger.error(f"Error Finding Group Path: {group_path}")
+            return None
         
 
         module_to_use = __import__(
@@ -65,21 +59,14 @@ class PromptTemplateParser:
         )
 
         if not module_to_use:
-            return ComponentResult(
-                success = False,
-                error = group,
-                message = ResponsesEnum.GEN_ERROR_WHILE_CALLING_AGENT.value
-            )
-        
+            self.logger.error(f"Error Finding Prompt Module: {module_to_use}")
+            return None
+
         try:
             key_attribute: str = getattr(module_to_use, key)
-            return ComponentResult(
-                success = True,
-                content = key_attribute.substitute(vars)
-            )
+            return key_attribute.substitute(vars)
+        
         except Exception as e:
-            return ComponentResult(
-                success = False,
-                error = e,
-                message = ResponsesEnum.GEN_ERROR_WHILE_CALLING_AGENT.value
-            )
+            self.logger.error(f"Error Formatting Prompt: {e}")
+            return None
+

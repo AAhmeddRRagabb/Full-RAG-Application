@@ -1,9 +1,10 @@
 import os
 from .base_controller import BaseController
 from .user_controller import UserController
-from models.system_schemas import ComponentResult
 
 from models.enums import FileExtensionsEnum
+
+
 from langchain_community.document_loaders import TextLoader, PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter # cares for spaces and about
 
@@ -15,22 +16,15 @@ class ProcessController(BaseController):
         self.user_path = UserController().get_user_path(user_name = user_name)
         
 
-    def get_file_extension(self, file_name: str):
-        """
-        Returns:
-            :
-                if success -> content: file extension
-        """
-
+    def get_file_extension(self, file_name: str) -> str:
         return os.path.splitext(file_name)[-1]
     
     
     def get_file_loader(self, file_id: str):
         """
         Returns:
-            :
-                if success -> content: loaded file
-                if failure -> content: None
+            if success -> loaded file
+            if failure -> None
         """
 
         file_ext = self.get_file_extension(file_name = file_id)
@@ -49,7 +43,7 @@ class ProcessController(BaseController):
 
     
     
-    def get_file_content(self, file_id: str):
+    def get_file_content(self, file_id: str) -> str | None:
         loader = self.get_file_loader(file_id = file_id)
 
         if loader:
@@ -59,12 +53,11 @@ class ProcessController(BaseController):
 
 
 
-    def get_chunks(self, file_content: list, chunk_size: int = 100, overlap_size: int = 100) -> ComponentResult:
+    def get_chunks(self, file_content: list, chunk_size: int = 100, overlap_size: int = 100) -> list | None:
         """
         Returns:  
-            ComponentResult:  
-                if success -> content: chunks  
-                if failure -> content: None  
+            if success -> list of chunks  
+            if failure -> None  
         """
         
         # get content
@@ -84,8 +77,8 @@ class ProcessController(BaseController):
         )
 
         if chunks: 
-            return self._return_success(content = chunks)
+            chunks
 
-        return self._return_failure()
+        return None
         
         

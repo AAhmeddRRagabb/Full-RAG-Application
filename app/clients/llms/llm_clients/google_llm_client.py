@@ -120,7 +120,7 @@ class GoogleLLMClient(BaseLLMClient):
             document_title (str)  : the document title if `document`
 
         Returns:
-            if success -> list of embeddings
+            if success -> list of embeddings   
             if failure -> None
         """
         

@@ -72,7 +72,7 @@ class HuggingfaceLLMClient(BaseLLMClient):
             document_title (str)  : the document title if `document`. Ignored for HuggingFace
 
         Returns:
-            if success -> list of embeddings
+            if success -> list of embeddings   
             if failure -> None
         """
 

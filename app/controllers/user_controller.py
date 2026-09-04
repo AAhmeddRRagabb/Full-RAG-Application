@@ -9,7 +9,7 @@ class UserController(BaseController):
     def __init__(self):
         super().__init__()
 
-    def get_user_path(self, user_name: str):
+    def get_user_path(self, user_name: str) -> str:
         user_name = user_name.lower()
 
         if " " in user_name:
@@ -21,13 +21,8 @@ class UserController(BaseController):
         return user_path
 
 
-    def validate_user_name(self, user_name: str) -> ComponentResult:
+    def validate_user_name(self, user_name: str) -> bool:
         if "_" in user_name:
             user_name = user_name.replace('_', '')
 
-        valid = user_name.isalnum()
-
-        if valid:
-            return self._return_success()
-
-        return self._return_failure(message = ResponsesEnum.USER_INVALID_NAME.value)
+        return user_name.isalnum()

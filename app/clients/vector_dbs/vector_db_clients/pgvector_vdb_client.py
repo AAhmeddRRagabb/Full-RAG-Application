@@ -144,9 +144,8 @@ class PGVectorVDBClient(BaseVectorClient):
         Get info about the given collection name
 
         Returns:
-            ComponentResult:
-                if success -> collection info   
-                if failure or not existing collection -> None   
+            if success -> collection info   
+            if failure or not existing collection -> None   
         """
         session: AsyncSession
 
