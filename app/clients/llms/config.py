@@ -55,13 +55,3 @@ class LLMsEmbeddingModels(Enum):
     GOOGLE_EMBEDDINGS_2 = "gemini-embedding-2"
 
 
-
-# LLMs Errors
-class LLMsClientConnectionError(Exception):
-    pass
-
-class LLMsEmbeddingError(Exception):
-    pass
-
-class LLMsGenerationError(Exception):
-    pass

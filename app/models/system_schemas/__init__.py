@@ -1,1 +1,1 @@
-from .component_result import ComponentResult
+from .retrieved_chunk import RetrievedChunk

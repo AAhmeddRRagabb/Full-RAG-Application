@@ -2,7 +2,7 @@
 
 Full RAG App is a FastAPI-based Retrieval Augmented Generation service for uploading documents, chunking them, indexing them in a vector database, retrieving relevant context, and generating grounded answers with an LLM provider.
 
-The current deployment release uses PostgreSQL plus pgvector for relational data and vector search. The project also has two release lines:
+The project also has two release lines:
 
 - MongoDB release: the earlier release line, built around MongoDB-backed persistence.
 - PostgreSQL release: the current release line in this repository, built around PostgreSQL, Alembic migrations, and pgvector.

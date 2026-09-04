@@ -40,6 +40,4 @@ class DataChunk(SQLAlchemyBase):
         UniqueConstraint('chunk_user_id', 'chunk_asset_id', 'chunk_name', name = 'uq_chunk_user_asset_name'),
     )
 
-class RetrievedChunk(BaseModel):
-    text: str
-    score: float
+

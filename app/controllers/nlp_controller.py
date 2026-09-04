@@ -157,7 +157,6 @@ class NLPController(BaseController):
         return self._parse_vector_db_result(is_inserted)
 
 
-
     async def search_vector_db_collection(
         self,
         user_name: str,

@@ -29,8 +29,8 @@ class PromptTemplateParser:
     def get_prompt(
         self,
         group: str,
-        key: str,
-        vars: dict = {}
+        key  : str,
+        vars : dict = {}
     ) -> ComponentResult:
         """
         Returns:
@@ -42,7 +42,7 @@ class PromptTemplateParser:
             return ComponentResult(
                 success = False,
                 error = {"group": group, "key": key},
-                message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value
+                message = ResponsesEnum.GEN_ERROR_WHILE_CALLING_AGENT.value
             )
         
         targeted_language = self.language
@@ -55,7 +55,7 @@ class PromptTemplateParser:
             return ComponentResult(
                 success = False,
                 error = group_path,
-                message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value
+                message = ResponsesEnum.GEN_ERROR_WHILE_CALLING_AGENT.value
             )
         
 
@@ -68,7 +68,7 @@ class PromptTemplateParser:
             return ComponentResult(
                 success = False,
                 error = group,
-                message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value
+                message = ResponsesEnum.GEN_ERROR_WHILE_CALLING_AGENT.value
             )
         
         try:
@@ -81,5 +81,5 @@ class PromptTemplateParser:
             return ComponentResult(
                 success = False,
                 error = e,
-                message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value
+                message = ResponsesEnum.GEN_ERROR_WHILE_CALLING_AGENT.value
             )

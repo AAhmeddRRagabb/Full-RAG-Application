@@ -7,11 +7,9 @@ class VectorDBDistanceMethods(Enum):
 
 
 class VectorDBProviders(Enum):
-    PROVIDER_QDRANT   = "qdrant"
     PROVIDER_PGVEVTOR = "pgvector"
 
 # postgres cfg
-
 class VectorDBPGVectorDistanceMethods(Enum):
     COSINE = 'vector_cosine_ops'
     DOT = 'vector_l2_ops'

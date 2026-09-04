@@ -1,30 +1,21 @@
-from clients.llms.config import (
-    LLMsGenerationMessageTypes,
-
-    LLMsClientConnectionError
-)
+from clients.llms.config import LLMsGenerationMessageTypes
 from models.enums import ResponsesEnum
-from models.system_schemas import ComponentResult
 
 from .base_llm_client import BaseLLMClient
 from groq import Groq
 from groq.types.chat import ChatCompletion
 
 class GroqLLMClient(BaseLLMClient):
-    """
-    Using Groq as a model provider
-
-    """
     def __init__(
         self,
-        api_key: str,
-        generation_model_id: str,
-        embedding_model_id: str,
-        embedding_size: int,
-        api_url: str | None = None,
-        max_input_tokens: int = 1000,
+        api_key                  : str,
+        generation_model_id      : str,
+        embedding_model_id       : str,
+        embedding_size           : int,
+        api_url                  : str | None = None,
+        max_input_tokens         : int = 1000,
         default_max_output_tokens: int = 1000,
-        default_temperature: float = 0.1
+        default_temperature      : float = 0.1
     ) -> None:
         
         super().__init__(
@@ -47,7 +38,8 @@ class GroqLLMClient(BaseLLMClient):
             )
         
         except Exception as e:
-            raise LLMsClientConnectionError from e
+            self.logger.error(f"Error While Initiating LLM Client: {e}")
+            return None
     
     # --------------------- Embedding --------------------- #
     def get_embedding_specific_prompt_type(self, general_type: str) -> str:
@@ -79,16 +71,22 @@ class GroqLLMClient(BaseLLMClient):
 
     def generate_text(
         self, 
-        user_prompt: str, 
-        chat_history: list = [], 
+        user_prompt      : str, 
+        chat_history     : list = [], 
         max_output_tokens: int | None = None, 
-        temperature: float | None = None
-    ) -> ComponentResult:
+        temperature      : float | None = None
+    ) -> str | None:
+        
         """
+        Args:
+            user_prompt  (str)
+            chat_history (list)
+            max_output_tokens (int)
+            temperature (float)
+
         Returns:
-            ComponentResult:
-                if success -> content: generated text
-                if failure -> error & respone message
+            if success -> model response
+            if failure -> None
         """
         
         messages = self.create_prompt(
@@ -111,13 +109,14 @@ class GroqLLMClient(BaseLLMClient):
             )
 
         except Exception as e:
-            return self._return_failure(error = e, message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
+            self.logger.error(f"Error While Generating Response: {e}")
+            return None
                 
         if not self.validate_generation_response(response):
             self.logger.error("Invalid Generation Response")
-            return self._return_failure(message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
+            return None
     
-        return self._return_success(content = response.choices[0].message.content)
+        return response.choices[0].message.content
 
 
     def validate_generation_response(self, response: ChatCompletion) -> bool:

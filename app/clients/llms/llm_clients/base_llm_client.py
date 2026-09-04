@@ -2,7 +2,6 @@ from abc import abstractmethod
 import logging
 from typing import Any
 
-from models.system_schemas import ComponentResult
 
 class BaseLLMClient:
     """
@@ -46,25 +45,9 @@ class BaseLLMClient:
 
         self.client = None
 
-    def _return_success(self, content: Any | None = None, message: str | None = None) -> ComponentResult:
-        return ComponentResult(
-            success = True,
-            content = content,
-            message = message
-        )
-
-    def _return_failure(self, error: Any | None = None, message: str | None = None) -> ComponentResult:
-        return ComponentResult(
-            success = False,
-            error = error,
-            message = message
-        )
-
-    
     # setting CFG
     def set_generation_model(self, model_id: str):
         self.generation_model_id = model_id
-
 
     def set_embedding_config(self, model_id: str, embedding_size: int):
         self.embedding_model_id = model_id
@@ -79,10 +62,10 @@ class BaseLLMClient:
         if len(prompt) > self.max_input_tokens:
             self.logger.info(
                 "Prompt has exceeded the max input tokens\n"
-                f"- Prompt: {prompt[:50]}...\n"
-                f"- Prompt Length: {len(prompt)}\n"
-                f"- Max Allowed Input Length: {self.max_input_tokens}\n"
-                ">>> Prompt will be truncated <<<\n\n"
+                f"\t- Prompt: {prompt[:50]}...\n"
+                f"\t- Prompt Length: {len(prompt)}\n"
+                f"\t- Max Allowed Input Length: {self.max_input_tokens}\n"
+                "\t>>> Prompt will be truncated <<<\n\n"
             )
 
             return prompt[:self.max_input_tokens]
@@ -102,13 +85,7 @@ class BaseLLMClient:
         text          : str | list[str], 
         prompt_type   : str | None = None, 
         document_title: str | None = None
-    ) -> ComponentResult:
-        """
-        Returns:
-            ComponentResult:
-                if success -> content: list of embeddings
-                if failure -> error & respone message
-        """
+    ) -> list[float] | None:
         pass
 
     @abstractmethod
@@ -127,13 +104,7 @@ class BaseLLMClient:
         chat_history: list = [], 
         max_output_tokens: int | None = None, 
         temperature: float | None = None
-    ) -> ComponentResult:
-        """
-        Returns:
-            ComponentResult:
-                if success -> content: generated text
-                if failure -> error & respone message
-        """
+    ) -> str | None:
         pass    
 
     @abstractmethod

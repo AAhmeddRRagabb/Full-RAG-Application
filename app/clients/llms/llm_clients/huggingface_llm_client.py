@@ -3,10 +3,8 @@ from clients.llms.config import (
     LLMsGeneralEmbeddingQueryTypes,
     LLMsHuggingfaceEmbeddingQueryTypes,
     LLMsGenerationMessageTypes,
-    LLMsClientConnectionError
 )
 from models.enums import ResponsesEnum
-from models.system_schemas import ComponentResult
 
 import numpy as np
 from .base_llm_client import BaseLLMClient
@@ -15,20 +13,16 @@ from huggingface_hub import InferenceClient
 
 
 class HuggingfaceLLMClient(BaseLLMClient):
-    """
-    Using Groq as a model provider
-
-    """
     def __init__(
         self,
-        api_key: str,
-        generation_model_id: str,
-        embedding_model_id: str,
-        embedding_size: int,
-        api_url: str | None = None,
-        max_input_tokens: int = 1000,
+        api_key                  : str,
+        generation_model_id      : str,
+        embedding_model_id       : str,
+        embedding_size           : int,
+        api_url                  : str | None = None,
+        max_input_tokens         : int = 1000,
         default_max_output_tokens: int = 1000,
-        default_temperature: float = 0.1
+        default_temperature      : float = 0.1
     ) -> None:
         
         super().__init__(
@@ -53,7 +47,8 @@ class HuggingfaceLLMClient(BaseLLMClient):
             )
 
         except Exception as e:
-            raise LLMsClientConnectionError from e
+            self.logger.error(f"Error While Initiating LLM Client: {e}")
+            return None
         
     
     # --------------------- Embedding --------------------- #
@@ -69,12 +64,16 @@ class HuggingfaceLLMClient(BaseLLMClient):
         text          : str | list[str], 
         prompt_type   : str | None = None, 
         document_title: str | None = None
-    ) -> ComponentResult:
+    ) -> list[float] | None:
         """
+        Args:
+            text (str | list[str]): text(s) to embed
+            prompt_type (str)     : whether the text represents `query` for user_query or `document`
+            document_title (str)  : the document title if `document`. Ignored for HuggingFace
+
         Returns:
-            ComponentResult:
-                if success -> content: list of embeddings
-                if failure -> error & respone message
+            if success -> list of embeddings
+            if failure -> None
         """
 
         if isinstance(text, str):
@@ -96,14 +95,15 @@ class HuggingfaceLLMClient(BaseLLMClient):
             embeddings = np.asarray(response, dtype = np.float32).tolist()
             
         except Exception as e:
-            return self._return_failure(error = e, message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
+            self.logger.error(f"Error While Embedding: {e}")
+            return None
 
         # parse
         if not self.validate_embedding_response(embeddings,expected_count = len(text)):
             self.logger.error(f"Invalid Embedding Response.")
-            return self._return_failure(message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
+            return None
         
-        return self._return_success(content = embeddings)
+        return embeddings
 
 
     def validate_embedding_response(self, response: list[list[float]], expected_count: int) -> bool:
@@ -133,16 +133,22 @@ class HuggingfaceLLMClient(BaseLLMClient):
 
     def generate_text(
         self, 
-        user_prompt: str, 
-        chat_history: list = [], 
+        user_prompt      : str, 
+        chat_history     : list = [], 
         max_output_tokens: int | None = None, 
-        temperature: float | None = None
-    ) -> ComponentResult:
+        temperature      : float | None = None
+    ) -> str | None:
+        
         """
+        Args:
+            user_prompt  (str)
+            chat_history (list)
+            max_output_tokens (int)
+            temperature (float)
+
         Returns:
-            ComponentResult:
-                if success -> content: generated text
-                if failure -> error & respone message
+            if success -> model response
+            if failure -> None
         """
         
         messages = self.create_prompt(
@@ -167,13 +173,14 @@ class HuggingfaceLLMClient(BaseLLMClient):
             )
 
         except Exception as e:
-            return self._return_failure(error = e, message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
+            self.logger.error(f"Error While Generating Response: {e}")
+            return None
         
         if not self.validate_generation_response(response):
             self.logger.error("Invalid Generation Response")
-            return self._return_failure(message = ResponsesEnum.GENERATION_ERROR_WHILE_CALLING_AGENT.value)
+            return None
     
-        return self._return_success(content = response.choices[0].message.content)
+        return response.choices[0].message.content
 
 
     def validate_generation_response(self, response: ChatCompletion) -> bool:
