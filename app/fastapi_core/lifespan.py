@@ -18,6 +18,7 @@ from sqlalchemy.orm import sessionmaker
 import logging
 logger = logging.getLogger('uvicorn')
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
@@ -34,10 +35,9 @@ async def lifespan(app: FastAPI):
         f"/{settings.POSTGRES_MAIN_DB_NAME}"
     )
 
-
     app.db_engine = create_async_engine(url = db_url)
     app.db_client = sessionmaker(
-        bind = app.db_engine,
+        bind   = app.db_engine,
         class_ = AsyncSession,
         expire_on_commit = False
     )
@@ -58,30 +58,27 @@ async def lifespan(app: FastAPI):
 
     if isinstance(app.vector_db_client, PGVectorVDBClient):
         connection = await app.vector_db_client.connect()
-        if not connection.success:
+        if not connection:
             logger.error(f"Error While Connecting to PGVector: {connection.error}")
             exit()
 
-    
     print_success_message(f"Connected to: {settings.VECTOR_DB_BACKEND} Successfully")
 
 
     # LLM Agents
     llm_agent_factory = LLMAgentFactory(config = settings)
-    generation_client_result = llm_agent_factory.create_agent(provider = settings.GENERATION_BACKEND)
-    if not generation_client_result.success:
-        logger.error(f"Error While Creating Generation Client: {generation_client_result.error}")
+    generation_llm_client = llm_agent_factory.create_agent(provider = settings.GENERATION_BACKEND)
+    if not generation_llm_client:
+        logger.error(f"Error While Creating Generation Client: {generation_llm_client}")
         exit()
 
-    embedding_client_result = llm_agent_factory.create_agent(provider = settings.EMBEDDING_BACKEND)
-    if not embedding_client_result.success:
-        logger.error(f"Error While Creating Embedding Client: {embedding_client_result.error}")
+    embedding_llm_client = llm_agent_factory.create_agent(provider = settings.EMBEDDING_BACKEND)
+    if not embedding_llm_client:
+        logger.error(f"Error While Creating Embedding Client: {embedding_llm_client}")
         exit()
 
-    app.generation_client = generation_client_result.content
-    app.embedding_client = embedding_client_result.content
+
     print_success_message(f"Initiating LLM Agents Successfully")
-
 
 
     app.prompt_template_parser = PromptTemplateParser(
