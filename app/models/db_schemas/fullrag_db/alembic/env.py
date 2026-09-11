@@ -19,11 +19,13 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 
-import sys
 from pathlib import Path
-parent_db = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(parent_db))
-from fullrag_db.schemas import SQLAlchemyBase
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[5]
+sys.path.insert(0, str(PROJECT_ROOT))
+from app.models.db_schemas.fullrag_db.schemas import SQLAlchemyBase
+
 target_metadata = SQLAlchemyBase.metadata
 
 # other values from the config, defined by the needs of env.py,

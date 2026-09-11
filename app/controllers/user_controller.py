@@ -2,7 +2,6 @@
 
 import os
 from .base_controller import BaseController
-from models.system_schemas import ComponentResult
 from models.enums import ResponsesEnum
 
 class UserController(BaseController):

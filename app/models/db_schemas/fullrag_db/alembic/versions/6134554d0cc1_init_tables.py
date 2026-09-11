@@ -1,8 +1,8 @@
 """Init Tables
 
-Revision ID: 06a1171ddfe9
+Revision ID: 6134554d0cc1
 Revises: 
-Create Date: 2026-08-11 13:47:56.901711
+Create Date: 2026-09-12 02:08:18.116163
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '06a1171ddfe9'
+revision: str = '6134554d0cc1'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -38,7 +38,7 @@ def upgrade() -> None:
     sa.Column('asset_size', sa.Integer(), nullable=True),
     sa.Column('asset_config', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('asset_user_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['asset_user_id'], ['users.user_id'], ),
+    sa.ForeignKeyConstraint(['asset_user_id'], ['users.user_id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('asset_id'),
     sa.UniqueConstraint('asset_user_id', 'asset_name', name='uq_asset_user_name'),
     sa.UniqueConstraint('asset_uuid')
@@ -53,8 +53,8 @@ def upgrade() -> None:
     sa.Column('chunk_metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('chunk_user_id', sa.Integer(), nullable=False),
     sa.Column('chunk_asset_id', sa.Integer(), nullable=False),
-    sa.ForeignKeyConstraint(['chunk_asset_id'], ['assets.asset_id'], ),
-    sa.ForeignKeyConstraint(['chunk_user_id'], ['users.user_id'], ),
+    sa.ForeignKeyConstraint(['chunk_asset_id'], ['assets.asset_id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['chunk_user_id'], ['users.user_id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('chunk_id'),
     sa.UniqueConstraint('chunk_user_id', 'chunk_asset_id', 'chunk_name', name='uq_chunk_user_asset_name'),
     sa.UniqueConstraint('chunk_uuid')

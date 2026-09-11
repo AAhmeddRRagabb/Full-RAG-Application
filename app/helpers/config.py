@@ -57,7 +57,7 @@ class Settings(BaseSettings):
     VECTOR_DB_BACKEND_LITERAL: List[Literal["qdrant", "pgvector", "milvus"]]
 
     VECTOR_DB_BACKEND: str
-    VECTOR_DB_NAME: str
+    # VECTOR_DB_NAME: str
     
     PGVECTOR_INDEXING_THRESHOLD: int
 

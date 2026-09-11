@@ -48,13 +48,12 @@ async def lifespan(app: FastAPI):
 
     # Vector DB Clients
     print(f"- Connection to Vector DB: {settings.VECTOR_DB_BACKEND}")
-    vector_db_factory = VectorDBFactory(config = settings, db_client = app.db_client)
-    vector_db_result = vector_db_factory.create_vector_db(provider = settings.VECTOR_DB_BACKEND)
-    if not vector_db_result.success:
-        logger.error(f"Error While Creating Vector DB Client: {vector_db_result.error}")
+    app.vector_db_factory = VectorDBFactory(config = settings, db_client = app.db_client)
+    app.vector_db_client = app.vector_db_factory.create_vector_db(provider = settings.VECTOR_DB_BACKEND)
+    if not app.vector_db_client:
+        logger.error(f"Error While Creating Vector DB Client: {app.vector_db_client}")
         exit()
 
-    app.vector_db_client = vector_db_result.content
 
     if isinstance(app.vector_db_client, PGVectorVDBClient):
         connection = await app.vector_db_client.connect()
