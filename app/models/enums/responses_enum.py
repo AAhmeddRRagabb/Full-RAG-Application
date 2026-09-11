@@ -15,10 +15,15 @@ class ResponsesEnum(Enum):
     ASSETs_NOT_FOUND = "Files not found. Please, upload files."
 
 
+    # -- chunks
+    CHUNK_USER_HAS_NO_CHUNKS = "No chunks found, please chunk the uploaded asssets first"
 
     # Success
     FILE_UPLOADING_SUCCESS     = "File Uploaded Successfully"
     FILE_PROCESSING_SUCCESS    = "File Processing Succeeded"
+
+    VECTOR_DB_CHUNKS_INSERTION_SUCCESS = "Chunks Inserted Successfully"
+
 
 
     # vector DB

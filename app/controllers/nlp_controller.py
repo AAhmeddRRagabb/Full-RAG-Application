@@ -51,12 +51,12 @@ class NLPController(BaseController):
 
     async def get_vector_db_collection_info(self, user_name: str) -> dict | None:
         """
-        Returns:  
-            if success -> collection info   
+        Returns:
+            if success -> collection info  
             if failure or not existing collection -> None 
         """
         collection_name = self.get_collection_name(user_name = user_name)
-        return await self.vector_db_client.get_collection_info(collection_name = collection_name)
+        return await jsonable_encoder(self.vector_db_client.get_collection_info(collection_name = collection_name))
 
         
     async def create_collection(self, user_name: str, do_reset: bool = False) -> bool:
@@ -185,11 +185,11 @@ class NLPController(BaseController):
         user_name      : str,
         query          : str,
         retrieval_limit: str,
-    ) -> str:
+    ) -> dict | None:
         """
-        Returns:  
-                if success -> content: list of retrieved chunks    
-                if failure -> error 
+        Returns:
+                if success -> dict contains {'answer', 'full_prompt', 'chat_history'}   
+                if failure -> None 
         """
         # retrieve relevant
         retrieved = await self.search_vector_db_collection(

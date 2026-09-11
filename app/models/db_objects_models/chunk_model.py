@@ -146,7 +146,7 @@ class ChunkModel(BaseObjModel):
     async def get_user_chunks_count(self, user_id: int) -> int | None:
         """
         Returns:
-            if success -> number of user chunks 
+            if success -> number of user chunks  
             if failure -> None
         """
         session: AsyncSession
