@@ -1,7 +1,7 @@
 
 from fastapi.responses import JSONResponse
 from fastapi import status
-from models.system_schemas import ComponentResult
+from models.enums import ResponsesEnum
 import logging
 
 logger = logging.getLogger('uvicorn')
@@ -11,8 +11,7 @@ GREEN = "\033[92m"
 BLUE = "\033[94m"
 RESET = "\033[0m"
 
-SUCCESS = 1
-FAILURE = 0
+
 
 def print_title(title: str) -> None:
     title = f" {title} ".center(100, "=")
@@ -37,10 +36,11 @@ def return_bad_request(message: str) -> JSONResponse:
         }
     )
 
-def parse_component_result(result: ComponentResult, error_message: str | None = None):
-    if not result.success:
-        if result.error:
-            logger.error(f'{error_message}. Error: {result.error}')
-        return FAILURE, return_bad_request(result.message)
-
-    return SUCCESS, result.content
+def return_server_error() -> JSONResponse:
+    return JSONResponse(
+        status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content = {
+            "success": False,
+            "message": ResponsesEnum.INTERNAL_ERROR.value
+        }
+    )

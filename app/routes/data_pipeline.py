@@ -28,7 +28,7 @@ from controllers import NLPController
 
 # helpers
 import helpers.config as CFG
-from helpers.functional import parse_component_result, FAILURE, return_bad_request
+from helpers.functional import return_bad_request, return_server_error
 import os
 
 
@@ -46,8 +46,8 @@ data_pipeline_router = APIRouter(
 @data_pipeline_router.post("/upload/{user_name}")
 async def upload_file(
     user_name: str,
-    request: Request,
-    file: UploadFile = File(...),
+    request  : Request,
+    file     : UploadFile = File(...),
 )-> JSONResponse:
     """
     Uploading a file to the system & saves it. This route mainly do the following:
@@ -57,62 +57,55 @@ async def upload_file(
         - save the file as an asset in the assets collection.
         - save the user data in the users collection. 
     """
-    # Setup
+    # - setup
     data_controller = DataController()
     user_controller = UserController()
 
     user_model  = UserModel(db_client = request.app.db_client)
     asset_model = AssetModel(db_client = request.app.db_client)
 
-
-    flag, valid_or_failure = parse_component_result(user_controller.validate_user_name(user_name = user_name))
-    if flag == FAILURE:
-        return valid_or_failure
+    if not user_controller.validate_user_name(user_name = user_name):
+        return return_bad_request(message = ResponsesEnum.USER_INVALID_NAME.value)
     
     user_path = user_controller.get_user_path(user_name = user_name)
 
 
     # - Process file [validate - clean]
-    flag, validated_or_failure = parse_component_result(data_controller.validate_uploaded_file(file = file))
-    if flag == FAILURE:
-        return validated_or_failure
+    file_validation = data_controller.validate_uploaded_file(file = file)
+    if not file_validation["valid"]:
+        return return_bad_request(message = file_validation["message"])
+    
 
-    cleaned_filename = data_controller.clean_file_name(file_name = file.filename).content
+    cleaned_filename = data_controller.clean_file_name(file_name = file.filename)
     file_path = os.path.join(user_path, cleaned_filename)
 
-    flag, user_or_failure = parse_component_result(await user_model.get_user_or_insert_it(user_name = user_name), error_message = "Error while accessing the user")
-    if flag == FAILURE:
-        return user_or_failure
+    user = await user_model.get_user_or_insert_it(user_name = user_name)
+    if not user:
+        return return_bad_request(message = ResponsesEnum.USER_INVALID_NAME.value)
 
 
     # - Check if asset already uploaded
-    flag, asset_or_failure = parse_component_result(
-        await asset_model.get_asset_record(user_id = user_or_failure.user_id, asset_name = cleaned_filename),
-        error_message = 'Error while accessing asset'
-    )
-    if flag == FAILURE:
-        return asset_or_failure 
-
-    if asset_or_failure: # does exist
+    asset = await asset_model.get_asset(user_id = user.user_id, asset_name = cleaned_filename)
+    if asset:
         return return_bad_request(message = ResponsesEnum.ASSET_ALREADY_EXISTS.value)
+        
 
-
-    # Save Asset
-    flag, valid_or_failure = parse_component_result(await data_controller.save_file(file = file, file_path = file_path), error_message = 'Error while saving the file')
-    if flag == FAILURE:
-        return valid_or_failure
+    # - Save Asset
+    saved = await data_controller.save_file(file = file, file_path = file_path)
+    if not saved:
+        return return_server_error()
 
 
     asset = Asset(
-        asset_user_id = user_or_failure.user_id,
+        asset_user_id = user.user_id,
         asset_type = AssetTypesEnum.ASSET_FILE.value,
         asset_name = cleaned_filename,
         asset_size = os.path.getsize(file_path)
     )
 
-    flag, asset_or_failure = parse_component_result(await asset_model.create_asset(asset), error_message = 'Error while saving the asset')
-    if flag == FAILURE:
-        return asset_or_failure
+    inserted = await asset_model.insert_asset(asset)
+    if not inserted:
+        return return_server_error()
 
 
     # Success state
@@ -121,16 +114,16 @@ async def upload_file(
         content = {
             "success": True,
             "message": ResponsesEnum.FILE_UPLOADING_SUCCESS.value,
-            "file_uploaded_name": asset_or_failure.asset_name
+            "file_uploaded_name": asset.asset_name
         }
     )
 
+# --------------------------- Processing Uploaded Files --------------------------------- #
 
-# Processing Files
 @data_pipeline_router.post("/process/{user_name}")
 async def process_uploaded_data(
-    request: Request,
-    user_name: str,
+    request        : Request,
+    user_name      : str,
     process_request: ProcessRequest,
 ):
     """
@@ -139,7 +132,7 @@ async def process_uploaded_data(
         >> Choose whetehr to chunk a specific files or all user files
         >> Chunking & Save Chunks
     """
-    # Setup
+    # - Setup
     user_model = UserModel(db_client = request.app.db_client)
     chunk_model = ChunkModel(db_client = request.app.db_client)
     asset_model = AssetModel(db_client = request.app.db_client)
@@ -152,78 +145,48 @@ async def process_uploaded_data(
     )
 
 
-    flag, user_or_failure = parse_component_result(await user_model.get_user(user_name), 'Error while accessing the user')
-    if flag == FAILURE:
-        return user_or_failure
-
-    if not user_or_failure:
+    user = await user_model.get_user_by_name(user_name)
+    if not user:
         return return_bad_request(message = ResponsesEnum.USER_NOT_FOUND.value)
-    
 
-    # Resetting [if required]
+
+    # - Resetting [if required]
     if process_request.do_reset:
-        flag, n_deleted_or_failure = parse_component_result(
-            result = await chunk_model.delete_chunks_by_user_id(user_id = user_or_failure.user_id),
-            error_message = 'Error while deleting chunks'
-        )
-        if flag == FAILURE:
-            return n_deleted_or_failure
+        deleted = await chunk_model.delete_user_chunks(user_id = user.user_id)
+        if not deleted:
+            return return_server_error()
 
 
         # delete vectors
-        flag, deleted_or_failure = parse_component_result(
-            result = await nlp_controller.delete_collection(user_name),
-            error_message = 'Error while deleting vectors'
-        )
-        if flag == FAILURE:
-            return deleted_or_failure
+        deleted = await nlp_controller.delete_collection(user_name)
+        if not deleted:
+            return return_server_error()
 
 
-
-    # Get assets to chunk
+    # - Get assets to chunk
     if process_request.file_name:
-        flag, asset_or_failure = parse_component_result(
-            result = await asset_model.get_asset_record(user_id = user_or_failure.user_id, asset_name = process_request.file_name),
-            error_message = 'Error while accessing asset'
-        )
-
-        if flag == FAILURE:
-            return asset_or_failure
-
-        if not asset_or_failure:
+        asset = await asset_model.get_asset(user_id = user.user_id, asset_name = process_request.file_name)
+        if not asset:
             return return_bad_request(message = ResponsesEnum.ASSET_INVALID_NAME.value)
         
-        
-        user_files_ids = {asset_or_failure.asset_id : asset_or_failure.asset_name}
+        user_files_ids = {asset.asset_id : asset.asset_name}
+
 
     else:
-        flag, assets_or_failure = parse_component_result(
-            result = await asset_model.get_all_user_assets(user_id = user_or_failure.user_id, asset_type = AssetTypesEnum.ASSET_FILE.value),
-            error_message = 'Error while accessing assets'
-        )
+        assets = await asset_model.get_user_assets(user_id = user.user_id, asset_type = AssetTypesEnum.ASSET_FILE.value)
+        if len(assets) == 0 or not assets:
+            return return_bad_request(message = ResponsesEnum.ASSETs_NOT_FOUND.value)
 
-        if flag == FAILURE:
-            return assets_or_failure
-
-        if len(assets_or_failure) == 0 or not assets_or_failure:
-            return return_bad_request(message = ResponsesEnum.ASSET_NOT_FOUND.value)
-
-        user_files_ids = {record.asset_id : record.asset_name for record in assets_or_failure}
+        user_files_ids = {record.asset_id : record.asset_name for record in assets}
 
 
-    # Chunking
+    # - Chunking
     no_records_inserted = 0
     no_processed_files = 0
     for asset_id, asset_name in user_files_ids.items():
-        flag, has_chunks_or_failure = parse_component_result(
-            await chunk_model.has_asset_chunks(user_id = user_or_failure.user_id, asset_id = asset_id), 
-            error_message = 'Error while accessing chunks'
-        )
+        has_chunks = await chunk_model.has_asset_chunks(user_id = user.user_id, asset_id = asset_id)
 
-        if flag == FAILURE:
-            return has_chunks_or_failure
-
-        if has_chunks_or_failure:
+        if has_chunks:
             logger.info(f"Asset already chunked: {asset_name}.")
             if process_request.file_name:
                 break
@@ -236,45 +199,34 @@ async def process_uploaded_data(
             logger.error(f"Error while loading file: {asset_name}. File Content: {file_content}")
             continue
 
-        flag, chunks_or_failure = parse_component_result(
-            result = process_controller.get_chunks(
-                file_content = file_content,
-                chunk_size = process_request.chunk_size,
-                overlap_size = process_request.overlap_size,
-            ), error_message = 'Error while chunking file'
+        chunks = process_controller.get_chunks(
+            file_content = file_content,
+            chunk_size = process_request.chunk_size,
+            overlap_size = process_request.overlap_size
         )
-
-        if flag == FAILURE:
-            continue
-
   
-        if not chunks_or_failure or len(chunks_or_failure) == 0:
-            logger.error(f"Error while chunking file: {asset_name}. Chunks: {chunks_or_failure}")
+        if not chunks or len(chunks) == 0:
+            logger.error(f"Error while chunking file: {asset_name}. Chunks: {chunks}")
             continue
     
 
-        
         chunk_objects = [
             DataChunk(
                 chunk_text = chunk.page_content,
                 chunk_name = f"{asset_name}_chunk_{i + 1}",
-                chunk_user_id = user_or_failure.user_id,
+                chunk_user_id = user.user_id,
                 chunk_metadata = chunk.metadata,
                 chunk_asset_id = asset_id,
                 chunk_order = i + 1,
             )
-            for i, chunk in enumerate(chunks_or_failure)
+            for i, chunk in enumerate(chunks)
         ]
 
-        flag, n_inserted_or_failure = parse_component_result(
-            result = await chunk_model.insert_many_chunks(chunk_objects),
-            error_message = 'Error while saving chunk'
-        )
-        if flag == FAILURE:
+        inserted = await chunk_model.insert_many_chunks(chunk_objects)
+        if not inserted:
             continue
 
-        
-        no_records_inserted += n_inserted_or_failure
+        no_records_inserted += len(chunk_objects)
         no_processed_files += 1
 
 

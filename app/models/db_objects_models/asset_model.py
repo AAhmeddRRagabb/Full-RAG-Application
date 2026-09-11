@@ -2,7 +2,6 @@
 from models.db_schemas import Asset
 from models.enums import ResponsesEnum
 from .chunk_model import ChunkModel
-from models.system_schemas import ComponentResult
 
 from .base_obj_model import BaseObjModel
 from sqlalchemy import select, delete
@@ -11,17 +10,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 class AssetModel(BaseObjModel):
     """
     Building a data model for the assets table
+
+    Methods:
+        insert_asset(asset)        : inserting an asset in the database.
+        get_asset(asset)           : getting an asset
+        get_user_assets(user_id)   : getting all user assets
+        delete_user_assets(user_id): deleting all user assets
     """
     def __init__(self, db_client):
         super().__init__(db_client = db_client)
 
 
-    async def create_asset(self, asset: Asset) -> ComponentResult:
+    # ------------------------------- Insertion ---------------------------------- #
+    async def insert_asset(self, asset: Asset) -> bool:
         """
         Returns:
-            ComponentResult:
-                if success -> content: the asset created
-                if failure -> error & respone message
+            a bool indicates whether the asset has been created successfully or not.
         """
         session: AsyncSession
 
@@ -32,18 +36,18 @@ class AssetModel(BaseObjModel):
                 await session.refresh(asset)
             
         except Exception as e:
-            return self._return_failure(error = e, message = ResponsesEnum.ASSET_INNER_ERROR.value)
+            self.logger.error(f"Error Inserting Asset: {e}")
+            return False
 
-        return self._return_success(content = asset)
+        return True
     
 
-    
-    async def get_asset_record(self, user_id: int, asset_name: str) -> ComponentResult:
+    # ------------------------------- Retrieving Info ----------------------------- #
+    async def get_asset(self, user_id: int, asset_name: str) -> Asset | None:
         """
         Returns:
-            ComponentResult:
-                if success -> content: the asset 
-                if failure -> error & respone message
+            if success -> the asset  
+            if failure -> None
         """
         session: AsyncSession
 
@@ -55,20 +59,23 @@ class AssetModel(BaseObjModel):
                         Asset.asset_name == asset_name
                     )
                 )
+
+                record = result.scalar_one_or_none()
+
         except Exception as e:
-            return self._return_failure(message = ResponsesEnum.ASSET_INNER_ERROR.value, error = e)
+            self.logger.error(f"Error Accessing Asset: {e}")
+            return None
 
-        record = result.scalar_one_or_none()
-        return self._return_success(content = record)
+        
+        return record
 
 
 
-    async def get_all_user_assets(self, user_id: int, asset_type: str) -> ComponentResult:
+    async def get_user_assets(self, user_id: int, asset_type: str) -> list[Asset] | None:
         """
         Returns:
-            ComponentResult:
-                if success -> content: list of the user assets
-                if failure -> error & respone message
+            if success -> list of user assets  
+            if failure -> None
         """
         session: AsyncSession
 
@@ -80,29 +87,30 @@ class AssetModel(BaseObjModel):
                         Asset.asset_type == asset_type
                     )
                 )
+
+                assets = list(result.scalars().all())
+
         except Exception as e:
-            return self._return_failure(message = ResponsesEnum.ASSET_INNER_ERROR.value, error = e)
+            self.logger.error(f"Error Accessing Assets: {e}")
+            return None
 
-        return self._return_success(content = list(result.scalars().all()))
+        return assets
 
-
-    async def delete_all_user_assets(self, user_id: int) -> ComponentResult:
+    # -------------------------- Deleting -------------------------------- #
+    async def delete_user_assets(self, user_id: int) -> bool:
         """
         Returns:
-            ComponentResult:
-                if success -> content: dict contains the n_deleted_assets & n_deleted_chunks [related chunks deleted]
-                if failure -> error & respone message
+            a bool indicates whether the assets have been deleted successfully or not.
         """
         session: AsyncSession
 
         # delete related chunks
-        chunks_delete_result = await ChunkModel(db_client = self.db_client).delete_chunks_by_user_id(user_id = user_id)
-        if not chunks_delete_result.success:
-            return self._return_failure(message = ResponsesEnum.ASSET_INNER_ERROR.value, error = chunks_delete_result.error)
+        if not await ChunkModel(db_client = self.db_client).delete_user_chunks(user_id = user_id):
+            return False
 
         try:
             async with self.db_client() as session:
-                result = await session.execute(
+                await session.execute(
                     delete(Asset).where(
                         Asset.asset_user_id == user_id
                     )
@@ -112,9 +120,7 @@ class AssetModel(BaseObjModel):
                 
 
         except Exception as e:
-            return self._return_failure(message = ResponsesEnum.ASSET_INNER_ERROR.value, error = e)
+            self.logger.error(f"Error Deleting Assets: {e}")
+            return False
 
-        return self._return_success(content = {
-            "n_deleted_assets": result.rowcount,
-            "n_deleted_chunks": chunks_delete_result.content
-        })
+        return True

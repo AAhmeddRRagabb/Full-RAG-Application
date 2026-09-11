@@ -3,7 +3,6 @@
 # ----------------------------------------------------
 
 
-from models.system_schemas import ComponentResult
 from models.enums import ResponsesEnum
 from models.db_schemas import User
 
@@ -14,18 +13,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 class UserModel(BaseObjModel):
     """
     Data model for the user table
+
+    Methods:
+        insert_user(user)               : inserting a user into the database.
+        get_user_by_name(user_name)     : retrieving a user from the database.
+        get_user_or_insert_it(user_name): used to retrieve user if found / insert user if not found.
+        get_all_users(page, page_size)  : get all users in the database.
     """
     def __init__(self, db_client):
         super().__init__(db_client)
         
-
-
-    async def insert_user(self, user: User) -> ComponentResult:
+    # ---------------------------- Insertion ------------------------------- #
+    async def insert_user(self, user: User) -> bool:
         """
         Returns:
-            ComponentResult:
-                if success -> content: the user inserted
-                if failure -> error & respone message
+            a bool indicates whether the user has been inserted successfully or not.
         """
         session: AsyncSession
 
@@ -38,22 +40,20 @@ class UserModel(BaseObjModel):
                 await session.refresh(user)
 
         except Exception as e:
-            return self._return_failure(error = e, message = ResponsesEnum.USER_INNER_ERROR.value)
+            self.logger.error(f"Error Inserting User: {e}")
+            return False
 
-        return self._return_success(content = user)
+        return True
     
-
-    async def get_user(self, user_name: str) -> ComponentResult:
+    # ----------------------- Retrieving Info ------------------------ #
+    async def get_user_by_name(self, user_name: str) -> User | None:
         """
         Returns:
-            ComponentResult:
-                if success -> content: the user
-                if failure -> error & respone message
+            if success -> the user  
+            if failure -> None
         """
         session: AsyncSession
 
-        if not user_name or not user_name.strip():
-            return self._return_failure(message = ResponsesEnum.USER_INVALID_NAME.value)
 
         try:
             async with self.db_client() as session:
@@ -65,24 +65,22 @@ class UserModel(BaseObjModel):
                     )
 
                     user = result.scalar_one_or_none()
-        except Exception as e:
-            return self._return_failure(error = e, message = ResponsesEnum.USER_INNER_ERROR.value)
 
-        return self._return_success(user)
+        except Exception as e:
+            self.logger.error(f"Error Accessing User: {e}")
+            return None
+
+
+        return user
 
     
-
-    async def get_user_or_insert_it(self, user_name: str) -> ComponentResult:
+    async def get_user_or_insert_it(self, user_name: str) -> User | None:
         """
         Returns:
-            ComponentResult:
-                if success -> content: the user
-                if failure -> error & respone message
+            if success -> the user      
+            if failure -> None  
         """
         session: AsyncSession
-
-        if not user_name or not user_name.strip():
-            return self._return_failure(message = ResponsesEnum.USER_INVALID_NAME.value)
 
         try:
             async with self.db_client() as session:
@@ -94,26 +92,27 @@ class UserModel(BaseObjModel):
                     user = result.scalar_one_or_none()
 
         except Exception as e:
-            return self._return_failure(error = e, message = ResponsesEnum.USER_INNER_ERROR.value)
+            self.logger.error(f"Error Accessing User: {e}")
+            return None
 
         
         if user is None:
-            user = User(
-                user_name = user_name
-            )
+            user = User(user_name = user_name)
 
-            return await self.insert_user(user)
+            inserted = await self.insert_user(user)
+            if inserted:
+                return user
+            else:
+                return None
 
-        return self._return_success(user)
+        return user
         
 
-
-    async def get_all_users(self, page: int = 1, page_size: int = 10) :
+    async def get_all_users(self, page: int = 1, page_size: int = 10) -> dict[str] | None:
         """
-        Returns:
-            ComponentResult:
-                if success -> content: dict contains users & num_pages
-                if failure -> error & respone message
+        Returns:   
+            if success -> a dict contains {users - total_pages}   
+            if failure -> None
         """
         session: AsyncSession
 
@@ -133,10 +132,12 @@ class UserModel(BaseObjModel):
                         select(User).offset(skipped_pages).limit(page_size)
                     )
                     users = list(result.scalars().all())
+
         except Exception as e:
-            return self._return_failure(error = e, message = ResponsesEnum.USER_INNER_ERROR.value)
+            self.logger.error(f"Error Accessing Users: {e}")
+            return None
     
-        return self._return_success(content = {
-            'users' : users, 
-            'num_pages': total_pages
-        })
+        return {
+            "users"      : users,
+            "total_pages": total_pages
+        }

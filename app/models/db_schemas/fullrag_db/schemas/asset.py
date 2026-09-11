@@ -11,7 +11,7 @@ class Asset(SQLAlchemyBase):
     __tablename__ = 'assets'
 
     # columns
-    asset_id = Column(Integer, primary_key = True, autoincrement = True)
+    asset_id   = Column(Integer, primary_key = True, autoincrement = True)
     asset_uuid = Column(UUID(as_uuid = True), unique = True, default = uuid.uuid4, nullable = False)
 
     asset_name = Column(String, nullable = False)
@@ -26,7 +26,7 @@ class Asset(SQLAlchemyBase):
 
 
     # linking
-    user = relationship("User", back_populates = 'assets')
+    user   = relationship("User", back_populates = 'assets')
     chunks = relationship('DataChunk', back_populates = 'asset')
 
     # indexing

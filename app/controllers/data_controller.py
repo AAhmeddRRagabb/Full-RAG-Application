@@ -18,12 +18,13 @@ class DataController(BaseController):
         Validate the uploaded file size & type
 
         Returns:
-            dict contains:
-                if valid ->
-                    - valid = True
-                    - message = valid message
-                if not valid ->
-                    - valid = False
+            dict contains:      
+                if valid ->   
+                    - valid = True   
+                    - message = valid message    
+
+                if not valid ->   
+                    - valid = False   
                     - message = not valid message
         """
         
@@ -45,15 +46,11 @@ class DataController(BaseController):
         }
 
     
-    def clean_file_name(self, file_name: str) -> str | None:
+    def clean_file_name(self, file_name: str) -> str:
         """Clean & Standardize the file name"""
-        try:
-            cleaned_fname = re.sub(r'[^\w.]', '', file_name.strip()) # \w --> [A-Z a-z 0-9 _]
-            cleaned_fname = cleaned_fname.replace(' ', '_')
-        except Exception as e:
-            self.logger.error(f"Error Cleaning Filename: {e}")
-            return None
-        
+        cleaned_fname = re.sub(r'[^\w.]', '', file_name.strip()) # \w --> [A-Z a-z 0-9 _]
+        cleaned_fname = cleaned_fname.replace(' ', '_')
+            
         return cleaned_fname
 
 

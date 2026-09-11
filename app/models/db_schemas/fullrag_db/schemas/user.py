@@ -13,7 +13,7 @@ class User(SQLAlchemyBase):
     __tablename__ = 'users'
 
     # columns
-    user_id = Column(Integer, primary_key = True, autoincrement = True)
+    user_id   = Column(Integer, primary_key = True, autoincrement = True)
     user_uuid = Column(UUID(as_uuid = True), unique = True, default = uuid.uuid4, nullable = False)
     user_name = Column(String, unique = True, nullable = False)
 
