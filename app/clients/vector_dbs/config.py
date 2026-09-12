@@ -22,6 +22,7 @@ class VectorDBPGVectorIndexTypes(Enum):
 class VectorDBPGVectorTableColumns(Enum):
     ID = 'id'
     TEXT = 'text'
+    ASSET_ID = 'asset_id'
     CHUNK_ID = 'chunk_id'
     VECTOR = 'vector'
     METADATA = 'metadata'

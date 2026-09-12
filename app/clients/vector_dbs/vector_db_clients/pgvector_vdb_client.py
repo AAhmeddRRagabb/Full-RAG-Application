@@ -486,13 +486,16 @@ class PGVectorVDBClient(BaseVectorClient):
             async with self.db_client() as session:
                 async with session.begin():
                     index_check_stmt = sql_text(
-                        "SELECT 1"
-                        "FROM pg_indexes"
-                        f"WHERE tablename = {collection_name}"
-                        f"AND   indexname = {index_name}"
+                        "SELECT 1 "
+                        "FROM pg_indexes "
+                        "WHERE tablename = :collection_name "
+                        "AND   indexname = :index_name"
                     )
     
-                    results = await session.execute(index_check_stmt)
+                    results = await session.execute(index_check_stmt, params = {
+                        "collection_name": collection_name,
+                        "index_name": index_name
+                    })
 
         except Exception as e:
             self.logger.error(f"Error Checking Index Existance: {e}")

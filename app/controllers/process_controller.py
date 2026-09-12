@@ -77,7 +77,7 @@ class ProcessController(BaseController):
         )
 
         if chunks: 
-            chunks
+            return chunks
 
         return None
         

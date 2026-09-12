@@ -10,8 +10,9 @@ from fastapi.responses import JSONResponse
 # models & schemas
 from models.db_objects_models import UserModel
 from models.db_objects_models import ChunkModel
+from models.db_objects_models import AssetModel
 
-from models.enums import ResponsesEnum
+from models.enums import ResponsesEnum, AssetTypesEnum
 
 from models.request_schemas import PushChunksRequest
 from models.request_schemas import RetrievalRequest
@@ -51,6 +52,7 @@ async def insert_chunks_into_vector_db(
     # - Setup
     user_model = UserModel(db_client = request.app.db_client)
     chunk_model = ChunkModel(db_client = request.app.db_client)
+    asset_model = AssetModel(db_client = request.app.db_client)
 
     nlp_controller = NLPController(
         vector_db_client = request.app.vector_db_client,
@@ -61,16 +63,37 @@ async def insert_chunks_into_vector_db(
     if not user:
         return return_bad_request(message = ResponsesEnum.USER_INVALID_NAME.value)
 
+    # get assets
+    # if push_request.asset_name:
+    #     asset = await asset_model.get_asset(asset_name = push_request.asset_name)
+    #     if not asset:
+    #         return return_bad_request(message = ResponsesEnum.ASSET_INVALID_NAME.value)
+    #     assets = [asset]
+    # else:
+    #     assets = await asset_model.get_user_assets(user_id = user.user_id, asset_type = AssetTypesEnum.ASSET_FILE.value)
+    #     if not assets or len(assets) == 0:
+    #         return return_bad_request(message = ResponsesEnum.ASSETs_NOT_FOUND.value)
+        
+    
+
     is_collection_created = await nlp_controller.create_collection(user_name, do_reset = push_request.do_reset)
     if not is_collection_created:
         return return_server_error()
 
+    
+    collection_info = await nlp_controller.get_vector_db_collection_info(user_name = user_name)
+    if not collection_info:
+        return return_server_error()
+
+    if collection_info['num_records'] > 0: # check if the user chunks are already pushed
+        return return_bad_request(message = ResponsesEnum.VECTOR_DB_CHUNKS_ALREADY_PUSHED.value)
+    
 
     # - Get Chunks
     page_no = 1
     inserted_items_count = 0
 
-    n_user_chunks = await chunk_model.get_user_chunks_count(user_id = user.user_id),
+    n_user_chunks = await chunk_model.get_user_chunks_count(user_id = user.user_id)
     if n_user_chunks is None:
         return return_server_error()
 
@@ -85,7 +108,7 @@ async def insert_chunks_into_vector_db(
         chunks = await chunk_model.get_user_chunks(
             user_id = user.user_id,
             page_no = page_no,
-            page_size = PushChunksRequest.page_size
+            page_size = push_request.page_size
         )
 
         if len(chunks) == 0 or not chunks:
@@ -136,10 +159,10 @@ async def get_user_collection_info(
 
     user_model = UserModel(db_client = request.app.db_client)
 
-    if not user_model.get_user_by_name(user_name = user_name):
+    if not await user_model.get_user_by_name(user_name = user_name):
         return return_bad_request(message = ResponsesEnum.USER_INVALID_NAME.value)
 
-    collection_info = nlp_controller.get_vector_db_collection_info(user_name = user_name),
+    collection_info = await nlp_controller.get_vector_db_collection_info(user_name = user_name)
     if not collection_info:
         return return_server_error()
 
@@ -169,10 +192,10 @@ async def retrieve_relevant_chunks(
     )
 
     user_model = UserModel(db_client = request.app.db_client)
-    if not user_model.get_user_by_name(user_name = user_name):
+    if not await user_model.get_user_by_name(user_name = user_name):
         return return_bad_request(message = ResponsesEnum.USER_INVALID_NAME.value)
 
-    relevant_chunks = nlp_controller.search_vector_db_collection(
+    relevant_chunks = await nlp_controller.search_vector_db_collection(
         user_name = user_name,
         text = retrieval_request.query,
         limit = retrieval_request.limit,
@@ -212,7 +235,7 @@ async def answer_user_query(
 
 
     user_model = UserModel(db_client = request.app.db_client)
-    if not user_model.get_user_by_name(user_name = user_name):
+    if not await user_model.get_user_by_name(user_name = user_name):
         return return_bad_request(message = ResponsesEnum.USER_INVALID_NAME.value)
 
 

@@ -4,6 +4,7 @@
 
 import os
 import logging
+from pathlib import Path
 
 class BaseController:
 
@@ -29,3 +30,6 @@ class BaseController:
 
         os.makedirs(vector_db_path, exist_ok = True)
         return vector_db_path
+
+    def get_file_extension(self, filename: str) -> str:
+        return Path(filename).suffix.lower()

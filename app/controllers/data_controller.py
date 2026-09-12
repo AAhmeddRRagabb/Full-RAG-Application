@@ -2,7 +2,7 @@ import re
 import aiofiles
 
 from models.enums import ResponsesEnum
-from helpers.config import FILE_ALLOWED_TYPES, FILE_MAX_SIZE_MB, FILE_CHUNK_SIZE_B
+from helpers.config import FILE_ALLOWED_EXTENSIONS, FILE_MAX_SIZE_MB, FILE_CHUNK_SIZE_B
 
 from .base_controller import BaseController
 from fastapi import UploadFile
@@ -27,8 +27,10 @@ class DataController(BaseController):
                     - valid = False   
                     - message = not valid message
         """
+        file_extension = self.get_file_extension(filename = file.filename)
         
-        if file.content_type not in FILE_ALLOWED_TYPES:
+        if file_extension not in FILE_ALLOWED_EXTENSIONS:
+            print(file_extension)
             return {
                 "valid": False,
                 "message": ResponsesEnum.FILE_TYPE_NOT_SUPPORTED.value

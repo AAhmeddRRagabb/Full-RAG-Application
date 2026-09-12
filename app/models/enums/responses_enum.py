@@ -15,6 +15,9 @@ class ResponsesEnum(Enum):
     ASSETs_NOT_FOUND = "Files not found. Please, upload files."
 
 
+    # -- vector-db
+    VECTOR_DB_CHUNKS_ALREADY_PUSHED = "Chunks have been already inserted"
+
     # -- chunks
     CHUNK_USER_HAS_NO_CHUNKS = "No chunks found, please chunk the uploaded asssets first"
 

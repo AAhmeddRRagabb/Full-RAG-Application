@@ -65,15 +65,15 @@ async def lifespan(app: FastAPI):
 
 
     # LLM Agents
-    llm_agent_factory = LLMAgentFactory(config = settings)
-    generation_llm_client = llm_agent_factory.create_agent(provider = settings.GENERATION_BACKEND)
-    if not generation_llm_client:
-        logger.error(f"Error While Creating Generation Client: {generation_llm_client}")
+    app.llm_agent_factory = LLMAgentFactory(config = settings)
+    app.generation_client = app.llm_agent_factory.create_agent(provider = settings.GENERATION_BACKEND)
+    if not app.generation_client:
+        logger.error(f"Error While Creating Generation Client: {app.generation_client}")
         exit()
 
-    embedding_llm_client = llm_agent_factory.create_agent(provider = settings.EMBEDDING_BACKEND)
-    if not embedding_llm_client:
-        logger.error(f"Error While Creating Embedding Client: {embedding_llm_client}")
+    app.embedding_client = app.llm_agent_factory.create_agent(provider = settings.EMBEDDING_BACKEND)
+    if not app.embedding_client:
+        logger.error(f"Error While Creating Embedding Client: {app.embedding_client}")
         exit()
 
 

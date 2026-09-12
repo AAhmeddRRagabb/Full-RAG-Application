@@ -56,7 +56,7 @@ class NLPController(BaseController):
             if failure or not existing collection -> None 
         """
         collection_name = self.get_collection_name(user_name = user_name)
-        return await jsonable_encoder(self.vector_db_client.get_collection_info(collection_name = collection_name))
+        return jsonable_encoder(await self.vector_db_client.get_collection_info(collection_name = collection_name))
 
         
     async def create_collection(self, user_name: str, do_reset: bool = False) -> bool:

@@ -9,7 +9,8 @@ DATA_ROUTES_PREFIX = f"{BASE_ROUTES_PREFIX}/data"
 NLP_ROUTES_PREFIX = f"{BASE_ROUTES_PREFIX}/nlp"
 
 
-FILE_ALLOWED_TYPES = ['text/plain', 'application/pdf']
+# FILE_ALLOWED_TYPES = ['text/plain', 'application/pdf']
+FILE_ALLOWED_EXTENSIONS = ['.pdf', '.txt']
 FILE_CHUNK_SIZE_B = 512 * 1024
 FILE_MAX_SIZE_MB = 10
 
