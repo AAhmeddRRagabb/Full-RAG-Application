@@ -125,13 +125,17 @@ Content-Type: application/json
 Push chunks into the vector database:
 
 ```http
-POST /api/v1/nlp/push/{user_name}
+POST /api/v1/nlp/insert_chunks/{user_name}
 Content-Type: application/json
 
 {
-  "do_reset": 0
+  "do_reset": 0,
+  "page_size": 50
 }
 ```
+
+The legacy `POST /api/v1/nlp/push/{user_name}` route is also accepted for
+backward compatibility.
 
 Retrieve relevant chunks:
 

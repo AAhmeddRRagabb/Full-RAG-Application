@@ -34,6 +34,7 @@ nlp_router = APIRouter(
 
 
 # ----------------------- Add Chunks into Vector DBs # ----------------------- 
+@nlp_router.post("/push/{user_name}", include_in_schema = False)
 @nlp_router.post("/insert_chunks/{user_name}")
 async def insert_chunks_into_vector_db(
     request     : Request,

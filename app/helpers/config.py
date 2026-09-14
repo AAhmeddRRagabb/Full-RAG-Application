@@ -55,8 +55,6 @@ class Settings(BaseSettings):
     DEFAULT_LANGUAGE: str
 
     # -------------------------- DBs Config ----------------------------- #
-    VECTOR_DB_BACKEND_LITERAL: List[Literal["qdrant", "pgvector", "milvus"]]
-
     VECTOR_DB_BACKEND: str
     # VECTOR_DB_NAME: str
     
