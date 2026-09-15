@@ -11,6 +11,7 @@ python-multipart==0.0.32
 prometheus-client==0.26.0
 fastapi-health==0.4.0
 starlette-exporter==0.24.0
+Jinja2==3.1.6
 
 
 # dealing with text

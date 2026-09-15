@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{{ page_title }}</title>
+
+
+        <!-- links -->
+        <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
+        <link rel="stylesheet" href="{{ url_for('static', path='css/all.min.css') }}">
+    </head>
+
+    <body>
+        <main class="app-shell">
+
+            <!-- ----------------- Top bar ------------------- -->
+            <header class="topbar">
+                <div>
+                    <h1 class="topbar-title">{{ app_name }}</h1>
+                </div>
+                <span class="status success"><span></span>Ready</span>
+            </header>
+
+            
+            <section class="chat-panel">
+                <!-- ----------------- Chat header ------------------- -->
+                <div class="chat-header">
+                    <div>
+                        <h2>Ask a technical question</h2>
+                        <p>You can upload a PDF for answers based on its contents.</p>
+                    </div>
+                </div>
+
+                <!-- ----------------- Chat  ------------------- -->
+                <div class="messages" id="messages">
+
+                    <article class="message assistant-message">
+                        
+                        <div class="avatar">AI</div>
+
+                        <div class="message-content">
+                            <p>Ask a question to begin.</p>
+                        </div>
+
+                    </article>
+
+                    <!-- Example user message -->
+                    <!-- <article class="message user-message">
+                        
+                        <div class="message-content">
+                            <p>Summarize the uploaded document.</p>
+                        </div>
+
+                        <div class="avatar">{{ user_name[0] }}</div>
+
+
+                    </article> -->
+                   
+                </div>
+
+                <form class="query-form" id="queryForm">
+
+                    <textarea
+                        class="query-area"
+                        id="queryArea"
+                        name="query"
+                        rows="1"
+                        placeholder="Ask a question..."
+                        required
+                    ></textarea>
+
+                    <div class="buttons">
+
+                        <button title="Upload PDF" class="upload-pdf">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+
+                        <button class="send" title="Send">
+                            <i class="fa-solid fa-arrow-up-long"></i>
+                        </button>
+
+                    </div>
+
+
+                </form>
+
+
+            </section>
+        </main>
+
+
+        <script src="{{ url_for('static', path = 'js/main.js') }}"></script>
+        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+    </body>
+</html>
