@@ -83,6 +83,7 @@ class PGVectorVDBClient(BaseVectorClient):
             if failure or not existed -> False
         """
         session: AsyncSession
+        collection_name = collection_name.lower()
 
         try:
             async with self.db_client() as session:
@@ -98,12 +99,14 @@ class PGVectorVDBClient(BaseVectorClient):
 
                     record = results.scalar_one_or_none()
 
+                    self.logger.info(f"Record ===> {record}")
+                    self.logger.info(f"Bool Record ===> {bool(record)}")
+
         except Exception as e:
             self.logger.error(f"Error While Checking Collection Existance: {e}")
             return False
 
         return bool(record)
-
 
 
     async def list_all_collections(self) -> list[str] | None:
@@ -234,7 +237,6 @@ class PGVectorVDBClient(BaseVectorClient):
         if await self.is_collection_existed(collection_name):
             self.logger.info(f"Collection {collection_name} already exists")
             return True
-
 
         self.logger.info(f"Creating Collection: {collection_name}")
 
@@ -402,7 +404,7 @@ class PGVectorVDBClient(BaseVectorClient):
                             batch_insert_stmt,
                             params = values
                         )
-                        await session.commit()
+                        
 
         except Exception as e:
             self.logger.error(f"Error Inserting Records: {e}")

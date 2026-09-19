@@ -2,12 +2,12 @@
 # Building a database model for users
 # ----------------------------------------------------
 
-
+from uuid import UUID
 from models.enums import ResponsesEnum
 from models.db_schemas import User
 
 from .base_obj_model import BaseObjModel
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 class UserModel(BaseObjModel):
@@ -16,9 +16,10 @@ class UserModel(BaseObjModel):
 
     Methods:
         insert_user(user)               : inserting a user into the database.
-        get_user_by_name(user_name)     : retrieving a user from the database.
-        get_user_or_insert_it(user_name): used to retrieve user if found / insert user if not found.
+        get_user_by_email(email)        : retrieving a user from the database using the email.
+        get_user_by_uuid(user_uuid)     : retrieving a user from the database using the user_uuid.
         get_all_users(page, page_size)  : get all users in the database.
+        delete_all_users()              : delete users
     """
     def __init__(self, db_client):
         super().__init__(db_client)
@@ -46,7 +47,7 @@ class UserModel(BaseObjModel):
         return True
     
     # ----------------------- Retrieving Info ------------------------ #
-    async def get_user_by_name(self, user_name: str) -> User | None:
+    async def get_user_by_email(self, email: str) -> User | None:
         """
         Returns:
             if success -> the user  
@@ -54,13 +55,12 @@ class UserModel(BaseObjModel):
         """
         session: AsyncSession
 
-
         try:
             async with self.db_client() as session:
                 async with session.begin():
                     result = await session.execute(
                         statement = select(User).where(
-                            User.user_name == user_name
+                            User.user_email == email
                         )
                     )
 
@@ -70,15 +70,14 @@ class UserModel(BaseObjModel):
             self.logger.error(f"Error Accessing User: {e}")
             return None
 
-
         return user
 
-    
-    async def get_user_or_insert_it(self, user_name: str) -> User | None:
+
+    async def get_user_by_uuid(self, user_uuid: UUID) -> User | None:
         """
         Returns:
-            if success -> the user      
-            if failure -> None  
+            if success -> the user  
+            if failure -> None
         """
         session: AsyncSession
 
@@ -86,7 +85,9 @@ class UserModel(BaseObjModel):
             async with self.db_client() as session:
                 async with session.begin():
                     result = await session.execute(
-                        select(User).where(User.user_name == user_name)
+                        statement = select(User).where(
+                            User.user_uuid == user_uuid
+                        )
                     )
 
                     user = result.scalar_one_or_none()
@@ -95,18 +96,9 @@ class UserModel(BaseObjModel):
             self.logger.error(f"Error Accessing User: {e}")
             return None
 
-        
-        if user is None:
-            user = User(user_name = user_name)
-
-            inserted = await self.insert_user(user)
-            if inserted:
-                return user
-            else:
-                return None
-
         return user
-        
+
+
 
     async def get_all_users(self, page: int = 1, page_size: int = 10) -> dict[str] | None:
         """
@@ -141,3 +133,24 @@ class UserModel(BaseObjModel):
             "users"      : users,
             "total_pages": total_pages
         }
+
+    # ----------------------- Delete Users ------------------------ #
+    async def delete_all_users(self) -> bool:
+        """
+        Returns:
+            a bool indicates whether the users have been deleted or not.
+        """
+        session: AsyncSession
+
+        try:
+            async with self.db_client() as session:
+                async with session.begin():
+                    await session.execute(
+                        text("TRUNCATE TABLE users RESTART IDENTITY CASCADE")
+                    )
+            return True
+
+        except Exception as e:
+            self.logger.exception(f"Error deleting users: {e}")
+            return False
+    

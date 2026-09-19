@@ -1,38 +1,16 @@
 from enum import Enum
 
 class ResponsesEnum(Enum):
-    # User Errors
-    FILE_TYPE_NOT_SUPPORTED    = "File Type Not Supported"
-    FILE_MAX_SIZE_EXCEEDED     = "File Max Size Exceeded"
-
-    # -- user
-    USER_INVALID_NAME = "Invalid User Name"
-    USER_NOT_FOUND = "User Not Found"
-
-    # -- asset
-    ASSET_ALREADY_EXISTS = "Asset has been uploaded already."
-    ASSET_INVALID_NAME = "Invalid file name"
-    ASSETs_NOT_FOUND = "Files not found. Please, upload files."
+    # Files
+    FILE_TYPE_NOT_SUPPORTED = "File type not supported."
+    FILE_MAX_SIZE_EXCEEDED  = "Max size exceeded."
+    FILE_UPLOADING_SUCCESS = "File Uploaded Successfully."
 
 
-    # -- vector-db
-    VECTOR_DB_CHUNKS_ALREADY_PUSHED = "Chunks have been already inserted"
+    # User
+    USER_LOGIN_ERROR = "Invalid User Data"
+    USER_REGISTERED_SUCCESSFULLY = "User Registered Successfully"
+    USER_FOUND_ALREADY = "This email is reserved for another user"
 
-    # -- chunks
-    CHUNK_USER_HAS_NO_CHUNKS = "No chunks found, please chunk the uploaded asssets first"
-
-    # Success
-    FILE_UPLOADING_SUCCESS     = "File Uploaded Successfully"
-    FILE_PROCESSING_SUCCESS    = "File Processing Succeeded"
-
-    VECTOR_DB_CHUNKS_INSERTION_SUCCESS = "Chunks Inserted Successfully"
-
-
-
-    # vector DB
-    # VECTOR_DB_COLLECTION_NOT_FOUND = "Collection Not Found"
-    # VECTOR_DB_INVALID_DATA         = "Invalid Input Data"
-
-
-    # Response for Internel errors
-    INTERNAL_ERROR = "An error occured. Please, try again later."
+    # Server Error
+    INTERNAL_SERVER_ERROR = "An unexpected error occurred. Please try again later."

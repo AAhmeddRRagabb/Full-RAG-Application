@@ -1,6 +1,5 @@
-
 from fastapi.responses import JSONResponse
-from fastapi import status
+from fastapi import status, HTTPException
 from models.enums import ResponsesEnum
 import logging
 
@@ -36,11 +35,14 @@ def return_bad_request(message: str) -> JSONResponse:
         }
     )
 
-def return_server_error() -> JSONResponse:
-    return JSONResponse(
+def raise_internal_server_error():
+    raise HTTPException(
         status_code = status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content = {
-            "success": False,
-            "message": ResponsesEnum.INTERNAL_ERROR.value
-        }
+        detail = ResponsesEnum.INTERNAL_SERVER_ERROR.value
     )
+
+
+
+def log_title(title: str) -> None:
+    title = f" {title} ".center(100, "=")
+    logger.info(title)

@@ -2,11 +2,16 @@
 # Contain App Configurations
 # -----------------------------------------
 from pydantic_settings import BaseSettings
+from pydantic import SecretStr
+
 from typing import List, Literal
 
-BASE_ROUTES_PREFIX = "/api/v1"
-DATA_ROUTES_PREFIX = f"{BASE_ROUTES_PREFIX}/data"
-NLP_ROUTES_PREFIX = f"{BASE_ROUTES_PREFIX}/nlp"
+
+# Routes
+APP_ROUTES_ROOT_PATH = "/api/v1"
+AUTH_ROUTES_PATH     = f"{APP_ROUTES_ROOT_PATH}/auth"
+DATA_ROUTES_PATH     = f"{APP_ROUTES_ROOT_PATH}/data"
+CHAT_ROUTER_PATH      = f"{APP_ROUTES_ROOT_PATH}/chat"
 
 
 # FILE_ALLOWED_TYPES = ['text/plain', 'application/pdf']
@@ -63,10 +68,21 @@ class Settings(BaseSettings):
     VECTOR_DB_DISTANCE_METHOD: str
     POSTGRES_MAIN_DB_NAME: str
 
+    # -------------------------- Redis Config ----------------------------- #
+    redis_url: str = "redis://localhost:6379/0"
+    session_absolute_days: int = 7
+    session_idle_minutes: int = 60
 
-    
+    csrf_secret: SecretStr  # !
+    frontend_origin: str
+
     class Config:
         env_file = ".env"
+
+
+    @property
+    def session_cookie_name(self) -> str: # !
+        return "session"
     
 def get_settings():
     return Settings()

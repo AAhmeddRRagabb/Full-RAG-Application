@@ -1,47 +1,67 @@
 # ------------------------------------------------------
 # Main Workflow
 # ------------------------------------------------------
+
 from pathlib import Path
-from helpers.config import get_settings
 
-from fastapi.requests import Request
 from fastapi import FastAPI
-from routes.app import base, data_pipeline, nlp
-
-from fastapi_core.lifespan import lifespan
-from fastapi_core.metrics import setup_metrics
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.requests import Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-app = FastAPI(lifespan = lifespan)
-setup_metrics(app = app)
+from fastapi_core.lifespan import lifespan
+from fastapi_core.metrics import setup_metrics
+from helpers.config import get_settings
+from routes.app import auth_router, base_router, data_router
+
+app = FastAPI(lifespan=lifespan)
+setup_metrics(app=app)
 
 BASE_DIR = Path(__file__).resolve().parent
+settings = get_settings()
+templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
 app.mount(
     "/static",
-    StaticFiles(directory = BASE_DIR / "static"),
-    name = "static"
+    StaticFiles(directory=BASE_DIR / "static"),
+    name="static",
 )
 
-templates = Jinja2Templates(directory = BASE_DIR / "templates")
-settings = get_settings()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        settings.frontend_origin,
+    ],
+    allow_credentials=True,
+    allow_methods=[
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS",
+    ],
+    allow_headers=[
+        "Content-Type",
+        "X-CSRF-Token",
+    ],
+)
 
 
 @app.get("/")
-def home(
-    request: Request
-):
+def home(request: Request):
     return templates.TemplateResponse(
-        request = request,
-        name = "index.html",
-        context = {
+        request=request,
+        name="index.html",
+        context={
             "page_title": settings.APP_NAME,
-            "app_name"  : "Ahmed Bot",
-            "user_name" : "Ahmed"
-        }
+            "app_name": "Ahmed Bot",
+            "user_name": "Ahmed",
+        },
     )
 
 
-app.include_router(router = base.base_router)
-app.include_router(router = data_pipeline.data_pipeline_router)
-app.include_router(router = nlp.nlp_router)
+app.include_router(router=base_router)
+app.include_router(router=data_router)
+app.include_router(router=auth_router)

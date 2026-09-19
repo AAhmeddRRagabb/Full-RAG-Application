@@ -30,7 +30,6 @@ class DataController(BaseController):
         file_extension = self.get_file_extension(filename = file.filename)
         
         if file_extension not in FILE_ALLOWED_EXTENSIONS:
-            print(file_extension)
             return {
                 "valid": False,
                 "message": ResponsesEnum.FILE_TYPE_NOT_SUPPORTED.value

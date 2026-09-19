@@ -8,6 +8,7 @@ from helpers.config import get_settings
 from clients.llms import LLMAgentFactory
 from clients.vector_dbs import VectorDBFactory
 from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
+from redis.asyncio import Redis
 
 from clients.llms.prompt_templates import PromptTemplateParser
 
@@ -17,6 +18,8 @@ from sqlalchemy.orm import sessionmaker
 
 import logging
 logger = logging.getLogger('uvicorn')
+
+
 
 
 @asynccontextmanager
@@ -64,6 +67,17 @@ async def lifespan(app: FastAPI):
     print_success_message(f"Connected to: {settings.VECTOR_DB_BACKEND} Successfully")
 
 
+    # Redis Client
+    print(f"- Connection to Redis...")
+    app.redis_client = Redis.from_url(
+        url = settings.redis_url,
+        encoding = "utf-8",
+        decode_responses = True
+    )
+
+    await app.redis_client.ping()
+    print_success_message(f"Connected to Redis Successfully")
+
     # LLM Agents
     app.llm_agent_factory = LLMAgentFactory(config = settings)
     app.generation_client = app.llm_agent_factory.create_agent(provider = settings.GENERATION_BACKEND)
@@ -84,10 +98,18 @@ async def lifespan(app: FastAPI):
         language = settings.PRIMARY_LANGUAGE,
         default_language = settings.DEFAULT_LANGUAGE
     )
+
+
+
+    print_success_message(f"URL: {settings.frontend_origin}")
+
+
     yield
 
     await app.db_engine.dispose()
     await app.vector_db_client.disconnect()
+    await app.redis_client.aclose()
+
     app.generation_client = None
     app.embedding_client = None
 

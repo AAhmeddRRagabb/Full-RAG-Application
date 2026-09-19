@@ -13,6 +13,54 @@
     </head>
 
     <body>
+
+        <!-- start form -->
+        <div class="start-form">
+            <h2 class="welcome">Welcome</h2>
+           <div class="buttons">
+                <button type="button" class="visitor">Visitor</button>
+                <button type="button" class="subscriber">Subscriber</button>
+           </div>
+        </div>
+
+        <div class="register-form">
+            <form action="">
+                <input type="text" name="user_name" id="userName" placeholder="Please, enter your name" required>
+                <input type="email" name="user_email" id="userEmail" placeholder="Please, enter your email" required>
+                <input type="password" name="user_password" id="userPassword" placeholder="Please, enter your password" required>
+                <input type="password" name="confirm_password" id="confirmPassword" placeholder="Please, confirm your password" required>
+                <p class="form-message" aria-live="polite"></p>
+
+                <input type="submit" value="Register" id="submitBtn">
+            </form>
+
+            <button type="button" class="close-form" title="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <button type="button" class="have-email">Already have an email?</button>
+        </div>
+
+
+        <div class="login-form">
+            <form action="">
+                <input type="email" name="user_email" id="userEmail" placeholder="Please, enter your email" required>
+                <input type="password" name="user_password" id="userPassword" placeholder="Please, enter your password" required>
+                <p class="form-message" aria-live="polite"></p>
+
+                <input type="submit" value="Login" id="submitBtn">
+            </form>
+            <button type="button" class="close-form" title="Close">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <button type="button" class="have-no-email">New?</button>
+        </div>
+
+
+        <!-- alerts -->
+        <div class="alerts" aria-live="polite">
+
+        </div>
+
         <main class="app-shell">
 
             <!-- ----------------- Top bar ------------------- -->
@@ -20,16 +68,32 @@
                 <div>
                     <h1 class="topbar-title">{{ app_name }}</h1>
                 </div>
-                <span class="status success"><span></span>Ready</span>
+                <div class="user-profile">
+                    <div class="buttons">
+                        <button type="button" class="login" id="login">Log In</button>
+                        <button type="button" class="logout" id="logout" hidden>Log Out</button>
+                    </div>
+                    <div class="logo">V</div>
+                </div>
             </header>
+
+            <p class="welcome-message" aria-live="polite"></p>
 
             
             <section class="chat-panel">
                 <!-- ----------------- Chat header ------------------- -->
                 <div class="chat-header">
                     <div>
-                        <h2>Ask a technical question</h2>
-                        <p>You can upload a PDF for answers based on its contents.</p>
+                        <p>Select a PDF to make the bot answer based on its contents.</p>
+                    </div>
+                    <div class="control-area">
+                        <div class="list-files">
+                            <button type="button" class="list-files-btn" title="List uploaded Files">
+                                <i class="fa-solid fa-caret-down"></i>
+                            </button>
+                            <form class="files">
+                            </form>
+                        </div>
                     </div>
                 </div>
 
@@ -73,25 +137,27 @@
 
                     <div class="buttons">
 
-                        <button title="Upload PDF" class="upload-pdf">
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
+                        <div>
+                            <button type="button" title="Upload PDF" class="upload-pdf">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                            <input type="file" id="fileInput" hidden>
+                        </div>
+
 
                         <button class="send" title="Send">
                             <i class="fa-solid fa-arrow-up-long"></i>
                         </button>
 
                     </div>
-
-
                 </form>
-
 
             </section>
         </main>
 
 
-        <script src="{{ url_for('static', path = 'js/main.js') }}"></script>
+        <script type="module" src="{{ url_for('static', path = 'js/auth.js') }}"></script>
+        <script type="module" src="{{ url_for('static', path = 'js/data.js') }}"></script>
         <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
     </body>

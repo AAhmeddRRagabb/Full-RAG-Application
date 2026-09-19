@@ -1,38 +1,82 @@
-
 /* ----------------------------------- */
 /**
     * General
 */
 
 :root {
-  --page: #f4f7fb;
-  --surface: #ffffff;
-  --surface-soft: #f8faff;
-  --ink: #16213a;
-  --muted: #74809a;
-  --line: #e5eaf2;
-  --primary: #4f46e5;
-  --primary-hover: #4338ca;
-  --user-message: #edf0ff;
-  --shadow: 0 18px 45px rgba(24, 39, 75, 0.10);
+    --page: #090b10;
+    --page-grid: rgba(106, 240, 255, 0.08);
+    --surface: #111620;
+    --surface-strong: #161d2a;
+    --surface-soft: #0d121b;
+    --surface-glass: rgba(17, 22, 32, 0.88);
+    --ink: #edf7ff;
+    --muted: #8fa4b8;
+    --line: rgba(137, 164, 184, 0.22);
+    --line-strong: rgba(106, 240, 255, 0.35);
+    --primary: #22d3ee;
+    --primary-hover: #67e8f9;
+    --accent: #a3e635;
+    --danger: #fb7185;
+    --warning: #facc15;
+    --user-message: rgba(34, 211, 238, 0.14);
+    --assistant-message: rgba(163, 230, 53, 0.09);
+    --shadow: 0 24px 70px rgba(0, 0, 0, 0.34);
 }
 
 * {
-  box-sizing: border-box;
+    box-sizing: border-box;
+}
+
+html {
+    min-width: 320px;
 }
 
 body {
-  min-width: 320px;
-  min-height: 100vh;
-  margin: 0;
-  color: var(--ink);
-  font-family: Inter, Arial, sans-serif;
-  background:
-    radial-gradient(circle at 5% 0%, rgba(99, 102, 241, 0.13), transparent 28rem),
-    var(--page);
+    min-width: 320px;
+    min-height: 100vh;
+    margin: 0;
+    color: var(--ink);
+    font-family: Inter, "Segoe UI", Arial, sans-serif;
+    background:
+        linear-gradient(135deg, rgba(34, 211, 238, 0.08), transparent 35%),
+        linear-gradient(315deg, rgba(163, 230, 53, 0.07), transparent 32%),
+        var(--page);
 }
 
+body::before {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    content: "";
+    background-image:
+        linear-gradient(var(--page-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--page-grid) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.86), rgba(0, 0, 0, 0.22));
+}
 
+button,
+input,
+textarea {
+    font: inherit;
+}
+
+button,
+input[type='submit'] {
+    min-height: 44px;
+}
+
+button[hidden] {
+    display: none !important;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+}
 
 h1,
 h2,
@@ -46,8 +90,313 @@ h1 {
 }
 
 h2 {
-    margin-bottom: 0.3rem;
-    font-size: 1.1rem;
+    margin-bottom: 0.35rem;
+    font-size: 1.05rem;
+}
+
+
+
+/* ----------------------------------- */
+/**
+    * Alerts
+*/
+
+.alerts {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    z-index: 20;
+    display: none;
+    width: min(calc(100% - 2rem), 420px);
+    pointer-events: none;
+    transform: translateX(-50%);
+}
+
+.alerts.active {
+    display: block;
+}
+
+.alert {
+    margin: 0;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink);
+    background: rgba(17, 22, 32, 0.96);
+    box-shadow: var(--shadow);
+    font-size: 0.92rem;
+    font-weight: 800;
+    line-height: 1.45;
+    backdrop-filter: blur(16px);
+}
+
+.alert.error {
+    border-color: rgba(251, 113, 133, 0.55);
+    color: #ffe4e8;
+    background: rgba(80, 20, 34, 0.96);
+}
+
+.alert.success {
+    border-color: rgba(163, 230, 53, 0.48);
+    color: #ecfccb;
+    background: rgba(34, 55, 20, 0.96);
+}
+
+.alert.info {
+    border-color: rgba(34, 211, 238, 0.48);
+    color: #cffafe;
+    background: rgba(12, 50, 62, 0.96);
+}
+
+
+
+/* ----------------------------------- */
+/**
+    * Auth Screens
+*/
+
+.start-form,
+.register-form,
+.login-form {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: none;
+    width: min(calc(100% - 2rem), 500px);
+    padding: 1.5rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface-glass);
+    box-shadow: var(--shadow);
+    transform: translate(-50%, -50%);
+    backdrop-filter: blur(18px);
+}
+
+.start-form::before,
+.register-form::before,
+.login-form::before {
+    position: absolute;
+    top: 0;
+    right: 1rem;
+    left: 1rem;
+    height: 1px;
+    content: "";
+    background: linear-gradient(90deg, transparent, var(--primary), var(--accent), transparent);
+}
+
+.start-form.active,
+.register-form.active,
+.login-form.active {
+    display: flex;
+}
+
+.start-form {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 1.2rem;
+}
+
+.start-form h2 {
+    margin: 0;
+    color: var(--ink);
+    font-size: clamp(1.45rem, 5vw, 2.1rem);
+    font-weight: 850;
+}
+
+.start-form h2::after {
+    display: block;
+    width: 56px;
+    height: 3px;
+    margin-top: 0.8rem;
+    border-radius: 999px;
+    content: "";
+    background: var(--accent);
+}
+
+.start-form .buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.start-form button,
+
+.register-form form input[type='submit'],
+.register-form .have-email,
+
+.login-form form input[type='submit'],
+.login-form .have-no-email
+{
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: #041016;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    font-weight: 800;
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.start-form button,
+.register-form form input[type='submit'],
+.login-form form input[type='submit'] {
+    padding: 0.8rem 1rem;
+}
+
+.start-form button.visitor,
+.register-form .have-email,
+.login-form .have-no-email
+{
+    border-color: var(--line);
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.start-form button:hover,
+.register-form form input[type='submit']:hover,
+.login-form form input[type='submit']:hover,
+.register-form .have-email:hover,
+.login-form .have-no-email:hover
+{
+    border-color: var(--line-strong);
+    box-shadow: 0 0 26px rgba(34, 211, 238, 0.18);
+    transform: translateY(-1px);
+}
+
+
+
+/* ----------------------------------- */
+/**
+    * Register Form
+*/
+
+.register-form {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 1rem;
+    padding-top: 1.5rem;
+}
+
+.register-form form,
+.login-form form
+{
+    display: flex;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.register-form form input:not([type='submit']),
+.login-form form input:not([type='submit']) {
+    width: 100%;
+    min-height: 52px;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink);
+    background: rgba(7, 11, 18, 0.76);
+    font-weight: 650;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.register-form form input:not([type='submit'])::placeholder,
+.login-form form input:not([type='submit'])::placeholder,
+.query-area::placeholder {
+    color: #718498;
+}
+
+.register-form form input:not([type='submit']):focus,
+.login-form form input:not([type='submit']):focus,
+.query-area:focus {
+    border-color: var(--primary);
+    background: rgba(9, 14, 22, 0.94);
+    box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.11);
+}
+
+.register-form .have-email,
+.login-form .have-no-email
+{
+    align-self: flex-start;
+    min-height: 40px;
+    padding: 0.55rem 0.8rem;
+    font-size: 0.88rem;
+}
+
+.form-message,
+.welcome-message {
+    display: none;
+    width: 100%;
+    margin: 0;
+    padding: 0.78rem 0.9rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.04);
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
+.form-message.active,
+.welcome-message.active {
+    display: block;
+}
+
+.form-message.error,
+.welcome-message.error {
+    border-color: rgba(251, 113, 133, 0.45);
+    color: #ffe4e8;
+    background: rgba(251, 113, 133, 0.13);
+}
+
+.form-message.success,
+.welcome-message.success {
+    border-color: rgba(163, 230, 53, 0.42);
+    color: #ecfccb;
+    background: rgba(163, 230, 53, 0.12);
+}
+
+.form-message.info,
+.welcome-message.info {
+    border-color: rgba(34, 211, 238, 0.42);
+    color: #cffafe;
+    background: rgba(34, 211, 238, 0.12);
+}
+
+
+.close-form {
+    position: absolute;
+    top: 0.7rem;
+    right: 0.7rem;
+    display: grid;
+    width: 34px;
+    min-height: 34px;
+    height: 34px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--muted);
+    background: transparent;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.close-form:hover {
+    border-color: rgba(251, 113, 133, 0.45);
+    color: #ffe4e8;
+    background: rgba(251, 113, 133, 0.1);
+}
+
+/* ----------------------------------- */
+/**
+    * login Form
+*/
+
+.login-form  {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 1rem;
+    padding-top: 1.5rem;
 }
 
 
@@ -58,11 +407,22 @@ h2 {
 */
 
 .app-shell {
-  width: min(100% - 2rem, 980px);
-  min-height: 100vh;
-  margin: auto;
-  padding: 2rem 0;
+    display: none;
+    width: min(100% - 2rem, 1040px);
+    min-height: 100vh;
+    margin: auto;
+    padding: 2rem 0;
 }
+
+.app-shell.active {
+    display: block;
+}
+
+.welcome-message {
+    margin-bottom: 1rem;
+}
+
+
 
 /* ----------------------------------- */
 /**
@@ -78,29 +438,65 @@ h2 {
 }
 
 .topbar-title {
-    color: var(--primary);
+    color: var(--ink);
     font-size: 1.6rem;
-    font-weight: 800;
+    font-weight: 900;
 }
 
-.status {
-    display: inline-flex;
+.topbar-title::before {
+    display: inline-block;
+    width: 0.72rem;
+    height: 0.72rem;
+    margin-right: 0.62rem;
+    border-radius: 2px;
+    content: "";
+    background: var(--primary);
+    box-shadow: 0 0 18px rgba(34, 211, 238, 0.75);
+}
+
+.user-profile {
+    display: flex;
     align-items: center;
-    gap: 0.45rem;
-    padding: 0.55rem 0.8rem;
-    border: 1px solid #cdeede;
-    border-radius: 999px;
-    color: #157a52;
-    background: #f1fff8;
-    font-size: 0.82rem;
-    font-weight: 700;
+    gap: 0.8rem;
 }
 
-.status span {
-    width: 0.5rem;
-    height: 0.5rem;
-    border-radius: 50%;
-    background: #22c55e;
+.user-profile .buttons button {
+    min-height: 42px;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 0.9rem;
+    font-weight: 850;
+    cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.user-profile .buttons button:hover {
+    border-color: var(--line-strong);
+    box-shadow: 0 0 22px rgba(34, 211, 238, 0.18);
+    transform: translateY(-1px);
+}
+
+.user-profile .buttons .logout {
+    border-color: rgba(251, 113, 133, 0.36);
+    color: #ffe4e8;
+    background: rgba(251, 113, 133, 0.1);
+}
+
+.user-profile .logo {
+    display: grid;
+    width: 46px;
+    height: 46px;
+    place-items: center;
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    color: var(--primary);
+    background: rgba(34, 211, 238, 0.1);
+    box-shadow: inset 0 0 18px rgba(34, 211, 238, 0.08);
+    font-size: 1.1rem;
+    font-weight: 950;
 }
 
 
@@ -116,9 +512,10 @@ h2 {
     min-height: 700px;
     overflow: hidden;
     border: 1px solid var(--line);
-    border-radius: 18px;
-    background: var(--surface);
+    border-radius: 8px;
+    background: rgba(13, 18, 27, 0.9);
     box-shadow: var(--shadow);
+    backdrop-filter: blur(18px);
 }
 
 
@@ -129,8 +526,18 @@ h2 {
 */
 
 .chat-header {
-    padding: 1.4rem 1.5rem;
+    padding: 1.25rem 1.5rem;
     border-bottom: 1px solid var(--line);
+    background: linear-gradient(90deg, rgba(34, 211, 238, 0.08), rgba(163, 230, 53, 0.05));
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.chat-header h2 {
+    color: var(--ink);
+    font-weight: 850;
 }
 
 .chat-header p {
@@ -139,6 +546,80 @@ h2 {
     font-size: 0.92rem;
 }
 
+
+.chat-header .list-files-btn {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.05);
+    cursor: pointer;
+    transition: border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.chat-header .list-files-btn:hover {
+    border-color: var(--line-strong);
+    color: var(--primary);
+    transform: translateY(-1px);
+}
+
+.chat-header .control-area .list-files-btn i {
+    font-size: 1.1rem;
+}
+
+.chat-header .control-area .list-files {
+    position: relative;
+}
+
+
+.chat-header .control-area .files {
+    position: absolute;
+    top: calc(100% + 0.6rem);
+    right: 0;
+    z-index: 10;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.55rem;
+    width: min(72vw, 320px);
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(13, 18, 27, 0.98);
+    box-shadow: var(--shadow);
+    display: none;
+}
+
+.chat-header .control-area .files .file {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    width: 100%;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--ink);
+    font-size: 0.9rem;
+    line-height: 1.35;
+    word-break: break-word;
+}
+
+.chat-header .control-area .files .file:hover {
+    border-color: var(--line);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.chat-header .control-area .files .file input {
+    accent-color: var(--primary);
+}
+
+.chat-header .control-area .files.active {
+    display: flex;
+}
 
 /* ----------------------------------- */
 /**
@@ -153,6 +634,7 @@ h2 {
     gap: 1.2rem;
     padding: 1.5rem;
     overflow-y: auto;
+    scrollbar-color: var(--line-strong) transparent;
 }
 
 .message {
@@ -168,17 +650,22 @@ h2 {
     width: 2rem;
     height: 2rem;
     place-items: center;
-    border-radius: 50%;
-    color: white;
-    background: var(--primary);
+    border: 1px solid var(--line-strong);
+    border-radius: 8px;
+    color: var(--primary);
+    background: rgba(34, 211, 238, 0.1);
     font-size: 0.7rem;
-    font-weight: 800;
+    font-weight: 900;
+    box-shadow: inset 0 0 16px rgba(34, 211, 238, 0.08);
 }
 
 .message-content {
+    max-width: 100%;
     padding: 0.85rem 1rem;
-    border-radius: 4px 14px 14px;
-    background: var(--surface-soft);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: #e9f5ff;
+    background: var(--assistant-message);
     line-height: 1.6;
 }
 
@@ -186,13 +673,29 @@ h2 {
     margin-bottom: 0;
 }
 
+.message-content p + p {
+    margin-top: 0.8rem;
+}
+
+.message-content code {
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    color: #d9f99d;
+    background: rgba(255, 255, 255, 0.08);
+}
+
 .user-message {
     align-self: flex-end;
     justify-content: flex-end;
 }
 
+.user-message .avatar {
+    color: #ecfccb;
+    border-color: rgba(163, 230, 53, 0.35);
+    background: rgba(163, 230, 53, 0.1);
+}
+
 .user-message .message-content {
-    border-radius: 14px 4px 14px 14px;
     background: var(--user-message);
 }
 
@@ -203,14 +706,13 @@ h2 {
 */
 
 .query-form {
-    padding: 1rem 1.25rem 1.2rem;
-    border-top: 1px solid var(--line);
-    background: #fcfdff;
-
     display: grid;
     grid-template-columns: 1fr auto;
     align-items: center;
     gap: 1rem;
+    padding: 1rem 1.25rem 1.2rem;
+    border-top: 1px solid var(--line);
+    background: rgba(9, 13, 20, 0.94);
 }
 
 
@@ -219,22 +721,13 @@ h2 {
 .query-area {
     width: 100%;
     max-height: 140px;
-
-    padding: 1rem 0.8rem;
-    
-    outline: 0;
+    padding: 1rem 0.9rem;
     border: 1px solid var(--line);
-    border-radius: 14px;
-
-    background: var(--surface);
+    border-radius: 8px;
+    outline: 0;
     color: var(--ink);
-
-    font: inherit;
-}
-
-
-.query-area::placeholder {
-    color: #98a2b5;
+    background: rgba(255, 255, 255, 0.04);
+    resize: vertical;
 }
 
 
@@ -242,47 +735,48 @@ h2 {
 .buttons {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 0.75rem;
     justify-self: end;
 }
 
-button.send {
-    padding: 0.7rem 1rem;
-    
-    border: 0;
-    border-radius: 10px;
-
-    background: var(--primary);
-    color: white;
-    
-    font: inherit;
-    font-weight: 700;
-    
+button.send,
+button.upload-pdf {
+    display: grid;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: 8px;
     cursor: pointer;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, background 0.2s ease;
 }
 
-
+button.send {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    color: #041016;
+    background: var(--primary);
+    font-weight: 800;
+}
 
 button.send:hover {
     background: var(--primary-hover);
+    box-shadow: 0 0 22px rgba(34, 211, 238, 0.32);
 }
 
 
 button.upload-pdf {
-    padding: 0.4rem 0.7rem;
-    
-    border: 0;
-    
-    width: fit-content;
-    aspect-ratio: 1;
-    border-radius: 50%;
-    
-    cursor: pointer;
-    transition: 0.3s;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-color: var(--line);
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.05);
 }
 
 button.upload-pdf:hover {
-    transform: scale(1.1);
+    border-color: var(--line-strong);
+    color: var(--primary);
+    transform: translateY(-1px);
 }
 
 
@@ -293,7 +787,18 @@ button.upload-pdf:hover {
 */
 
 
-@media (max-width: 600px) {
+@media (max-width: 700px) {
+    .start-form,
+    .register-form,
+    .login-form {
+        width: min(calc(100% - 1.25rem), 500px);
+        padding: 1.1rem;
+    }
+
+    .start-form .buttons {
+        grid-template-columns: 1fr;
+    }
+
     .app-shell {
         width: 100%;
         padding: 0;
@@ -301,14 +806,53 @@ button.upload-pdf:hover {
 
     .topbar {
         padding: 1rem;
+        margin-bottom: 0;
+    }
+
+    .user-profile {
+        gap: 0.55rem;
+    }
+
+    .user-profile .buttons button {
+        padding: 0.55rem 0.7rem;
+        font-size: 0.82rem;
+    }
+
+    .user-profile .logo {
+        width: 40px;
+        height: 40px;
+    }
+
+    .welcome-message {
+        width: calc(100% - 2rem);
+        margin: 0 1rem 1rem;
     }
 
     .chat-panel {
-        min-height: calc(100vh - 92px);
+        min-height: calc(100vh - 81px);
         border-right: 0;
         border-bottom: 0;
         border-left: 0;
         border-radius: 0;
+    }
+
+    .chat-header,
+    .messages,
+    .query-form {
+        padding-right: 1rem;
+        padding-left: 1rem;
+    }
+
+    .query-form {
+        grid-template-columns: 1fr;
+    }
+
+    .query-form .buttons {
+        justify-self: stretch;
+    }
+
+    .query-form .buttons button {
+        flex: 1;
     }
 
     .message {

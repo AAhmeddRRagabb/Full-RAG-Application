@@ -4,7 +4,7 @@ import helpers.config as CFG
 
 
 base_router = APIRouter(
-    prefix = CFG.BASE_ROUTES_PREFIX,
+    prefix = CFG.APP_ROUTES_ROOT_PATH,
     tags = ["base"]
 )
 
