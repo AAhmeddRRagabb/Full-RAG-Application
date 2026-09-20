@@ -6,158 +6,199 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>{{ page_title }}</title>
 
-
-        <!-- links -->
+        <!-- css links -->
         <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}">
         <link rel="stylesheet" href="{{ url_for('static', path='css/all.min.css') }}">
     </head>
 
     <body>
 
-        <!-- start form -->
-        <div class="start-form">
-            <h2 class="welcome">Welcome</h2>
-           <div class="buttons">
-                <button type="button" class="visitor">Visitor</button>
-                <button type="button" class="subscriber">Subscriber</button>
-           </div>
+        <div class="page">
+
+            <!-- main area -->
+            <main class="main-area w75">
+
+                <!-- main header -->
+                <header class="header">
+                    <div class="container">
+                        <h1 class="header-title">{{ app_name }}</h1>
+
+                        <button type="button" class="control-area_toggle" title="Toggle control menu" aria-label="Toggle control menu" aria-expanded="true">
+                            <i class="fa-solid fa-bars"></i>
+                        </button>
+                    </div>
+                </header>
+
+                <!-- chat area -->
+                <section class="chat-area">
+                    <div class="container">
+                        <div class="messages" id="messages">
+                            <article class="message assistant-message">
+                                <div class="avatar">AI</div>
+                                <div class="message-content">
+                                    <p>Ask a question to begin.</p>
+                                </div>
+                            </article>
+                        </div>
+
+                        <!-- query form -->
+                        <form class="query-form" id="queryForm">
+                            <textarea
+                                id="queryArea"
+                                name="query"
+                                rows="1"
+                                placeholder="Ask a question..."
+                                required
+                            ></textarea>
+
+                            <button type="submit" class="query-form_submit-btn" title="Send message">
+                                <i class="fa-solid fa-arrow-up-long"></i>
+                            </button>
+                        </form>
+                    </div>
+                </section>
+
+            </main>
+
+            <!-- control sidebar -->
+            <aside class="control-area active" aria-label="Chat controls">
+
+                <!-- profile controls -->
+                <section class="control-section control-profile">
+                    <div>
+                        <p class="welcome-message" aria-live="polite">Welcome Visitor</p>
+                    </div>
+
+                    <div class="control-profile_buttons">
+                        <button type="button" class="login" id="login">Log In</button>
+                        <button type="button" class="logout" id="logout" hidden>Log Out</button>
+                    </div>
+                </section>
+
+                <!-- user actions -->
+                <section class="control-section user-actions">
+                    <div class="control-section_header">
+                        <h2>User Actions</h2>
+                    </div>
+
+                    <!-- upload control -->
+                    <div class="control-card upload-resource">
+                        <div>
+                            <p>Upload</p>
+                            <span>Upload a PDF.</span>
+                        </div>
+
+                        <button type="button" title="Upload PDF" class="upload-pdf">
+                            <i class="fa-solid fa-plus"></i>
+                        </button>
+                        <input type="file" id="fileInput" accept=".pdf" hidden>
+                    </div>
+                </section>
+
+                <!-- chat controls -->
+                <section class="control-section control-chat">
+                    <div class="control-section_header">
+                        <h2>Control Bot Behavior</h2>
+                    </div>
+
+                    <!-- online search control -->
+                    <div class="control-card search-online">
+                        <div>
+                            <p>Search online</p>
+                            <span>Use web results.</span>
+                        </div>
+
+                        <button type="button" class="search-online-btn" title="Search online" aria-pressed="false">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                        </button>
+                    </div>
+
+                    <!-- file resources control -->
+                    <div class="control-card list-files">
+                        <div>
+                            <p>Investigate Files</p>
+                            <span>Use Uploaded files.</span>
+                        </div>
+    
+                        <button type="button" class="list-files-btn" title="Your files">
+                            <i class="fa-solid fa-caret-down"></i>
+                        </button>
+    
+                        <form class="files" aria-label="Uploaded files"></form>
+                    </div>
+
+                    <!-- selected resource status -->
+                    <p class="resources-status" aria-live="polite">Nothing selected.</p>
+                </section>
+
+            </aside>
+
         </div>
 
+        <!-- register modal -->
         <div class="register-form">
             <form action="">
-                <input type="text" name="user_name" id="userName" placeholder="Please, enter your name" required>
-                <input type="email" name="user_email" id="userEmail" placeholder="Please, enter your email" required>
-                <input type="password" name="user_password" id="userPassword" placeholder="Please, enter your password" required>
-                <input type="password" name="confirm_password" id="confirmPassword" placeholder="Please, confirm your password" required>
-                <p class="form-message" aria-live="polite"></p>
+                <label for="userName">
+                    User Name
+                    <input type="text" name="user_name" id="userName" required>
+                </label>
 
+                <label for="userEmail">
+                    Email
+                    <input type="email" name="user_email" id="userEmail" required>
+                </label>
+
+                <label for="userPassword">
+                    Password
+                    <input type="password" name="user_password" id="userPassword" required>
+                </label>
+
+                <label for="confirmPassword">
+                    Confirm Password
+                    <input type="password" name="confirm_password" id="confirmPassword" required>
+                </label>
+
+                <p class="form-message" aria-live="polite"></p>
                 <input type="submit" value="Register" id="submitBtn">
             </form>
 
             <button type="button" class="close-form" title="Close">
                 <i class="fa-solid fa-xmark"></i>
             </button>
-            <button type="button" class="have-email">Already have an email?</button>
+            <button type="button" class="have-email">Login</button>
         </div>
 
-
+        <!-- login modal -->
         <div class="login-form">
             <form action="">
-                <input type="email" name="user_email" id="userEmail" placeholder="Please, enter your email" required>
-                <input type="password" name="user_password" id="userPassword" placeholder="Please, enter your password" required>
-                <p class="form-message" aria-live="polite"></p>
+                <label for="userEmail">
+                    Email
+                    <input type="email" name="user_email" id="userEmail" required>
+                </label>
 
+                <label for="userPassword">
+                    Password
+                    <input type="password" name="user_password" id="userPassword" required>
+                </label>
+
+                <p class="form-message" aria-live="polite"></p>
                 <input type="submit" value="Login" id="submitBtn">
             </form>
+
             <button type="button" class="close-form" title="Close">
                 <i class="fa-solid fa-xmark"></i>
             </button>
             <button type="button" class="have-no-email">New?</button>
         </div>
 
-
         <!-- alerts -->
-        <div class="alerts" aria-live="polite">
+        <div class="alerts" aria-live="polite"></div>
 
-        </div>
-
-        <main class="app-shell">
-
-            <!-- ----------------- Top bar ------------------- -->
-            <header class="topbar">
-                <div>
-                    <h1 class="topbar-title">{{ app_name }}</h1>
-                </div>
-                <div class="user-profile">
-                    <div class="buttons">
-                        <button type="button" class="login" id="login">Log In</button>
-                        <button type="button" class="logout" id="logout" hidden>Log Out</button>
-                    </div>
-                    <div class="logo">V</div>
-                </div>
-            </header>
-
-            <p class="welcome-message" aria-live="polite"></p>
-
-            
-            <section class="chat-panel">
-                <!-- ----------------- Chat header ------------------- -->
-                <div class="chat-header">
-                    <div>
-                        <p>Select a PDF to make the bot answer based on its contents.</p>
-                    </div>
-                    <div class="control-area">
-                        <div class="list-files">
-                            <button type="button" class="list-files-btn" title="List uploaded Files">
-                                <i class="fa-solid fa-caret-down"></i>
-                            </button>
-                            <form class="files">
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ----------------- Chat  ------------------- -->
-                <div class="messages" id="messages">
-
-                    <article class="message assistant-message">
-                        
-                        <div class="avatar">AI</div>
-
-                        <div class="message-content">
-                            <p>Ask a question to begin.</p>
-                        </div>
-
-                    </article>
-
-                    <!-- Example user message -->
-                    <!-- <article class="message user-message">
-                        
-                        <div class="message-content">
-                            <p>Summarize the uploaded document.</p>
-                        </div>
-
-                        <div class="avatar">{{ user_name[0] }}</div>
-
-
-                    </article> -->
-                   
-                </div>
-
-                <form class="query-form" id="queryForm">
-
-                    <textarea
-                        class="query-area"
-                        id="queryArea"
-                        name="query"
-                        rows="1"
-                        placeholder="Ask a question..."
-                        required
-                    ></textarea>
-
-                    <div class="buttons">
-
-                        <div>
-                            <button type="button" title="Upload PDF" class="upload-pdf">
-                                <i class="fa-solid fa-plus"></i>
-                            </button>
-                            <input type="file" id="fileInput" hidden>
-                        </div>
-
-
-                        <button class="send" title="Send">
-                            <i class="fa-solid fa-arrow-up-long"></i>
-                        </button>
-
-                    </div>
-                </form>
-
-            </section>
-        </main>
-
-
+        <!-- scripts -->
         <script type="module" src="{{ url_for('static', path = 'js/auth.js') }}"></script>
         <script type="module" src="{{ url_for('static', path = 'js/data.js') }}"></script>
+        <script type="module" src="{{ url_for('static', path = 'js/chat.js') }}"></script>
+        <script type="module" src="{{ url_for('static', path = 'js/ui.js') }}"></script>
         <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
     </body>

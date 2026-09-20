@@ -4,12 +4,15 @@
 
 import {
     AUTH_ROUTES_PATH,
-    ERROR_MESSAGE,
-    LOGIN_BUTTON,
-    LOGIN_FORM,
-    LOGOUT_BUTTON,
-    REGISTER_FORM,
+
     SUCCESS_MESSAGE,
+    ERROR_MESSAGE,
+
+    LOGIN_BUTTON,
+    LOGOUT_BUTTON,
+
+    LOGIN_FORM,
+    REGISTER_FORM,
 } from "./constants.js";
 
 import {
@@ -17,11 +20,13 @@ import {
     activateLoginForm,
     activateRegisterForm,
     activateStartForm,
+
+    showMessage,
     clearMessage,
+    showAlert,
+
     getErrorMessage,
     parseJsonResponse,
-    showAlert,
-    showMessage,
 } from "./utils.js";
 
 let csrfToken = null;
@@ -31,31 +36,30 @@ const subscriberBtn = document.querySelector(".start-form button.subscriber");
 const closeFormBtns = document.querySelectorAll(".close-form");
 
 const loginMessage = LOGIN_FORM.querySelector(".form-message");
+const registerMessage = REGISTER_FORM.querySelector(".form-message");
+
 const loginSubmitBtn = LOGIN_FORM.querySelector("#submitBtn");
-const haveNoEmailBtn = LOGIN_FORM.querySelector(".have-no-email");
+const registerSubmitBtn = REGISTER_FORM.querySelector("#submitBtn");
+
 const userEmailLoginIP = LOGIN_FORM.querySelector("#userEmail");
 const userPassLoginIP = LOGIN_FORM.querySelector("#userPassword");
 
-const registerMessage = REGISTER_FORM.querySelector(".form-message");
-const registerSubmitBtn = REGISTER_FORM.querySelector("#submitBtn");
-const haveEmailBtn = REGISTER_FORM.querySelector(".have-email");
-const userNameIP = REGISTER_FORM.querySelector("#userName");
 const userEmailIP = REGISTER_FORM.querySelector("#userEmail");
+const userNameIP = REGISTER_FORM.querySelector("#userName");
 const userPassIP = REGISTER_FORM.querySelector("#userPassword");
 const confirmPassIP = REGISTER_FORM.querySelector("#confirmPassword");
 
+const haveEmailBtn = REGISTER_FORM.querySelector(".have-email");
+const haveNoEmailBtn = LOGIN_FORM.querySelector(".have-no-email");
 
 
 
-// Store the latest CSRF token from auth responses.
+
+/* Csrf Token Handlers */
 function updateCsrfToken(token) {
     csrfToken = token || null;
 }
 
-
-
-
-// Fetch a fresh CSRF token for the current session.
 async function refreshCsrfToken() {
     const response = await fetch(
         `${AUTH_ROUTES_PATH}/csrf`,
@@ -75,9 +79,7 @@ async function refreshCsrfToken() {
 }
 
 
-
-
-// Restore the current user session, if one exists.
+/* Restore user session */
 async function restoreAuthentication() {
     let userResponse;
 
@@ -112,7 +114,7 @@ async function restoreAuthentication() {
 
 
 
-// Handle login form submission.
+/* login */
 async function loginUser(event) {
     event.preventDefault();
     clearMessage(loginMessage);
@@ -152,9 +154,7 @@ async function loginUser(event) {
 }
 
 
-
-
-// Handle registration form submission.
+/* Registration */
 async function registerUser(event) {
     event.preventDefault();
     clearMessage(registerMessage);
@@ -202,7 +202,7 @@ async function registerUser(event) {
 
 
 
-// Log out the current authenticated user.
+/* logout */
 async function logoutUser() {
     try {
         if (!csrfToken) {
@@ -236,17 +236,15 @@ async function logoutUser() {
 }
 
 
-
-
-// Wire authentication UI events.
+/* Wire Logic */
 function bindAuthEvents() {
-    visitorBtn.addEventListener("click", () => {
+    visitorBtn?.addEventListener("click", () => {
         updateCsrfToken(null);
         activateAppShell();
         showAlert("Visitor session is ready.", SUCCESS_MESSAGE);
     });
 
-    subscriberBtn.addEventListener("click", activateLoginForm);
+    subscriberBtn?.addEventListener("click", activateLoginForm);
     LOGIN_BUTTON.addEventListener("click", activateLoginForm);
     LOGOUT_BUTTON.addEventListener("click", logoutUser);
     loginSubmitBtn.addEventListener("click", loginUser);

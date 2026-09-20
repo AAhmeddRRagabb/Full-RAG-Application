@@ -423,10 +423,13 @@ class PGVectorVDBClient(BaseVectorClient):
         self,
         collection_name: str,
         vector         : list[float],
-        limit          : int = 5
+        limit          : int = 5,
+        chunk_ids: list[int] | None = None,
     ) -> list[RetrievedChunk] | None:
         """
         Retrieve the most similar records to vector
+
+        chunk_ids: list of chunk ids to only search in them.
 
         Returns:
             ComponentResult:
@@ -435,10 +438,24 @@ class PGVectorVDBClient(BaseVectorClient):
         """
         if not await self.is_collection_existed(collection_name):
             self.logger.error(f"Collection {collection_name} does not exist.")
-            return False
+            return None
 
         vector = '[' + ",".join([str(v) for v in vector]) + ']'
         session: AsyncSession
+
+
+        # condition
+        where_clause = ""
+        params = {
+            "vector": vector,
+        }
+        if chunk_ids is not None or len(chunk_ids):
+            where_clause = (
+                f"WHERE {VectorDBPGVectorTableColumns.CHUNK_ID.value} "
+                "= ANY(:chunk_ids)"
+            )
+
+            params["chunk_ids"] = chunk_ids
 
         try:
             async with self.db_client() as session:
@@ -448,11 +465,12 @@ class PGVectorVDBClient(BaseVectorClient):
                         f'{VectorDBPGVectorTableColumns.TEXT.value} AS text, '
                         f'1 - ({VectorDBPGVectorTableColumns.VECTOR.value} <=> :vector) AS score '
                         f'FROM {collection_name} '
+                        f'{where_clause} '
                         'ORDER BY score DESC '
                         f'LIMIT {limit}'
                     )
 
-                    search_stmt_exe = await session.execute(search_stmt, params = {'vector': vector})
+                    search_stmt_exe = await session.execute(search_stmt, params = params)
 
                     records = search_stmt_exe.fetchall()
                     retrieved_chunks = [

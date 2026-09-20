@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi_core.lifespan import lifespan
 from fastapi_core.metrics import setup_metrics
 from helpers.config import get_settings
-from routes.app import auth_router, base_router, data_router
+from routes.app import auth_router, base_router, data_router, chat_router
 
 app = FastAPI(lifespan=lifespan)
 setup_metrics(app=app)
@@ -65,3 +65,4 @@ def home(request: Request):
 app.include_router(router=base_router)
 app.include_router(router=data_router)
 app.include_router(router=auth_router)
+app.include_router(router = chat_router)

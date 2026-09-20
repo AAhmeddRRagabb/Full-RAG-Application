@@ -180,8 +180,14 @@ async def get_user_files(
             "user_files": []
         }
 
-    user_file_names = [file.asset_name for file in user_files]
+    user_files = [
+        {
+            "file_id"  : file.asset_id,
+            "file_name": file.asset_name
+        } for file in user_files
+    ]
+
 
     return {
-        "user_files": user_file_names
+        "user_files": user_files
     }

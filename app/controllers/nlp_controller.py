@@ -130,9 +130,14 @@ class NLPController(BaseController):
         user_name     : str,
         text          : str,
         limit         : int = 5,
+        chunk_ids: list[int] | None = None,
         encode_as_json: bool = False 
     ) -> list[RetrievedChunk]:
         """
+
+        Args:
+            chunk_ids: list of chunk ids to only search in them.  
+
         Returns:  
             if success -> list of retrieved chunks       
             if failure -> None 
@@ -155,7 +160,8 @@ class NLPController(BaseController):
         retrieved = await self.vector_db_client.search_by_vector(
             collection_name = collection_name,
             vector = query_vector,
-            limit = limit
+            limit = limit,
+            chunk_ids = chunk_ids
         )
 
         if encode_as_json:
@@ -180,37 +186,9 @@ class NLPController(BaseController):
             return LLMsGenerationMessageTypes.GOOGLE_SYSTEM_MESSAGE.value
 
 
-    async def answer_rag_query(
-        self, 
-        user_name      : str,
-        query          : str,
-        retrieval_limit: str,
-    ) -> dict | None:
-        """
-        Returns:
-                if success -> dict contains {'answer', 'full_prompt', 'chat_history'}   
-                if failure -> None 
-        """
-        # retrieve relevant
-        retrieved = await self.search_vector_db_collection(
-            user_name = user_name,
-            text = query,
-            limit = retrieval_limit
-        )
-    
-        if not retrieved:
-            return None
-
-            
-        # construct prompts
-        system_prompt = self.prompt_template_parser.get_prompt("rag", "system_prompt")
-        if not system_prompt:
-            self.logger.error("Error Acquiring System Prompt")
-            return None
-
-    
+    def format_retrieved_documents(self, retrieved_documents: list[RetrievedChunk]) -> str:
         document_prompts = []
-        for idx, doc in enumerate(retrieved, start = 1):
+        for idx, doc in enumerate(retrieved_documents, start = 1):
             document_prompt = self.prompt_template_parser.get_prompt("rag", "document_prompt", {
                 "doc_num": idx,
                 "doc_text": self.generation_client.pre_process_input_prompt(doc.text)
@@ -222,8 +200,27 @@ class NLPController(BaseController):
 
             document_prompts.append(document_prompt)
 
-        documents_prompt = "\n".join(document_prompts)
-    
+        return "\n".join(document_prompts)
+
+
+    async def answer_rag_query(
+        self, 
+        query          : str,
+        formatted_documents: str,
+    ) -> dict | None:
+        """
+        Returns:
+                if success -> dict contains {'answer', 'full_prompt', 'chat_history'}   
+                if failure -> None 
+        """
+            
+        # construct prompts
+        system_prompt = self.prompt_template_parser.get_prompt("rag", "system_prompt")
+        if not system_prompt:
+            self.logger.error("Error Acquiring System Prompt")
+            return None
+
+
         footer_prompt = self.prompt_template_parser.get_prompt("rag", "footer_prompt", {
             "query": query
         })
@@ -241,7 +238,7 @@ class NLPController(BaseController):
         ]
     
         full_prompt = "\n\n".join([
-            documents_prompt,
+            formatted_documents,
             footer_prompt,
         ])
     

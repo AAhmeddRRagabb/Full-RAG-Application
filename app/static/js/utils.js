@@ -16,9 +16,32 @@ import {
 let alertTimeoutId;
 
 
+/*
+    auth backdrop state
+*/
+function setAuthBackdrop(isActive) {
+    document.body.classList.toggle("auth-form-active", isActive);
+}
 
 
-// Show an inline status message in a target element.
+function notifyAppShellReady(user = null) {
+    document.dispatchEvent(
+        new CustomEvent("app-shell-ready", {
+            detail: {
+                user,
+            },
+        })
+    );
+}
+
+
+
+
+/*
+    show / clear messages / alerts
+*/
+
+
 export function showMessage(target, message, type = "error") {
     if (!target) {
         return;
@@ -29,9 +52,6 @@ export function showMessage(target, message, type = "error") {
 }
 
 
-
-
-// Clear all inline status styles from a target element.
 export function clearMessage(target) {
     if (!target) {
         return;
@@ -42,9 +62,6 @@ export function clearMessage(target) {
 }
 
 
-
-
-// Show a timed global alert.
 export function showAlert(message, type = "error") {
     if (!ALERTS_CONTAINER) {
         return;
@@ -68,8 +85,9 @@ export function showAlert(message, type = "error") {
 
 
 
-
-// Extract a usable error string from API responses.
+/*
+    Parse Backend responses
+*/
 export function getErrorMessage(response, data = {}) {
     if (response.status === BAD_REQUEST_ERROR && data.detail) {
         return data.detail;
@@ -87,9 +105,6 @@ export function getErrorMessage(response, data = {}) {
 }
 
 
-
-
-// Safely parse JSON responses that may have an empty body.
 export async function parseJsonResponse(response) {
     try {
         return await response.json();
@@ -99,9 +114,10 @@ export async function parseJsonResponse(response) {
 }
 
 
+/*
+    control UI
+*/
 
-
-// Update the profile controls for a guest or authenticated user.
 export function setUserProfile(user = null) {
     const userName = user?.user_name || "Visitor";
     const userInitial = userName.trim().charAt(0).toUpperCase() || "V";
@@ -122,47 +138,42 @@ export function setUserProfile(user = null) {
 }
 
 
-
-
-// Show the main app workspace.
 export function activateAppShell(user = null) {
-    START_FORM.classList.remove("active");
+    setAuthBackdrop(false);
+    START_FORM?.classList.remove("active");
     REGISTER_FORM.classList.remove("active");
     LOGIN_FORM.classList.remove("active");
-    APP_SHELL.classList.add("active");
+
+    APP_SHELL?.classList.add("active");
 
     setUserProfile(user);
+    notifyAppShellReady(user);
 }
 
 
-
-
-// Show the first visitor/subscriber choice screen.
 export function activateStartForm() {
+    setAuthBackdrop(Boolean(START_FORM));
     REGISTER_FORM.classList.remove("active");
     LOGIN_FORM.classList.remove("active");
-    APP_SHELL.classList.remove("active");
-    START_FORM.classList.add("active");
+    APP_SHELL?.classList.add("active");
+    START_FORM?.classList.add("active");
+    setUserProfile(null);
 }
 
 
-
-
-// Show the login form.
 export function activateLoginForm() {
+    setAuthBackdrop(true);
     REGISTER_FORM.classList.remove("active");
-    START_FORM.classList.remove("active");
-    APP_SHELL.classList.remove("active");
+    START_FORM?.classList.remove("active");
+    APP_SHELL?.classList.add("active");
     LOGIN_FORM.classList.add("active");
 }
 
 
-
-
-// Show the registration form.
 export function activateRegisterForm() {
+    setAuthBackdrop(true);
     LOGIN_FORM.classList.remove("active");
-    START_FORM.classList.remove("active");
-    APP_SHELL.classList.remove("active");
+    START_FORM?.classList.remove("active");
+    APP_SHELL?.classList.add("active");
     REGISTER_FORM.classList.add("active");
 }

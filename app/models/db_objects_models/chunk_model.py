@@ -13,14 +13,14 @@ class ChunkModel(BaseObjModel):
     """
     Data model for the chunks table
 
-    Methods:
-        insert_chunk(chunk)                         : inserting a chunk into the database.  
-        insert_many_chunks(chunks, batch_size)      : many chunks batch-insertion into the database.  
-        get_chunk(chunk_id)                         : retrieving a chunk from the databse.
-        get_user_chunks(user_id, page_no, page_size): accessing all user chunks.
-        get_user_chunks_count(user_id)              : counting user chunks.
-        has_asset_chunks(user_id, asset_id)         : checking if user has chunks for the given asset.
-        delete_user_chunks(user_id)                 : delete all user chunks
+    Methods:  
+        insert_chunk(chunk)                         : inserting a chunk into the database.    
+        insert_many_chunks(chunks, batch_size)      : many chunks batch-insertion into the database.    
+        get_chunk(chunk_id)                         : retrieving a chunk from the databse.  
+        get_user_chunks(user_id, page_no, page_size): accessing all user chunks.  
+        get_user_chunks_count(user_id)              : counting user chunks.  
+        has_asset_chunks(user_id, asset_id)         : checking if user has chunks for the given asset.  
+        delete_user_chunks(user_id)                 : delete all user chunks  
     """
     def __init__(self, db_client):
         super().__init__(db_client)
@@ -116,22 +116,28 @@ class ChunkModel(BaseObjModel):
         return record
 
 
-    async def get_user_chunks(self, user_id: int, page_no: int = 1, page_size: int = 50) -> list[DataChunk] | None:
+    async def get_user_chunks(self, user_id: int, asset_ids: list[int] | None = None) -> list[DataChunk] | None:
             """
             Returns:
                 if success -> list of user chunks  
                 if failure -> None
             """
             session: AsyncSession
+
+            conditions = [
+                DataChunk.chunk_user_id == user_id
+            ]
+
+            if asset_ids:
+                conditions.append(
+                    DataChunk.chunk_asset_id.in_(asset_ids)
+                )
     
             try:
                 async with self.db_client() as session:
                     result = await session.execute(
                         select(DataChunk)
-                        .where(DataChunk.chunk_user_id == user_id)
-                        .order_by(DataChunk.chunk_id)
-                        .offset((page_no - 1) * page_size)
-                        .limit(page_size)
+                        .where(*conditions)
                     )
     
                     records = list(result.scalars().all())
