@@ -19,7 +19,7 @@ from models.enums import ResponsesEnum, AssetTypesEnum
 # from models.request_schemas import GenerationRequest
 
 # controllers
-from controllers import NLPController
+from controllers import VectorDBController
 
 # helpers
 from tqdm.auto import tqdm
@@ -46,53 +46,77 @@ class ChatRequest(BaseModel):
     files         : list[str] = []
 
 from models.db_schemas import User
+from controllers import ChatController
+from clients.llms.prompt_templates.config import LLMTasks
+from helpers.config import get_settings
+import json
+
+
+
+
 @chat_router.post("/chat")
 async def chat_will_llm(
-    auth: Annotated[AuthContext, Depends(require_authentication)],
-    request: Request,
+    auth        : Annotated[AuthContext, Depends(require_authentication)],
+    request     : Request,
     chat_request: ChatRequest
 ):
     # - setup
-    nlp_controller = NLPController(
+    vector_db_controller = VectorDBController(
         vector_db_client = request.app.vector_db_client,
-        generation_client = request.app.generation_client,
         embedding_client = request.app.embedding_client,
+    )
+
+    chat_controller = ChatController(
         prompt_template_parser = request.app.prompt_template_parser
     )
-    chunk_model = ChunkModel(db_client = request.app.db_client)
-    
-    user: User = auth.user
 
-    from pprint import pprint
+
+    chunk_model = ChunkModel(db_client = request.app.db_client)
+    user: User = auth.user
 
     search_online = chat_request.search_online
     files_to_retrieve_from = chat_request.files
 
     # - search only in required files
     file_ids = [int(file_id) for file_id in files_to_retrieve_from]
-    chunks = await chunk_model.get_user_chunks(
-        user_id = user.user_id,
-        asset_ids = file_ids,
-    )
+    information_resources = []
 
-    chunk_ids = [c.chunk_id for c in chunks]
+    for file_id in file_ids:
+        chunks = await chunk_model.get_user_chunks(
+            user_id = user.user_id,
+            asset_ids = [file_id],
+        )
 
-    retrieved = await nlp_controller.search_vector_db_collection(
-        user_name = user.user_name,
-        text = chat_request.query,
-        limit = chat_request.retrieve_limit,
-        chunk_ids = chunk_ids
-    )
+        chunk_ids = [c.chunk_id for c in chunks]
+        retrieved = await vector_db_controller.search_vector_db_collection(
+            user_name = user.user_name,
+            text = chat_request.query,
+            limit = chat_request.retrieve_limit,
+            chunk_ids = chunk_ids
+        )
 
-    formatted_doc = nlp_controller.format_retrieved_documents(retrieved)
-    result = await nlp_controller.answer_rag_query(
+        
+        file_information = await chat_controller.get_llm_response(
+            query = chat_request.query,
+            task = LLMTasks.DOCUMENTS_SUMMARIZATION.value,
+            provider = get_settings().GENERATION_BACKEND,
+            documents = retrieved
+        )
+
+        
+        if not chat_controller.parse_llm_response(file_information, 'need_additional_info'):
+            information_resources.append(chat_controller.parse_llm_response(file_information, 'related_information'))
+
+
+    # - final answer
+    final_answer = await chat_controller.get_llm_response(
         query = chat_request.query,
-        formatted_documents = formatted_doc
+        provider = get_settings().GENERATION_BACKEND,
+        task = LLMTasks.FINAL_REPORT_GENERATION.value,
+        information_resources = information_resources
     )
-
-    pprint(result)
 
     return {
-        'answer': result['answer']
+        'answer': final_answer
     }
 

@@ -8,7 +8,7 @@ import os
 from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 
 from controllers import DataController
-from controllers import NLPController
+from controllers import VectorDBController
 from controllers import ProcessController
 from controllers import UserController
 from fastapi_core.dependecies.auth import require_authentication
@@ -50,7 +50,7 @@ async def upload_file(
     # - setup
     data_controller = DataController()
     user_controller = UserController()
-    nlp_controller  = NLPController(
+    vector_db_controller  = VectorDBController(
         vector_db_client = request.app.vector_db_client,
         embedding_client = request.app.embedding_client
     )
@@ -137,19 +137,19 @@ async def upload_file(
 
 
     # - embed & save the file in V-DB
-    if not await nlp_controller.create_collection(user.user_name):
+    if not await vector_db_controller.create_collection(user.user_name):
         raise_internal_server_error()
 
 
     chunks_ids = [chunk.chunk_id for chunk in chunk_objects]
-    if not await nlp_controller.insert_chunks_into_vector_db(
+    if not await vector_db_controller.insert_chunks_into_vector_db(
         user_name = user.user_name,
         chunks = chunk_objects,
         chunks_ids = chunks_ids,
     ):
         raise_internal_server_error()
 
-    logger.info(f">> File Embeded Successfully. User: {user.user_name}. CollectionName: {nlp_controller.get_collection_name(user.user_name)}")
+    logger.info(f">> File Embeded Successfully. User: {user.user_name}. CollectionName: {vector_db_controller.get_collection_name(user.user_name)}")
     
 
     # Success state

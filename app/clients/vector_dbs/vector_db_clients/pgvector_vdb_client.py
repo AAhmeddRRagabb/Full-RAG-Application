@@ -99,8 +99,6 @@ class PGVectorVDBClient(BaseVectorClient):
 
                     record = results.scalar_one_or_none()
 
-                    self.logger.info(f"Record ===> {record}")
-                    self.logger.info(f"Bool Record ===> {bool(record)}")
 
         except Exception as e:
             self.logger.error(f"Error While Checking Collection Existance: {e}")
@@ -432,9 +430,8 @@ class PGVectorVDBClient(BaseVectorClient):
         chunk_ids: list of chunk ids to only search in them.
 
         Returns:
-            ComponentResult:
-                if success -> list of retrieved chunks
-                if failure -> None
+            if success -> list of retrieved chunks  
+            if failure -> None  
         """
         if not await self.is_collection_existed(collection_name):
             self.logger.error(f"Collection {collection_name} does not exist.")

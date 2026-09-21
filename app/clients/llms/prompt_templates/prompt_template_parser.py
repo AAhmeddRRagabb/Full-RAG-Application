@@ -6,13 +6,13 @@ from models.enums import ResponsesEnum
 class PromptTemplateParser:
     def __init__(
         self,
-        language: str = None,
+        language        : str = None,
         default_language: str = "en"
     ):
         self.current_path = os.path.dirname(os.path.abspath(__file__))
         self.default_language = default_language
-        self.set_language(language)
         self.logger = logging.getLogger("uvicorn")
+        self.set_language(language)
 
 
     def set_language(self, language: str):
@@ -28,43 +28,53 @@ class PromptTemplateParser:
 
     def get_prompt(
         self,
-        group: str,
+        task: str,
         key  : str,
         vars : dict = {}
     ) -> str | None:
         """
+        Retrieve the required prompt
+
+        Args:
+            task (str): the task assigned to the LLM [summarize_doc, summarize_online_search, generate_response]
+            key  (str): the prompt to retrieve [system_prompt - task_prompt - footer_prompt]
+            vars (str): variables injected into the prompt dynamically
+
         Returns:
             if success -> the system prompt   
             if failure -> None
         """
-        if not group or not key:
-            self.logger.error(f"Error While Getting System Prompt in group | key.\n>>Group: {group}.\n>>Key: {key}")
+
+        # - get task path
+        if not task or not key:
+            self.logger.error(f"Error While Getting System Prompt in task | key.\n>>Task: {task}.\n>>Key: {key}")
             return None
         
         targeted_language = self.language
-        group_path = os.path.join(self.current_path, "locales", self.language, f"{group}.py")
+        task_path = os.path.join(self.current_path, "locales", self.language, f"{task}.py")
 
-        if not os.path.exists(group_path):
-            group_path = os.path.join(self.current_path, "locales", self.default_language, f"{group}.py" )
+        if not os.path.exists(task_path):
+            task_path = os.path.join(self.current_path, "locales", self.default_language, f"{task}.py" )
             targeted_language = self.default_language
 
-        if not os.path.exists(group_path):
-            self.logger.error(f"Error Finding Group Path: {group_path}")
+        if not os.path.exists(task_path):
+            self.logger.error(f"Error Finding Task Path: {task_path}")
             return None
         
 
         module_to_use = __import__(
-            f"clients.llms.prompt_templates.locales.{targeted_language}.{group}",
-            fromlist = [group]
+            f"clients.llms.prompt_templates.locales.{targeted_language}.{task}",
+            fromlist = [task]
         )
 
         if not module_to_use:
             self.logger.error(f"Error Finding Prompt Module: {module_to_use}")
             return None
 
+
         try:
-            key_attribute: str = getattr(module_to_use, key)
-            return key_attribute.substitute(vars)
+            key_attribute = getattr(module_to_use, key)
+            return key_attribute(**vars)
         
         except Exception as e:
             self.logger.error(f"Error Formatting Prompt: {e}")

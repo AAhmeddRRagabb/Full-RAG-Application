@@ -16,11 +16,10 @@ from clients.llms.llm_clients import (
     HuggingfaceLLMClient
 )
 
-from clients.llms.prompt_templates import PromptTemplateParser
 from clients.llms.config import LLMsGeneralEmbeddingQueryTypes, LLMsGenerationMessageTypes
 from fastapi.encoders import jsonable_encoder
 
-class NLPController(BaseController):
+class VectorDBController(BaseController):
     """
     Controller for vector database and RAG generation workflows.
     """
@@ -29,16 +28,12 @@ class NLPController(BaseController):
         self,
         vector_db_client      : PGVectorVDBClient | None = None,
         embedding_client      : GoogleLLMClient | HuggingfaceLLMClient | None = None ,
-        generation_client     : GoogleLLMClient | GroqLLMClient | HuggingfaceLLMClient | None = None,
-        prompt_template_parser: PromptTemplateParser | None = None
     ):
         super().__init__()
 
         self.vector_db_client  = vector_db_client
         self.embedding_client  = embedding_client
-        self.generation_client = generation_client
 
-        self.prompt_template_parser   = prompt_template_parser
 
     # -------------------------------------------- Vector DB Functionalities --------------------------------------------- #
     def get_collection_name(self, user_name: str) -> str:
@@ -75,8 +70,7 @@ class NLPController(BaseController):
             do_reset = do_reset
         )
 
-
-
+    
     async def delete_collection(self, user_name: str) -> bool:
         """
         Delete the given collection
@@ -169,94 +163,7 @@ class NLPController(BaseController):
 
         return retrieved
 
-    # -------------------------------------------- Generation Functionalities --------------------------------------------- #
 
-    def _get_system_prompt_role(self) -> str:
-        """
-        Returns:
-            str: provider-specific system prompt role.
-        """
-        if isinstance(self.generation_client, GroqLLMClient):
-            return LLMsGenerationMessageTypes.GROQ_SYSTEM_MESSAGE.value
-
-        if isinstance(self.generation_client, HuggingfaceLLMClient):
-            return LLMsGenerationMessageTypes.HF_SYSTEM_MESSAGE.value
-
-        if isinstance(self.generation_client, GoogleLLMClient):
-            return LLMsGenerationMessageTypes.GOOGLE_SYSTEM_MESSAGE.value
-
-
-    def format_retrieved_documents(self, retrieved_documents: list[RetrievedChunk]) -> str:
-        document_prompts = []
-        for idx, doc in enumerate(retrieved_documents, start = 1):
-            document_prompt = self.prompt_template_parser.get_prompt("rag", "document_prompt", {
-                "doc_num": idx,
-                "doc_text": self.generation_client.pre_process_input_prompt(doc.text)
-            })
-
-            if not document_prompt:
-                self.logger.error("Error Acquiring Document Prompt")
-                return None
-
-            document_prompts.append(document_prompt)
-
-        return "\n".join(document_prompts)
-
-
-    async def answer_rag_query(
-        self, 
-        query          : str,
-        formatted_documents: str,
-    ) -> dict | None:
-        """
-        Returns:
-                if success -> dict contains {'answer', 'full_prompt', 'chat_history'}   
-                if failure -> None 
-        """
-            
-        # construct prompts
-        system_prompt = self.prompt_template_parser.get_prompt("rag", "system_prompt")
-        if not system_prompt:
-            self.logger.error("Error Acquiring System Prompt")
-            return None
-
-
-        footer_prompt = self.prompt_template_parser.get_prompt("rag", "footer_prompt", {
-            "query": query
-        })
-
-        if not footer_prompt:
-            self.logger.error("Error Acquiring Footer Prompt")
-            return None
-
-        # generation    
-        chat_history = [
-            self.generation_client.create_prompt(
-                prompt = system_prompt,
-                role = self._get_system_prompt_role()
-            )
-        ]
     
-        full_prompt = "\n\n".join([
-            formatted_documents,
-            footer_prompt,
-        ])
-    
-        answer = self.generation_client.generate_text(
-            user_prompt = full_prompt,
-            chat_history = chat_history
-        )
-
-        if not answer:
-            self.logger.error("Invalid LLM Answer")
-            return None
-    
-
-
-        return {
-            "answer"      : answer,
-            "full_prompt" : full_prompt,
-            "chat_history": chat_history
-        }
 
         

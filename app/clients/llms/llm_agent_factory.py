@@ -16,7 +16,7 @@ class LLMAgentFactory:
         self.config = config
 
 
-    def create_agent(self, provider: str) -> GoogleLLMClient | GroqLLMClient | HuggingfaceLLMClient | None:
+    def create_agent(self, provider: str, system_prompt: str | None = None) -> GoogleLLMClient | GroqLLMClient | HuggingfaceLLMClient | None:
         """
         Creates & Returns an LLM Client
 
@@ -30,29 +30,32 @@ class LLMAgentFactory:
         
         if provider == LLMsProviders.GROQ_PROVIDER.value:
             return GroqLLMClient(
-                api_key             = self.config.GROQ_API_KEY,
-                generation_model_id = self.config.GENERATION_MODEL_ID,
-                embedding_model_id  = None,
-                embedding_size      = None,
+                api_key                  = self.config.GROQ_API_KEY,
+                generation_model_id      = self.config.GENERATION_MODEL_ID,
+                embedding_model_id       = None,
+                embedding_size           = None,
+                generation_system_prompt = system_prompt
             )
                 
 
         
         if provider == LLMsProviders.GOOGLE_PROVIDER.value:
             return GoogleLLMClient(
-                api_key             = self.config.GOOGLE_API_KEY,
-                generation_model_id = self.config.GENERATION_MODEL_ID,
-                embedding_model_id  = self.config.EMBEDDING_MODEL_ID,
-                embedding_size      = self.config.EMBEDDING_SIZE
+                api_key                  = self.config.GOOGLE_API_KEY,
+                generation_model_id      = self.config.GENERATION_MODEL_ID,
+                embedding_model_id       = self.config.EMBEDDING_MODEL_ID,
+                embedding_size           = self.config.EMBEDDING_SIZE,
+                generation_system_prompt = system_prompt
             )
                 
 
         if provider == LLMsProviders.HUGGING_FACE.value:
             return HuggingfaceLLMClient(
-                api_key             = self.config.HF_TOKEN,
-                generation_model_id = self.config.GENERATION_MODEL_ID,
-                embedding_model_id  = self.config.EMBEDDING_MODEL_ID,
-                embedding_size      = self.config.EMBEDDING_SIZE 
+                api_key                  = self.config.HF_TOKEN,
+                generation_model_id      = self.config.GENERATION_MODEL_ID,
+                embedding_model_id       = self.config.EMBEDDING_MODEL_ID,
+                embedding_size           = self.config.EMBEDDING_SIZE ,
+                generation_system_prompt = system_prompt
             )
 
     

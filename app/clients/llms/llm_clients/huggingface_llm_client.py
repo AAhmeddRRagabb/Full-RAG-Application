@@ -19,6 +19,7 @@ class HuggingfaceLLMClient(BaseLLMClient):
         generation_model_id      : str,
         embedding_model_id       : str,
         embedding_size           : int,
+        generation_system_prompt : str | None = None,
         api_url                  : str | None = None,
         max_input_tokens         : int = 1000,
         default_max_output_tokens: int = 1000,
@@ -30,6 +31,7 @@ class HuggingfaceLLMClient(BaseLLMClient):
             generation_model_id       = generation_model_id,
             embedding_model_id        = embedding_model_id,
             embedding_size            = embedding_size,
+            generation_system_prompt  = generation_system_prompt,
             max_input_tokens          = max_input_tokens,
             default_max_output_tokens = default_max_output_tokens,
             default_temperature       = default_temperature,
@@ -134,7 +136,6 @@ class HuggingfaceLLMClient(BaseLLMClient):
     def generate_text(
         self, 
         user_prompt      : str, 
-        chat_history     : list = [], 
         max_output_tokens: int | None = None, 
         temperature      : float | None = None
     ) -> str | None:
@@ -150,22 +151,22 @@ class HuggingfaceLLMClient(BaseLLMClient):
             if success -> model response
             if failure -> None
         """
+
+        system_message = self.create_prompt(
+            prompt = self.generation_system_prompt,
+            role = LLMsGenerationMessageTypes.HF_SYSTEM_MESSAGE.value,
+        )
         
-        messages = self.create_prompt(
+        user_message = self.create_prompt(
             prompt = user_prompt,
             role   = LLMsGenerationMessageTypes.HF_USER_MESSAGE.value
         )
 
-        if chat_history is None:
-            chat_history = []
-        chat_history.append(messages)
-
-
-        response: ChatCompletion = None
+        messages = [system_message, user_message]
 
         try:
             response = self.client.chat_completion(
-                messages    = chat_history,
+                messages    = messages,
                 model       = self.generation_model_id,
                 stream      = False,
                 temperature = temperature if temperature else self.default_temperature,

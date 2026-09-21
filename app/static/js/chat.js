@@ -130,7 +130,6 @@ async function sendQuery(event) {
     const selectedResources = getSelectedResources();
     const requestBody = {
         query         : query,
-        limit         : 5,
         retrieve_limit: 5,
         search_online : selectedResources.search_online,
         files         : selectedResources.files

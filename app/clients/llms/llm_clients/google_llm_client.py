@@ -28,6 +28,7 @@ class GoogleLLMClient(BaseLLMClient):
         generation_model_id      : str,
         embedding_model_id       : str,
         embedding_size           : int,
+        generation_system_prompt : str | None = None,
         api_url                  : str | None = None,
         max_input_tokens         : int = 1000,
         default_max_output_tokens: int = 1000,
@@ -39,6 +40,7 @@ class GoogleLLMClient(BaseLLMClient):
             generation_model_id       = generation_model_id,
             embedding_model_id        = embedding_model_id,
             embedding_size            = embedding_size,
+            generation_system_prompt  = generation_system_prompt,
             max_input_tokens          = max_input_tokens,
             default_max_output_tokens = default_max_output_tokens,
             default_temperature       = default_temperature,
@@ -188,7 +190,6 @@ class GoogleLLMClient(BaseLLMClient):
     def generate_text(
         self, 
         user_prompt      : str, 
-        chat_history     : list = [], 
         max_output_tokens: int | None = None, 
         temperature      : float | None = None
     ) -> str | None:
@@ -211,16 +212,16 @@ class GoogleLLMClient(BaseLLMClient):
             role   = LLMsGenerationMessageTypes.GOOGLE_USER_MESSAGE
         )
         
-        chat_history.append(contents)
 
         response: GenerateContentResponse
         try:
             response = self.client.models.generate_content(
                 model    = self.generation_model_id,
-                contents = chat_history,
+                contents = contents,
                 config   = GenerateContentConfig(
                     temperature       = temperature if temperature else self.default_temperature,
-                    max_output_tokens = max_output_tokens if max_output_tokens else self.default_max_output_tokens
+                    max_output_tokens = max_output_tokens if max_output_tokens else self.default_max_output_tokens,
+                    system_instruction = self.generation_system_prompt
                 )
             )
 
