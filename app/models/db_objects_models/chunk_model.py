@@ -82,8 +82,8 @@ class ChunkModel(BaseObjModel):
             async with self.db_client() as session:
                 count = await session.scalar(
                     select(func.count()).select_from(DataChunk).where(
-                        DataChunk.chunk_user_id == user_id,
-                        DataChunk.chunk_asset_id == asset_id
+                        DataChunk.user_id == user_id,
+                        DataChunk.asset_id == asset_id
                     )
                 )
 
@@ -125,12 +125,12 @@ class ChunkModel(BaseObjModel):
             session: AsyncSession
 
             conditions = [
-                DataChunk.chunk_user_id == user_id
+                DataChunk.user_id == user_id
             ]
 
             if asset_ids:
                 conditions.append(
-                    DataChunk.chunk_asset_id.in_(asset_ids)
+                    DataChunk.asset_id.in_(asset_ids)
                 )
     
             try:
@@ -161,7 +161,7 @@ class ChunkModel(BaseObjModel):
 
         try:
             async with self.db_client() as session:
-                count_sql = select(func.count(DataChunk.chunk_id)).where(DataChunk.chunk_user_id == user_id)
+                count_sql = select(func.count(DataChunk.chunk_id)).where(DataChunk.user_id == user_id)
                 records_count = await session.execute(count_sql)
                 total_count = records_count.scalar()
 
@@ -183,7 +183,7 @@ class ChunkModel(BaseObjModel):
         try:
             async with self.db_client() as session:
                 await session.execute(
-                    delete(DataChunk).where(DataChunk.chunk_user_id == user_id)
+                    delete(DataChunk).where(DataChunk.user_id == user_id)
                 )
                 await session.commit()
 

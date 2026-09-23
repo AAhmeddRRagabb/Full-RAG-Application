@@ -22,8 +22,9 @@ from redis.asyncio import Redis, RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # models
-from models.db_schemas import User
+from models.db_schemas import Chat, User
 from models.enums import ResponsesEnum
+from models.request_schemas.chat import ChatSettings
 from models.request_schemas.auth import (
     CsrfResponse,
     LoginRequest,
@@ -35,7 +36,7 @@ from models.request_schemas.auth import (
 
 from models.system_schemas import AuthContext
 
-from models.db_objects_models import UserModel
+from models.db_objects_models import ChatModel, UserModel
 
 # security
 from security.csrf import create_csrf_token
@@ -60,12 +61,6 @@ def build_public_user(user: User) -> UserPublic:
 
 
 
-
-
-
-# controllers
-from controllers import UserController
-
 @auth_router.post("/register")
 async def register_user(
     register_request: RegisterRequest,
@@ -75,6 +70,7 @@ async def register_user(
 ) -> RegisterResponse:
     
     user_model = UserModel(db_client = db_client)
+    chat_model = ChatModel(db_client = db_client)
 
     # - if already exists
     if await user_model.get_user_by_email(register_request.email):
@@ -95,6 +91,15 @@ async def register_user(
         raise_internal_server_error()
 
     if not await user_model.insert_user(user):
+        raise_internal_server_error()
+
+    if not await chat_model.insert_chat(
+        Chat(
+            user_id = user.user_id,
+            chat_name = "chat #1",
+            chat_settings = ChatSettings().model_dump(),
+        )
+    ):
         raise_internal_server_error()
 
     # - create session

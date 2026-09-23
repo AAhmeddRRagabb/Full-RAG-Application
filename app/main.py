@@ -26,6 +26,7 @@ templates = Jinja2Templates(directory = BASE_DIR / "templates")
 
 # routes
 from routes.app import auth_router
+from routes.app import chat_router
 from routes.app import data_router
 
 app.mount(
@@ -70,6 +71,6 @@ def home(request: Request):
 
 app.include_router(router = auth_router)
 app.include_router(router = data_router)
+app.include_router(router = chat_router)
 
 # app.include_router(router=base_router)
-# app.include_router(router = chat_router)

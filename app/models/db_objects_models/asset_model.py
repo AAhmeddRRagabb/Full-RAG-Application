@@ -55,7 +55,7 @@ class AssetModel(BaseObjModel):
             async with self.db_client() as session:
                 result = await session.execute(
                     select(Asset).where(
-                        Asset.asset_user_id == user_id,
+                        Asset.user_id == user_id,
                         Asset.asset_name == asset_name
                     )
                 )
@@ -83,7 +83,7 @@ class AssetModel(BaseObjModel):
             async with self.db_client() as session:
                 result = await session.execute(
                     select(Asset).where(
-                        Asset.asset_user_id == user_id,
+                        Asset.user_id == user_id,
                         Asset.asset_type == asset_type
                     )
                 )
@@ -112,7 +112,7 @@ class AssetModel(BaseObjModel):
             async with self.db_client() as session:
                 await session.execute(
                     delete(Asset).where(
-                        Asset.asset_user_id == user_id
+                        Asset.user_id == user_id
                     )
                 )
 

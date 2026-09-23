@@ -39,8 +39,8 @@ function notifyFileSelectionChanged() {
 
 /* Files as dropdown */
 function createFileOption(file, index, currentSelections = new Map()) {
-    const fileName = file.file_name || file;
-    const fileId = file.file_id || fileName;
+    const fileName = file.file_name || file.filename || file;
+    const fileId = String(file.file_id || fileName);
 
     const fileInputId = `files-cb-${index}`;
 

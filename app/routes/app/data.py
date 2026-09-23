@@ -59,9 +59,10 @@ async def upload_file(
         - chunk the file & saving its chunks. 
     """
     log_title("Uploading File")
+    user: User = auth.user
 
     # - setup
-    data_controller = DataController()
+    data_controller = DataController(user_name = user.user_name)
     user_controller = UserController()
     
     vector_db_controller  = VectorDBController(
@@ -72,7 +73,6 @@ async def upload_file(
     asset_model = AssetModel(db_client = db_client)
     chunk_model = ChunkModel(db_client = db_client)
 
-    user: User = auth.user
     user_path = user_controller.get_user_path(user_name = user.user_name)
     data_controller = DataController(user_name = user.user_name)
 
@@ -86,7 +86,7 @@ async def upload_file(
         )
     
 
-    cleaned_filename = data_controller.clean_file_name(file_name = file.filename)
+    cleaned_filename = data_controller.clean_filename(filename = file.filename)
     file_path = os.path.join(user_path, cleaned_filename)
 
 
@@ -106,10 +106,12 @@ async def upload_file(
 
 
     asset = Asset(
-        asset_user_id = user.user_id,
+        user_id = user.user_id,
         asset_type = AssetTypesEnum.ASSET_FILE.value,
         asset_name = cleaned_filename,
-        asset_size = os.path.getsize(file_path)
+        asset_metadata = {
+            "size": os.path.getsize(file_path),
+        },
     )
 
     inserted = await asset_model.insert_asset(asset)
@@ -134,13 +136,11 @@ async def upload_file(
     chunk_objects = [
         DataChunk(
             chunk_text     = chunk.page_content,
-            chunk_name     = f"{cleaned_filename}_chunk_{i + 1}",
-            chunk_user_id  = user.user_id,
+            user_id        = user.user_id,
             chunk_metadata = chunk.metadata,
-            chunk_asset_id = asset.asset_id,
-            chunk_order    = i + 1,
+            asset_id       = asset.asset_id,
         )
-        for i, chunk in enumerate(chunks)
+        for chunk in chunks
     ]
 
     inserted = await chunk_model.insert_many_chunks(chunk_objects)
@@ -197,8 +197,8 @@ async def get_user_files(
 
     user_files = [
         {
-            "file_id"  : file.asset_id,
-            "file_name": file.asset_name
+            "file_id" : file.asset_id,
+            "filename": file.asset_name
         } for file in user_files
     ]
 

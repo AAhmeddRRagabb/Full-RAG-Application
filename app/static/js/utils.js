@@ -12,6 +12,7 @@ import {
 } from "./constants.js";
 
 let alertTimeoutId;
+let activeShellUser = null;
 
 
 /*
@@ -34,6 +35,8 @@ function setAuthBackdrop(isActive) {
 
 
 function notifyAppShellReady(user = null) {
+    activeShellUser = user;
+
     document.dispatchEvent(
         new CustomEvent("app-shell-ready", {
             detail: {
@@ -41,6 +44,11 @@ function notifyAppShellReady(user = null) {
             },
         })
     );
+}
+
+
+export function getActiveShellUser() {
+    return activeShellUser;
 }
 
 

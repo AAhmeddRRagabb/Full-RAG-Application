@@ -40,6 +40,7 @@ class ChatController(BaseController):
 
         self.prompt_template_parser = prompt_template_parser
         self.llm_clients = llm_clients
+        self.llms = llm_clients
 
 
     def init_llm(self, provider: str, llm_task: str):
@@ -101,7 +102,9 @@ class ChatController(BaseController):
             if success -> llm_response  
             if failure -> None 
         """
-        if not self.llms.get(task, None): self.init_llm(provider = provider, llm_task = task)
+        if not self.llms.get(task, None):
+            self.logger.error(f"Missing LLM Client for Task: {task}")
+            return None
 
 
         task_prompt = self.get_task_prompt(

@@ -25,4 +25,4 @@ def get_embedding_client(request: Request) -> HuggingfaceLLMClient | GoogleLLMCl
     return request.app.state.embedding_client
 
 def get_prompt_template_parser(request: Request) -> PromptTemplateParser:
-    return request.app.satete.prompt_template_parser
+    return request.app.state.prompt_template_parser

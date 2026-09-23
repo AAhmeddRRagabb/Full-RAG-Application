@@ -63,9 +63,9 @@ class DataController(BaseController):
         }
 
     
-    def clean_file_name(self, file_name: str) -> str:
+    def clean_filename(self, filename: str) -> str:
         """Clean & Standardize the file name"""
-        cleaned_fname = re.sub(r'[^\w.]', '', file_name.strip()) # \w --> [A-Z a-z 0-9 _]
+        cleaned_fname = re.sub(r'[^\w.]', '', filename.strip()) # \w --> [A-Z a-z 0-9 _]
         cleaned_fname = cleaned_fname.replace(' ', '_')
             
         return cleaned_fname
@@ -88,8 +88,8 @@ class DataController(BaseController):
 
 
     
-    def get_file_extension(self, file_name: str) -> str:
-        return os.path.splitext(file_name)[-1]
+    def get_file_extension(self, filename: str) -> str:
+        return os.path.splitext(filename)[-1]
     
     
     def get_file_loader(self, file_id: str):
@@ -99,7 +99,7 @@ class DataController(BaseController):
             if failure -> None
         """
 
-        file_ext = self.get_file_extension(file_name = file_id)
+        file_ext = self.get_file_extension(filename = file_id)
         file_path = os.path.join(self.user_path, file_id)
 
         if not os.path.exists(file_path):

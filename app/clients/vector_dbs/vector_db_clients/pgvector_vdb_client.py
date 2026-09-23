@@ -446,7 +446,7 @@ class PGVectorVDBClient(BaseVectorClient):
         params = {
             "vector": vector,
         }
-        if chunk_ids is not None or len(chunk_ids):
+        if chunk_ids:
             where_clause = (
                 f"WHERE {VectorDBPGVectorTableColumns.CHUNK_ID.value} "
                 "= ANY(:chunk_ids)"
