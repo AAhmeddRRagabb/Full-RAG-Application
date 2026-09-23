@@ -15,12 +15,10 @@ export const ERROR_MESSAGE = "error";
 export const WELCOME_MESSAGE_CONTAINER = document.querySelector('.welcome-message');
 export const ALERTS_CONTAINER = document.querySelector('.alerts');
 
-export const START_FORM = document.querySelector(".start-form");
 export const LOGIN_FORM = document.querySelector(".login-form");
 export const REGISTER_FORM = document.querySelector(".register-form");
 export const APP_SHELL = document.querySelector(".page");
 
-export const USER_PROFILE_LOGO = document.querySelector(".user-profile .logo");
 export const LOGIN_BUTTON = document.getElementById("login");
 export const LOGOUT_BUTTON = document.getElementById("logout");
 

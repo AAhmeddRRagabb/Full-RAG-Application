@@ -55,3 +55,17 @@ class LLMsEmbeddingModels(Enum):
     GOOGLE_EMBEDDINGS_2 = "gemini-embedding-2"
 
 
+
+
+class AgentTasks(Enum):
+    QA = "query_understanding"
+    FI = "files_info_extaction"
+    SI = "search_info_extraction"
+    RG = "final_report_generation"
+    OR = "orchestration"
+
+
+class PromptTypes(Enum):
+    SYSTEM_PROMPT = "system_prompt"
+    TASK_PROMPT = "task_prompt"
+    FOOTER_PROMPT = "footer_prompt"

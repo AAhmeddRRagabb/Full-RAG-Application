@@ -23,7 +23,7 @@ from clients.llms.prompt_templates import PromptTemplateParser
 from clients.llms.config import LLMsGeneralEmbeddingQueryTypes, LLMsGenerationMessageTypes, LLMsProviders
 from fastapi.encoders import jsonable_encoder
 
-from clients.llms.prompt_templates.config import LLMTasks, PromptTypes
+from clients.llms.config import AgentTasks, PromptTypes
 
 class ChatController(BaseController):
     """
@@ -32,13 +32,14 @@ class ChatController(BaseController):
     # -------------------- Setup ------------------------- #
     def __init__(
         self,
-        prompt_template_parser: PromptTemplateParser | None = None
+        llm_clients           : dict[str, HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient],
+        prompt_template_parser: PromptTemplateParser | None = None,
     ):
         super().__init__()
 
-        self.llm_factory = LLMAgentFactory(config = get_settings())
+
         self.prompt_template_parser = prompt_template_parser
-        self.llms: dict[str, GroqLLMClient | HuggingfaceLLMClient | GoogleLLMClient] = {}
+        self.llm_clients = llm_clients
 
 
     def init_llm(self, provider: str, llm_task: str):
@@ -61,13 +62,13 @@ class ChatController(BaseController):
         information_resources: list[dict] | None = None
     ):
 
-        if task == LLMTasks.DOCUMENTS_SUMMARIZATION.value:
+        if task == AgentTasks.FI.value:
             vars = {'documents': documents}
 
-        elif task == LLMTasks.ONLINE_SEARCH_SUMMARIZATION.value:
+        elif task == AgentTasks.SI.value:
             vars = online_search_result
 
-        elif task == LLMTasks.FINAL_REPORT_GENERATION.value:
+        elif task == AgentTasks.RG.value:
             vars = {'information_resources': information_resources}
 
         return self.prompt_template_parser.get_prompt(

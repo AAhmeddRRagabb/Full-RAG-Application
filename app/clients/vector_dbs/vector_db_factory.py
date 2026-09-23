@@ -7,7 +7,7 @@ from .config import (
 from helpers.config import Settings
 from models.enums import ResponsesEnum
 
-from controllers import BaseController
+from controllers.base_controller import BaseController
 from sqlalchemy.ext.asyncio import AsyncSession
 
 class VectorDBFactory:
@@ -30,7 +30,7 @@ class VectorDBFactory:
 
         if provider == VectorDBProviders.PROVIDER_PGVEVTOR.value:
             return PGVectorVDBClient(
-                db_client           =  self.db_client,
+                db_client           = self.db_client,
                 default_vector_size = self.config.EMBEDDING_SIZE,
                 distance_method     = self.config.VECTOR_DB_DISTANCE_METHOD,
                 index_threshold     = self.config.PGVECTOR_INDEXING_THRESHOLD

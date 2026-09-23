@@ -21,7 +21,10 @@ from fastapi.encoders import jsonable_encoder
 
 class VectorDBController(BaseController):
     """
-    Controller for vector database and RAG generation workflows.
+    Controls Vector database functionalities:
+        * creating / deleting collections.
+        * inserting into collections.
+        * retrieving relevant documents from collections.
     """
     # -------------------- Setup ------------------------- #
     def __init__(
@@ -124,13 +127,16 @@ class VectorDBController(BaseController):
         user_name     : str,
         text          : str,
         limit         : int = 5,
-        chunk_ids: list[int] | None = None,
+        chunk_ids     : list[int] | None = None,
         encode_as_json: bool = False 
     ) -> list[RetrievedChunk]:
         """
-
         Args:
-            chunk_ids: list of chunk ids to only search in them.  
+            user_name     : user_name to access the user_collection
+            text          : text to use in searching
+            limit         : number of search results to retrieve
+            chunk_ids     : list of chunk ids to only search in them.
+            encode_as_json: whether to serialize results or not  
 
         Returns:  
             if success -> list of retrieved chunks       

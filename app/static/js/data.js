@@ -11,10 +11,9 @@ import {
 } from "./utils.js";
 
 
-const uploadPDFBtn = document.querySelector(".control-area .upload-pdf");
-const fileInput = document.querySelector(".control-area #fileInput");
-const listFilesBtn = document.querySelector(".control-area .list-files-btn");
-const filesContainer = document.querySelector(".control-area .files");
+const uploadPDFBtn = document.querySelector(".chat-settings-modal .add-new-file-btn");
+const fileInput = document.querySelector(".chat-settings-modal #fileInput");
+const filesContainer = document.querySelector(".chat-settings-modal .file-list");
 
 let filesLoaded = false;
 let filesLoading = false;
@@ -34,6 +33,7 @@ function getCurrentFileSelections() {
 
 function notifyFileSelectionChanged() {
     filesContainer.dispatchEvent(new Event("change", { bubbles: true }));
+    document.dispatchEvent(new Event("files-selection-updated"));
 }
 
 
@@ -46,7 +46,7 @@ function createFileOption(file, index, currentSelections = new Map()) {
 
     const label = document.createElement("label");
     label.setAttribute("for", fileInputId);
-    label.className = "file";
+    label.className = "file-option";
 
     const input = document.createElement("input");
     input.type = "checkbox";
@@ -62,11 +62,6 @@ function createFileOption(file, index, currentSelections = new Map()) {
 }
 
 
-function setFilesMenuVisibility(isVisible) {
-    filesContainer.classList.toggle("active", isVisible);
-}
-
-
 function renderUserFiles(files) {
     const currentSelections = getCurrentFileSelections();
 
@@ -76,16 +71,12 @@ function renderUserFiles(files) {
     });
 
     filesLoaded = true;
+    filesContainer.classList.add("active");
     notifyFileSelectionChanged();
 }
 
 
-function closeFilesMenu() {
-    setFilesMenuVisibility(false);
-}
-
-
-async function fetchUserFiles({ showMenu = false, showMessages = false } = {}) {
+async function fetchUserFiles({ showMessages = false } = {}) {
     let response;
     try {
         response = await fetch(
@@ -131,7 +122,6 @@ async function fetchUserFiles({ showMenu = false, showMessages = false } = {}) {
     }
 
     renderUserFiles(files);
-    setFilesMenuVisibility(showMenu);
 
     if (showMessages) {
         showAlert("Uploaded files loaded.", SUCCESS_MESSAGE);
@@ -141,22 +131,15 @@ async function fetchUserFiles({ showMenu = false, showMessages = false } = {}) {
 }
 
 
-async function loadUserFiles({ showMenu = false, showMessages = false } = {}) {
+async function loadUserFiles({ showMessages = false } = {}) {
     if (filesLoading) {
-        const filesWereLoaded = await filesLoadPromise;
-
-        if (showMenu && filesWereLoaded) {
-            setFilesMenuVisibility(true);
-            notifyFileSelectionChanged();
-        }
-
-        return filesWereLoaded;
+        return await filesLoadPromise;
     }
 
     filesLoading = true;
 
     try {
-        filesLoadPromise = fetchUserFiles({ showMenu, showMessages });
+        filesLoadPromise = fetchUserFiles({ showMessages });
         return await filesLoadPromise;
     } finally {
         filesLoading = false;
@@ -205,23 +188,6 @@ async function uploadSelectedFile() {
     showAlert(data.message || "File uploaded successfully.", SUCCESS_MESSAGE);
     fileInput.value = "";
     await loadUserFiles();
-    closeFilesMenu();
-}
-
-
-async function toggleUserFiles() {
-    if (filesContainer.classList.contains("active")) {
-        closeFilesMenu();
-        return;
-    }
-
-    if (filesLoaded) {
-        setFilesMenuVisibility(true);
-        notifyFileSelectionChanged();
-        return;
-    }
-
-    await loadUserFiles({ showMenu: true, showMessages: true });
 }
 
 
@@ -229,13 +195,12 @@ async function toggleUserFiles() {
 
 /* Wire Logic */
 function bindDataEvents() {
-    uploadPDFBtn.addEventListener("click", (event) => {
+    uploadPDFBtn?.addEventListener("click", (event) => {
         event.preventDefault();
         fileInput.click();
     });
 
-    fileInput.addEventListener("change", uploadSelectedFile);
-    listFilesBtn.addEventListener("click", toggleUserFiles);
+    fileInput?.addEventListener("change", uploadSelectedFile);
     document.addEventListener("app-shell-ready", preloadUserFiles);
     window.addEventListener("load", preloadUserFiles);
     preloadUserFiles();

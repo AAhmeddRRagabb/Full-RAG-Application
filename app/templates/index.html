@@ -13,18 +13,30 @@
 
     <body>
 
-        <div class="page">
+        <!-- app layout -->
+        <div class="page active">
+
+            <!-- app rail -->
+            <aside class="app-rail" aria-label="Application controls">
+                <button type="button" class="rail-button user-profile-toggle" data-tooltip="Open account panel" aria-label="Open profile" aria-expanded="false">
+                    <i class="fa-solid fa-user"></i>
+                </button>
+
+                <button type="button" class="rail-button chats-toggle" data-tooltip="Open chat library" aria-label="Open chats" aria-expanded="false">
+                    <i class="fa-solid fa-comment"></i>
+                </button>
+            </aside>
 
             <!-- main area -->
-            <main class="main-area w75">
+            <main class="main-area">
 
                 <!-- main header -->
                 <header class="header">
                     <div class="container">
-                        <h1 class="header-title">{{ app_name }}</h1>
+                        <h1 class="header-title">New Chat</h1>
 
-                        <button type="button" class="control-area_toggle" title="Toggle control menu" aria-label="Toggle control menu" aria-expanded="true">
-                            <i class="fa-solid fa-bars"></i>
+                        <button type="button" class="header-icon-button chat-settings-toggle" data-tooltip="Open chat settings" aria-label="Open chat settings" aria-expanded="false">
+                            <i class="fa-solid fa-sliders"></i>
                         </button>
                     </div>
                 </header>
@@ -32,14 +44,7 @@
                 <!-- chat area -->
                 <section class="chat-area">
                     <div class="container">
-                        <div class="messages" id="messages">
-                            <article class="message assistant-message">
-                                <div class="avatar">AI</div>
-                                <div class="message-content">
-                                    <p>Ask a question to begin.</p>
-                                </div>
-                            </article>
-                        </div>
+                        <div class="messages" id="messages" aria-live="polite"></div>
 
                         <!-- query form -->
                         <form class="query-form" id="queryForm">
@@ -51,7 +56,7 @@
                                 required
                             ></textarea>
 
-                            <button type="submit" class="query-form_submit-btn" title="Send message">
+                            <button type="submit" class="query-form_submit-btn" aria-label="Send message">
                                 <i class="fa-solid fa-arrow-up-long"></i>
                             </button>
                         </form>
@@ -60,97 +65,45 @@
 
             </main>
 
-            <!-- control sidebar -->
-            <aside class="control-area active" aria-label="Chat controls">
-
-                <!-- profile controls -->
-                <section class="control-section control-profile">
-                    <div>
-                        <p class="welcome-message" aria-live="polite">Welcome Visitor</p>
-                    </div>
-
-                    <div class="control-profile_buttons">
-                        <button type="button" class="login" id="login">Log In</button>
-                        <button type="button" class="logout" id="logout" hidden>Log Out</button>
-                    </div>
-                </section>
-
-                <!-- user actions -->
-                <section class="control-section user-actions">
-                    <div class="control-section_header">
-                        <h2>User Actions</h2>
-                    </div>
-
-                    <!-- upload control -->
-                    <div class="control-card upload-resource">
-                        <div>
-                            <p>Upload</p>
-                            <span>Upload a PDF.</span>
-                        </div>
-
-                        <button type="button" title="Upload PDF" class="upload-pdf">
-                            <i class="fa-solid fa-plus"></i>
-                        </button>
-                        <input type="file" id="fileInput" accept=".pdf" hidden>
-                    </div>
-                </section>
-
-                <!-- chat controls -->
-                <section class="control-section control-chat">
-                    <div class="control-section_header">
-                        <h2>Control Bot Behavior</h2>
-                    </div>
-
-                    <!-- online search control -->
-                    <div class="control-card search-online">
-                        <div>
-                            <p>Search online</p>
-                            <span>Use web results.</span>
-                        </div>
-
-                        <button type="button" class="search-online-btn" title="Search online" aria-pressed="false">
-                            <i class="fa-solid fa-magnifying-glass"></i>
-                        </button>
-                    </div>
-
-                    <!-- file resources control -->
-                    <div class="control-card list-files">
-                        <div>
-                            <p>Investigate Files</p>
-                            <span>Use Uploaded files.</span>
-                        </div>
-    
-                        <button type="button" class="list-files-btn" title="Your files">
-                            <i class="fa-solid fa-caret-down"></i>
-                        </button>
-    
-                        <form class="files" aria-label="Uploaded files"></form>
-                    </div>
-
-                    <!-- selected resource status -->
-                    <p class="resources-status" aria-live="polite">Nothing selected.</p>
-                </section>
-
-            </aside>
-
         </div>
+
+        <!-- user profile modal -->
+        <section class="user-profile-modal app-modal" aria-label="User profile">
+            <div class="modal-header">
+                <div>
+                    <p class="modal-eyebrow">Profile</p>
+                    <h2>Account</h2>
+                </div>
+
+                <button type="button" class="modal-close" aria-label="Close profile">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <p class="welcome-message" aria-live="polite">Welcome Visitor</p>
+
+            <div class="profile-actions">
+                <button type="button" class="login" id="login">Log In</button>
+                <button type="button" class="logout" id="logout" hidden>Log Out</button>
+            </div>
+        </section>
 
         <!-- register modal -->
         <div class="register-form">
             <form action="">
-                <label for="userName">
+                <label for="registerUserName">
                     User Name
-                    <input type="text" name="user_name" id="userName" required>
+                    <input type="text" name="user_name" id="registerUserName" required>
                 </label>
 
-                <label for="userEmail">
+                <label for="registerUserEmail">
                     Email
-                    <input type="email" name="user_email" id="userEmail" required>
+                    <input type="email" name="user_email" id="registerUserEmail" required>
                 </label>
 
-                <label for="userPassword">
+                <label for="registerUserPassword">
                     Password
-                    <input type="password" name="user_password" id="userPassword" required>
+                    <input type="password" name="user_password" id="registerUserPassword" required>
                 </label>
 
                 <label for="confirmPassword">
@@ -159,10 +112,10 @@
                 </label>
 
                 <p class="form-message" aria-live="polite"></p>
-                <input type="submit" value="Register" id="submitBtn">
+                <input type="submit" value="Register" id="registerSubmitBtn">
             </form>
 
-            <button type="button" class="close-form" title="Close">
+            <button type="button" class="close-form" aria-label="Close register form">
                 <i class="fa-solid fa-xmark"></i>
             </button>
             <button type="button" class="have-email">Login</button>
@@ -171,25 +124,137 @@
         <!-- login modal -->
         <div class="login-form">
             <form action="">
-                <label for="userEmail">
+                <label for="loginUserEmail">
                     Email
-                    <input type="email" name="user_email" id="userEmail" required>
+                    <input type="email" name="user_email" id="loginUserEmail" required>
                 </label>
 
-                <label for="userPassword">
+                <label for="loginUserPassword">
                     Password
-                    <input type="password" name="user_password" id="userPassword" required>
+                    <input type="password" name="user_password" id="loginUserPassword" required>
                 </label>
 
                 <p class="form-message" aria-live="polite"></p>
-                <input type="submit" value="Login" id="submitBtn">
+                <input type="submit" value="Login" id="loginSubmitBtn">
             </form>
 
-            <button type="button" class="close-form" title="Close">
+            <button type="button" class="close-form" aria-label="Close login form">
                 <i class="fa-solid fa-xmark"></i>
             </button>
-            <button type="button" class="have-no-email">New?</button>
+            <button type="button" class="have-no-email">Create account</button>
         </div>
+
+
+        <!-- chats modal -->
+        <section class="chats-modal app-modal" aria-label="Your chats">
+
+            <!-- chats modal header -->
+            <div class="modal-header">
+                <div>
+                    <p class="modal-eyebrow">Workspace</p>
+                    <h2>Chats</h2>
+                </div>
+
+                <button type="button" class="modal-close" aria-label="Close chats">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- chats list -->
+            <div class="chats-list" aria-label="Saved chats"></div>
+
+            <!-- add chat action -->
+            <button type="button" class="add-new-chat-btn">
+                <i class="fa-solid fa-plus"></i>
+                <span>New chat</span>
+            </button>
+        </section>
+
+        <!-- chat settings modal -->
+        <section class="chat-settings-modal app-modal" aria-label="Chat settings">
+
+            <!-- settings modal header -->
+            <div class="modal-header">
+                <div>
+                    <p class="modal-eyebrow">Current chat</p>
+                    <h2>Settings</h2>
+                </div>
+
+                <button type="button" class="modal-close" aria-label="Close settings">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- resources settings -->
+            <div class="chat-resources">
+                <div class="settings-section_header">
+                    <h3>Resources</h3>
+                    <p class="resources-status" aria-live="polite">Nothing selected.</p>
+                </div>
+
+                <div class="settings-card files-control">
+                    <div>
+                        <h4>Files</h4>
+                        <p>Selected files are used by default.</p>
+                    </div>
+
+                    <button type="button" class="icon-button add-new-file-btn" aria-label="Upload PDF">
+                        <i class="fa-solid fa-plus"></i>
+                    </button>
+
+                    <input type="file" id="fileInput" accept=".pdf" hidden>
+                    <form class="file-list" aria-label="Uploaded files"></form>
+                </div>
+
+                <div class="settings-card search-control">
+                    <div>
+                        <h4>Search online</h4>
+                        <p>Allow web context for this chat.</p>
+                    </div>
+
+                    <button type="button" class="icon-button search-online-btn" aria-label="Toggle web context" aria-pressed="false">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- tone settings -->
+            <div class="chat-tone">
+                <div class="settings-section_header">
+                    <h3>Tone</h3>
+                    <p>Choose how this chat should answer.</p>
+                </div>
+
+                <div class="tone-options" role="radiogroup" aria-label="Chat tone">
+                    <button type="button" class="tone-option selected" data-tone="technical" aria-pressed="true">Technical</button>
+                    <button type="button" class="tone-option" data-tone="creative" aria-pressed="false">Creative</button>
+                    <button type="button" class="tone-option" data-tone="custom" aria-pressed="false">Custom</button>
+                </div>
+
+                <div class="custom-configurations" aria-label="Custom model settings">
+                    <label>
+                        Temperature
+                        <input type="range" class="config-input" data-config-key="temperature" min="0" max="2" step="0.1" value="0.7">
+                        <output>0.7</output>
+                    </label>
+
+                    <label>
+                        Max tokens
+                        <input type="range" class="config-input" data-config-key="max_tokens" min="256" max="4096" step="256" value="1024">
+                        <output>1024</output>
+                    </label>
+
+                    <label>
+                        Top P
+                        <input type="range" class="config-input" data-config-key="top_p" min="0.1" max="1" step="0.1" value="0.9">
+                        <output>0.9</output>
+                    </label>
+                </div>
+
+            </div>
+
+        </section>
 
         <!-- alerts -->
         <div class="alerts" aria-live="polite"></div>

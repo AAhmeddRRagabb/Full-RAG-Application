@@ -7,9 +7,7 @@ import {
     LOGIN_FORM,
     LOGOUT_BUTTON,
     REGISTER_FORM,
-    START_FORM,
     SUCCESS_MESSAGE,
-    USER_PROFILE_LOGO,
     WELCOME_MESSAGE_CONTAINER,
 } from "./constants.js";
 
@@ -21,6 +19,17 @@ let alertTimeoutId;
 */
 function setAuthBackdrop(isActive) {
     document.body.classList.toggle("auth-form-active", isActive);
+
+    if (isActive) {
+        document.querySelectorAll(".app-modal.active, .rail-button.active, .header-icon-button.active")
+            .forEach((element) => {
+                element.classList.remove("active");
+
+                if (element.matches("button")) {
+                    element.setAttribute("aria-expanded", "false");
+                }
+            });
+    }
 }
 
 
@@ -115,18 +124,13 @@ export async function parseJsonResponse(response) {
 
 
 /*
-    control UI
+    UI State
 */
 
 export function setUserProfile(user = null) {
     const userName = user?.user_name || "Visitor";
-    const userInitial = userName.trim().charAt(0).toUpperCase() || "V";
 
     showMessage(WELCOME_MESSAGE_CONTAINER, `Welcome ${userName}`, SUCCESS_MESSAGE);
-
-    if (USER_PROFILE_LOGO) {
-        USER_PROFILE_LOGO.textContent = userInitial;
-    }
 
     if (LOGIN_BUTTON) {
         LOGIN_BUTTON.hidden = Boolean(user);
@@ -140,7 +144,6 @@ export function setUserProfile(user = null) {
 
 export function activateAppShell(user = null) {
     setAuthBackdrop(false);
-    START_FORM?.classList.remove("active");
     REGISTER_FORM.classList.remove("active");
     LOGIN_FORM.classList.remove("active");
 
@@ -151,20 +154,19 @@ export function activateAppShell(user = null) {
 }
 
 
-export function activateStartForm() {
-    setAuthBackdrop(Boolean(START_FORM));
+export function activateGuestShell() {
+    setAuthBackdrop(false);
     REGISTER_FORM.classList.remove("active");
     LOGIN_FORM.classList.remove("active");
     APP_SHELL?.classList.add("active");
-    START_FORM?.classList.add("active");
     setUserProfile(null);
+    notifyAppShellReady(null);
 }
 
 
 export function activateLoginForm() {
     setAuthBackdrop(true);
     REGISTER_FORM.classList.remove("active");
-    START_FORM?.classList.remove("active");
     APP_SHELL?.classList.add("active");
     LOGIN_FORM.classList.add("active");
 }
@@ -173,7 +175,6 @@ export function activateLoginForm() {
 export function activateRegisterForm() {
     setAuthBackdrop(true);
     LOGIN_FORM.classList.remove("active");
-    START_FORM?.classList.remove("active");
     APP_SHELL?.classList.add("active");
     REGISTER_FORM.classList.add("active");
 }

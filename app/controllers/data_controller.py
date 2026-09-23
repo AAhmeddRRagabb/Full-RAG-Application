@@ -1,16 +1,32 @@
+import os
 import re
 import aiofiles
 
+from .base_controller import BaseController
+from .user_controller import UserController
+
 from models.enums import ResponsesEnum
 from helpers.config import FILE_ALLOWED_EXTENSIONS, FILE_MAX_SIZE_MB, FILE_CHUNK_SIZE_B
+from models.enums import FileExtensionsEnum
 
-from .base_controller import BaseController
 from fastapi import UploadFile
+from langchain_community.document_loaders import TextLoader, PyMuPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter # cares for spaces and about
+
+
 
 class DataController(BaseController):
-    def __init__(self):
+    """
+    Controls:
+        * Managing Uploaded Files [validate - clean - save]
+        * Reading File Content
+        * Chunking Files
+    """
+    def __init__(self, user_name: str):
         super().__init__()
         self.mb_2_b = 1024 * 1024
+        self.user_name = user_name
+        self.user_path = UserController().get_user_path(user_name = user_name)
 
 
     def validate_uploaded_file(self, file: UploadFile) -> dict[str, bool | str]:
@@ -69,3 +85,70 @@ class DataController(BaseController):
             return False
 
         return True
+
+
+    
+    def get_file_extension(self, file_name: str) -> str:
+        return os.path.splitext(file_name)[-1]
+    
+    
+    def get_file_loader(self, file_id: str):
+        """
+        Returns:
+            if success -> loaded file
+            if failure -> None
+        """
+
+        file_ext = self.get_file_extension(file_name = file_id)
+        file_path = os.path.join(self.user_path, file_id)
+
+        if not os.path.exists(file_path):
+            return None
+
+        if file_ext == FileExtensionsEnum.FILE_TXT.value:
+            return TextLoader(file_path, encoding = 'utf-8')
+        
+        if file_ext == FileExtensionsEnum.FILE_PDF.value:
+            return PyMuPDFLoader(file_path)
+        
+        return None
+
+    
+    
+    def get_file_content(self, file_id: str) -> str | None:
+        loader = self.get_file_loader(file_id = file_id)
+
+        if loader:
+            return loader.load()
+    
+        return None
+
+
+
+    def get_chunks(self, file_content: list, chunk_size: int = 100, overlap_size: int = 100) -> list | None:
+        """
+        Returns:  
+            if success -> list of chunks  
+            if failure -> None  
+        """
+        
+        # get content
+        contents = [data.page_content for data in file_content]
+        metadata = [data.metadata for data in file_content]
+
+        # split
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size = chunk_size,
+            chunk_overlap = overlap_size,
+            length_function = len
+        )
+
+        chunks = text_splitter.create_documents(
+            contents,
+            metadatas = metadata
+        )
+
+        if chunks: 
+            return chunks
+
+        return None

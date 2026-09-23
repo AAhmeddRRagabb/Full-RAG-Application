@@ -2,29 +2,47 @@
 # Implementing the routes related to the NLP workflows
 # -------------------------------------------------------
 
+
+# utils
+import helpers.config as CFG
+from helpers.functional import raise_internal_server_error, return_bad_request
+from typing import Annotated
+from pydantic import BaseModel
+from helpers.config import get_settings
+
+
+# controllers
+from controllers import VectorDBController
+from controllers import ChatController
+
 # fastapi utils
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi import status, Request
 from fastapi.responses import JSONResponse
 
 # models & schemas
-from models.db_objects_models import UserModel
 from models.db_objects_models import ChunkModel
-from models.db_objects_models import AssetModel
+from models.system_schemas import AuthContext
+from models.db_schemas import User
 
-from models.enums import ResponsesEnum, AssetTypesEnum
 
-# from models.request_schemas import PushChunksRequest
-# from models.request_schemas import RetrievalRequest
-# from models.request_schemas import GenerationRequest
+# clients
+from clients.llms.config import AgentTasks
+from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
+from clients.llms.llm_clients import HuggingfaceLLMClient, GoogleLLMClient, GroqLLMClient
+from clients.llms.prompt_templates import PromptTemplateParser
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# controllers
-from controllers import VectorDBController
+# dependecies
+from app_core.dependecies.auth import require_authentication
+from app_core.dependecies.clients import (
+    get_embedding_client, 
+    get_vector_db_client, 
+    get_prompt_template_parser, 
+    get_llm_clients,
+    get_db_client
+)
 
-# helpers
-from tqdm.auto import tqdm
-import helpers.config as CFG
-from helpers.functional import raise_internal_server_error, return_bad_request
 
 
 chat_router = APIRouter(
@@ -33,11 +51,6 @@ chat_router = APIRouter(
 )
 
 
-from fastapi_core.dependecies.auth import require_authentication
-from models.system_schemas import AuthContext
-from fastapi import Depends
-from typing import Annotated
-from pydantic import BaseModel
 
 class ChatRequest(BaseModel):
     query         : str
@@ -45,37 +58,35 @@ class ChatRequest(BaseModel):
     search_online : bool = False
     files         : list[str] = []
 
-from models.db_schemas import User
-from controllers import ChatController
-from clients.llms.prompt_templates.config import LLMTasks
-from helpers.config import get_settings
-import json
-
-
 
 
 @chat_router.post("/chat")
 async def chat_will_llm(
-    auth        : Annotated[AuthContext, Depends(require_authentication)],
-    request     : Request,
-    chat_request: ChatRequest
+    auth                  : Annotated[AuthContext, Depends(require_authentication)],
+    db_client             : Annotated[AsyncSession, Depends(get_db_client)],
+    vector_db_client      : Annotated[PGVectorVDBClient, Depends(get_vector_db_client)],
+    embedding_client      : Annotated[HuggingfaceLLMClient | GoogleLLMClient, Depends(get_embedding_client)],
+    llm_clients           : Annotated[dict[str, HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient], Depends(get_llm_clients)],
+    prompt_template_parser: Annotated[PromptTemplateParser, Depends(get_prompt_template_parser)],
+    chat_request          : ChatRequest
 ):
     # - setup
     vector_db_controller = VectorDBController(
-        vector_db_client = request.app.vector_db_client,
-        embedding_client = request.app.embedding_client,
+        vector_db_client = vector_db_client,
+        embedding_client = embedding_client,
     )
 
     chat_controller = ChatController(
-        prompt_template_parser = request.app.prompt_template_parser
+        prompt_template_parser = prompt_template_parser,
+        llm_clients = llm_clients
     )
 
-
-    chunk_model = ChunkModel(db_client = request.app.db_client)
+    chunk_model = ChunkModel(db_client = db_client)
     user: User = auth.user
 
     search_online = chat_request.search_online
     files_to_retrieve_from = chat_request.files
+
 
     # - search only in required files
     file_ids = [int(file_id) for file_id in files_to_retrieve_from]
@@ -98,7 +109,7 @@ async def chat_will_llm(
         
         file_information = await chat_controller.get_llm_response(
             query = chat_request.query,
-            task = LLMTasks.DOCUMENTS_SUMMARIZATION.value,
+            task = AgentTasks.FI.value,
             provider = get_settings().GENERATION_BACKEND,
             documents = retrieved
         )
@@ -112,7 +123,7 @@ async def chat_will_llm(
     final_answer = await chat_controller.get_llm_response(
         query = chat_request.query,
         provider = get_settings().GENERATION_BACKEND,
-        task = LLMTasks.FINAL_REPORT_GENERATION.value,
+        task = AgentTasks.RG.value,
         information_resources = information_resources
     )
 

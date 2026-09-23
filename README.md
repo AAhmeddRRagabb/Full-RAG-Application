@@ -34,7 +34,7 @@ The project also has two release lines:
 app/
   clients/              LLM and vector database clients
   controllers/          Data, process, NLP, and user workflow logic
-  fastapi_core/         Lifespan and metrics setup
+  app_core/         Lifespan and metrics setup
   models/               Request schemas, DB schemas, enums, object models
   routes/               FastAPI route modules
   main.py               App entrypoint

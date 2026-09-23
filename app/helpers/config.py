@@ -43,9 +43,6 @@ class Settings(BaseSettings):
     METRICS_ENDPOINT: str
 
     # -------------------------- LLMs Config ----------------------------- #
-    GENERATION_BACKEND: str
-    EMBEDDING_BACKEND: str
-    GENERATION_MODEL_ID: str
     EMBEDDING_MODEL_ID: str
 
 
@@ -58,6 +55,20 @@ class Settings(BaseSettings):
 
     PRIMARY_LANGUAGE: str
     DEFAULT_LANGUAGE: str
+
+
+    QUERY_UNDERSTANDING_BACKEND: str
+    FILES_INFORMATION_EXTRACTION_BACKEND: str
+    SEARCH_INFORMATION_EXTRACTION_BACKEND: str
+    FINAL_REPORT_GENERATION_BACKEND: str
+    ORCHESTRATION_BACKEND: str
+    EMBEDDING_BACKEND: str
+
+    QUERY_UNDERSTANDING_AGENT: str
+    FILES_INFORMATION_EXTRACTION_AGENT: str
+    SEARCH_INFORMATION_EXTRACTION_AGENT: str
+    FINAL_REPORT_GENERATION_AGENT: str
+    ORCHESTRATION_AGENT: str
 
     # -------------------------- DBs Config ----------------------------- #
     VECTOR_DB_BACKEND: str
@@ -74,7 +85,7 @@ class Settings(BaseSettings):
     session_idle_minutes: int = 60
 
     csrf_secret: SecretStr  # !
-    frontend_origin: str
+    FRONTEND_ORIGIN: str
 
     class Config:
         env_file = ".env"

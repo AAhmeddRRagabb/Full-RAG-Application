@@ -17,9 +17,9 @@ import {
 
 import {
     activateAppShell,
+    activateGuestShell,
     activateLoginForm,
     activateRegisterForm,
-    activateStartForm,
 
     showMessage,
     clearMessage,
@@ -31,22 +31,20 @@ import {
 
 let csrfToken = null;
 
-const visitorBtn = document.querySelector(".start-form button.visitor");
-const subscriberBtn = document.querySelector(".start-form button.subscriber");
 const closeFormBtns = document.querySelectorAll(".close-form");
 
 const loginMessage = LOGIN_FORM.querySelector(".form-message");
 const registerMessage = REGISTER_FORM.querySelector(".form-message");
 
-const loginSubmitBtn = LOGIN_FORM.querySelector("#submitBtn");
-const registerSubmitBtn = REGISTER_FORM.querySelector("#submitBtn");
+const loginForm = LOGIN_FORM.querySelector("form");
+const registerForm = REGISTER_FORM.querySelector("form");
 
-const userEmailLoginIP = LOGIN_FORM.querySelector("#userEmail");
-const userPassLoginIP = LOGIN_FORM.querySelector("#userPassword");
+const userEmailLoginIP = LOGIN_FORM.querySelector("#loginUserEmail");
+const userPassLoginIP = LOGIN_FORM.querySelector("#loginUserPassword");
 
-const userEmailIP = REGISTER_FORM.querySelector("#userEmail");
-const userNameIP = REGISTER_FORM.querySelector("#userName");
-const userPassIP = REGISTER_FORM.querySelector("#userPassword");
+const userEmailIP = REGISTER_FORM.querySelector("#registerUserEmail");
+const userNameIP = REGISTER_FORM.querySelector("#registerUserName");
+const userPassIP = REGISTER_FORM.querySelector("#registerUserPassword");
 const confirmPassIP = REGISTER_FORM.querySelector("#confirmPassword");
 
 const haveEmailBtn = REGISTER_FORM.querySelector(".have-email");
@@ -91,19 +89,19 @@ async function restoreAuthentication() {
             }
         );
     } catch {
-        activateStartForm();
+        activateGuestShell();
         return;
     }
 
     if (!userResponse.ok) {
-        activateStartForm();
+        activateGuestShell();
         return;
     }
 
     try {
         await refreshCsrfToken();
     } catch {
-        activateStartForm();
+        activateGuestShell();
         return;
     }
 
@@ -229,7 +227,7 @@ async function logoutUser() {
 
         updateCsrfToken(null);
         showAlert(data.message || "Logged out successfully.", SUCCESS_MESSAGE);
-        activateStartForm();
+        activateGuestShell();
     } catch {
         showAlert("Could not log out. Please try again.", ERROR_MESSAGE);
     }
@@ -238,17 +236,10 @@ async function logoutUser() {
 
 /* Wire Logic */
 function bindAuthEvents() {
-    visitorBtn?.addEventListener("click", () => {
-        updateCsrfToken(null);
-        activateAppShell();
-        showAlert("Visitor session is ready.", SUCCESS_MESSAGE);
-    });
-
-    subscriberBtn?.addEventListener("click", activateLoginForm);
-    LOGIN_BUTTON.addEventListener("click", activateLoginForm);
-    LOGOUT_BUTTON.addEventListener("click", logoutUser);
-    loginSubmitBtn.addEventListener("click", loginUser);
-    registerSubmitBtn.addEventListener("click", registerUser);
+    LOGIN_BUTTON?.addEventListener("click", activateLoginForm);
+    LOGOUT_BUTTON?.addEventListener("click", logoutUser);
+    loginForm?.addEventListener("submit", loginUser);
+    registerForm?.addEventListener("submit", registerUser);
 
     haveNoEmailBtn.addEventListener("click", () => {
         clearMessage(loginMessage);
@@ -261,7 +252,7 @@ function bindAuthEvents() {
     });
 
     closeFormBtns.forEach((button) => {
-        button.addEventListener("click", activateStartForm);
+        button.addEventListener("click", activateGuestShell);
     });
 }
 

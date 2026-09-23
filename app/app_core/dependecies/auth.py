@@ -1,8 +1,11 @@
 
 
-from dataclasses import dataclass
+# utils
 from datetime import datetime, timezone
 from typing import Annotated
+from pydantic import ValidationError
+from helpers.config import get_settings
+
 
 from fastapi import (
     Depends,
@@ -11,33 +14,36 @@ from fastapi import (
     Request,
     status,
 )
-from pydantic import ValidationError
+
+from app_core.dependecies.clients import get_redis, get_db_client
+
+# clients
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from helpers.config import get_settings
+# models
 from models.db_schemas.redis_data import SessionData
+from models.system_schemas import AuthContext
+from models.db_objects_models import UserModel
 
+# security
 from security.session_management import hash_session_token
 from security.csrf import verify_csrf_token
 from security.session_management import build_redis_session_key, build_redis_user_version_key
 
-from models.db_schemas import User
-from models.system_schemas import AuthContext
 
-from fastapi_core.dependecies.redis import get_redis
 
-from models.db_objects_models import UserModel
 
 
 
 async def require_authentication(
-    request: Request,
-    redis: Annotated[Redis, Depends(get_redis)]
+    request  : Request,
+    db_client: Annotated[AsyncSession, Depends(get_db_client)],
+    redis    : Annotated[Redis, Depends(get_redis)]
 ) -> AuthContext:
-    user_model = UserModel(db_client = request.app.db_client)
+    user_model = UserModel(db_client = db_client)
 
     # - get the session from the request cookie
     raw_token = request.cookies.get(get_settings().session_cookie_name)
@@ -137,7 +143,7 @@ async def require_authentication(
 
 
 async def require_csrf(
-    auth: Annotated[AuthContext, Depends(require_authentication)], 
+    auth      : Annotated[AuthContext, Depends(require_authentication)], 
     csrf_token: Annotated[str | None, Header(alias = "X-CSRF-Token")] = None
 ) -> AuthContext:
     
