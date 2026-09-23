@@ -26,3 +26,4 @@ class User(SQLAlchemyBase):
     # linking
     assets = relationship("Asset", back_populates = "user")
     chunks = relationship('DataChunk', back_populates = 'user')
+    chats = relationship('Chat', back_populates = 'user')
