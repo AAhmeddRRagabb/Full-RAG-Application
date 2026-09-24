@@ -37,7 +37,6 @@ from models.request_schemas.chat import (
 
 
 # clients
-from clients.llms.config import AgentTasks
 from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
 from clients.llms.llm_clients import HuggingfaceLLMClient, GoogleLLMClient, GroqLLMClient
 from clients.llms.prompt_templates import PromptTemplateParser
@@ -395,7 +394,7 @@ async def chat_will_llm(
         )
 
         if active_chat is None:
-            raise raise_internal_server_error()
+            raise_internal_server_error()
 
 
     if not await chat_model.insert_message(
@@ -405,123 +404,59 @@ async def chat_will_llm(
             content = query,
         )
     ):
-        raise raise_internal_server_error()
+        raise_internal_server_error()
 
     
     # --------------------- Begin Agentic Work ----------------------------- #
-    # - QA
-    user_requirements = await chat_controller.call_llm(
-        task = AgentTasks.QA.value,
-        prompt_vars = {'query': query},
-        response_key = 'user_requirements'
-    )
-    
-    # - FI
-    files_information = {}
-    for file in files:
-        file_id, file_name = file.split("_", maxsplit = 1)
-
-        if not file_id:
-            logger.error(f"File: {file_name} is not valid")
-            raise raise_internal_server_error()
+    async def search_file_chunks(query: str, file: str, retrieve_limit: int):
+        try:
+            file_id, _ = file.split("_", maxsplit = 1)
+            file_id = int(file_id)
+        except ValueError:
+            logger.error(f"Invalid File Resource: {file}")
+            return None
 
         chunks = await chunk_model.get_user_chunks(
             user_id = user.user_id,
-            asset_ids = [int(file_id)]
+            asset_ids = [file_id],
         )
 
         if chunks is None:
-            logger.error(f"Cannot access {file_name} chunks")
-            raise raise_internal_server_error()
+            return None
 
-        chunk_ids = [c.chunk_id for c in chunks]
+        if not chunks:
+            return []
 
-        retrieved = await vector_db_controller.search_vector_db_collection(
+        return await vector_db_controller.search_vector_db_collection(
             user_name = user.user_name,
-            text      = query,
-            limit     = chat_request.retrieve_limit,
-            chunk_ids = chunk_ids
+            text = query,
+            limit = retrieve_limit,
+            chunk_ids = [
+                chunk.chunk_id
+                for chunk in chunks
+            ],
         )
 
-        file_information = await chat_controller.call_llm(
-            task = AgentTasks.FI.value,
-            prompt_vars = {'query': query, 'documents': retrieved},
-        )
-
-        
-        
-        if not file_information:
-            logger.error(f"Cannot Extract {file_name} Information. Information Extracted: {file_information}")
-            raise raise_internal_server_error()
-        
-        if not file_information.get('need_additional_info'):
-            files_information[file_name] = file_information.get('related_information')
-
-    # - SI
-    websearch_results = chat_controller.get_tavily_search_results(
-        query = query
+    agent_result = await chat_controller.answer_user_query(
+        query = query,
+        files = files or [],
+        retrieve_limit = chat_request.retrieve_limit,
+        search_online = chat_settings.get("search_online", False),
+        file_searcher = search_file_chunks,
     )
 
-    websearch_info = await chat_controller.call_llm(
-        task = AgentTasks.SI.value,
-        prompt_vars = {
-            'query': query,
-            'websearch_results': websearch_results
-        }
-    )
+    if agent_result is None:
+        raise_internal_server_error()
 
-    if not websearch_info:
-        logger.error(f"Error Searching. Information from Web: {websearch_info}")
-        raise raise_internal_server_error()
-        
-    if not websearch_info.get('need_additional_info'):
-        websearch_info = websearch_info.get('related_information')
-        websearch_info_2 = {}
-        for info in websearch_info:
-            websearch_info_2[info.get('url')] = {
-                'info': info.get('info'),
-                'relevance_score': info.get('relevance_score'),
-            }
-
-
-    # - RG & OR
-    success = False
-    num_of_calls = 1
-    while(num_of_calls):
-        final_answer = await chat_controller.call_llm(
-            task              = AgentTasks.RG.value,
-            prompt_vars = {
-                'files_information': files_information,
-                'websearch_info'   : websearch_info_2,
-                'user_requirements': user_requirements
-            },
-        )
-
-        report = final_answer.get('report')
-
-        # - OR
-        success = await chat_controller.call_llm(
-            task = AgentTasks.OR.value,
-            prompt_vars = {
-                'user_requirements' : user_requirements,
-                'assistant_response': report
-            },
-            response_key = 'all_answered'
-        )
-
-
-        if success: break
-
-        num_of_calls -= 1
-
-    resources = final_answer.get('resources') if success else None
+    report = agent_result.get("report")
+    resources = agent_result.get("llm_resources") or []
 
     if not await chat_model.insert_message(
         Message(
             chat_id       = active_chat.chat_id,
             role          = "assistant",
             content       = report or "",
-            llm_resources = resources or {}
+            llm_resources = resources
         )
     ):
         raise_internal_server_error()
