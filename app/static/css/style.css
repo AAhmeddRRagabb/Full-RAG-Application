@@ -117,10 +117,9 @@ h4 {
 */
 
 button[data-tooltip] {
-    position: relative;
+    /* position: relative; */
 }
 
-button[data-tooltip]::before,
 button[data-tooltip]::after {
     position: absolute;
     left: 50%;
@@ -132,24 +131,22 @@ button[data-tooltip]::after {
     transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
 }
 
-button[data-tooltip]::before {
-    content: "";
-    bottom: calc(100% + 0.32rem);
-    border: 6px solid transparent;
-    border-top-color: rgba(12, 14, 18, 0.98);
-}
 
 button[data-tooltip]::after {
     content: attr(data-tooltip);
     bottom: calc(100% + 0.7rem);
+
     width: max-content;
     max-width: 220px;
     padding: 0.48rem 0.62rem;
+
     border: 1px solid var(--line-strong);
     border-radius: 8px;
+
     color: var(--ink);
     background: rgba(12, 14, 18, 0.98);
     box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38), 0 0 22px rgba(212, 175, 55, 0.1);
+
     font-size: 0.76rem;
     font-weight: 800;
     line-height: 1.35;
@@ -157,56 +154,36 @@ button[data-tooltip]::after {
     white-space: normal;
 }
 
-button[data-tooltip]:hover::before,
 button[data-tooltip]:hover::after,
-button[data-tooltip]:focus-visible::before,
 button[data-tooltip]:focus-visible::after {
     opacity: 1;
     visibility: visible;
     transform: translate(-50%, -8px);
 }
 
-.app-rail button[data-tooltip]::before,
 .app-rail button[data-tooltip]::after {
     top: 50%;
     right: auto;
     bottom: auto;
-    left: calc(100% + 0.72rem);
+    left: 100%;
     transform: translate(4px, -50%);
 }
 
-.app-rail button[data-tooltip]::before {
-    left: calc(100% + 0.28rem);
-    border-color: transparent;
-    border-right-color: rgba(12, 14, 18, 0.98);
-}
 
-.app-rail button[data-tooltip]:hover::before,
 .app-rail button[data-tooltip]:hover::after,
-.app-rail button[data-tooltip]:focus-visible::before,
 .app-rail button[data-tooltip]:focus-visible::after {
     transform: translate(8px, -50%);
 }
 
-.header-icon-button[data-tooltip]::before,
 .header-icon-button[data-tooltip]::after {
-    top: calc(100% + 0.7rem);
+    top: 100%;
     right: 0;
     bottom: auto;
     left: auto;
     transform: translateY(4px);
 }
 
-.header-icon-button[data-tooltip]::before {
-    top: calc(100% + 0.32rem);
-    right: 0.95rem;
-    border-color: transparent;
-    border-bottom-color: rgba(12, 14, 18, 0.98);
-}
-
-.header-icon-button[data-tooltip]:hover::before,
 .header-icon-button[data-tooltip]:hover::after,
-.header-icon-button[data-tooltip]:focus-visible::before,
 .header-icon-button[data-tooltip]:focus-visible::after {
     transform: translateY(8px);
 }
@@ -220,11 +197,10 @@ button[data-tooltip]:focus-visible::after {
 
 .page {
     width: 100%;
-    min-height: 100vh;
     height: 100vh;
+
     display: grid;
     grid-template-columns: 72px minmax(0, 1fr);
-    overflow: hidden;
 }
 
 .container {
@@ -243,12 +219,15 @@ button[data-tooltip]:focus-visible::after {
     position: sticky;
     top: 0;
     z-index: 14;
+
     height: 100vh;
     padding: 1rem 0.75rem;
+
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 0.75rem;
+    
     border-right: 1px solid var(--line);
     background: rgba(4, 5, 7, 0.94);
     box-shadow: 18px 0 40px rgba(0, 0, 0, 0.28);
@@ -266,10 +245,12 @@ button[data-tooltip]:focus-visible::after {
     height: 44px;
     min-height: 44px;
     padding: 0;
+
     border: 1px solid var(--line);
     border-radius: 8px;
     color: var(--ink);
     background: rgba(255, 255, 255, 0.035);
+
     cursor: pointer;
     transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
@@ -298,7 +279,6 @@ button[data-tooltip]:focus-visible::after {
 
 .main-area {
     width: 100%;
-    min-width: 0;
     min-height: 100vh;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
@@ -344,16 +324,16 @@ button[data-tooltip]:focus-visible::after {
 }
 
 .chat-area {
-    min-height: 0;
     padding: 1.5rem 0;
 }
 
 .chat-area .container {
     height: calc(100vh - 124px);
-    min-height: 0;
+
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    
     border: 1px solid var(--line);
     border-radius: 8px;
     background: rgba(10, 13, 17, 0.72);
@@ -362,7 +342,6 @@ button[data-tooltip]:focus-visible::after {
 }
 
 .messages {
-    min-height: 0;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -402,6 +381,44 @@ button[data-tooltip]:focus-visible::after {
     color: #e9f5ff;
     background: rgba(255, 255, 255, 0.035);
     line-height: 1.6;
+}
+
+.message-body {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.message-llm-resources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.message-llm-resource {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    max-width: 100%;
+    padding: 0.38rem 0.55rem;
+    overflow: hidden;
+    border: 1px solid rgba(212, 175, 55, 0.24);
+    border-radius: 999px;
+    color: #dcecff;
+    background: rgba(212, 175, 55, 0.075);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.message-llm-resource i {
+    flex: 0 0 auto;
+    color: var(--primary);
+    font-size: 0.7rem;
 }
 
 .message-content p {
@@ -496,10 +513,12 @@ button[data-tooltip]:focus-visible::after {
     left: 88px;
     z-index: 18;
     display: none;
+
     width: min(420px, calc(100vw - 112px));
     max-height: calc(100vh - 112px);
     padding: 1rem;
     overflow-y: auto;
+    
     border: 1px solid var(--line);
     border-radius: 8px;
     color: var(--ink);

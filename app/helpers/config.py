@@ -42,6 +42,8 @@ class Settings(BaseSettings):
 
     METRICS_ENDPOINT: str
 
+    TAVILY_API_KEY: str
+
     # -------------------------- LLMs Config ----------------------------- #
     EMBEDDING_MODEL_ID: str
 

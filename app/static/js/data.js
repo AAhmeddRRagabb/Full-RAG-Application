@@ -26,7 +26,7 @@ let filesLoadPromise = null;
 function getCurrentFileSelections() {
     return new Map(
         Array.from(filesContainer.querySelectorAll("input[type='checkbox']"))
-            .map((input) => [input.value, input.checked])
+            .map((input) => [input.value.split("_")[0], input.checked])
     );
 }
 
@@ -52,7 +52,7 @@ function createFileOption(file, index, currentSelections = new Map()) {
     input.type = "checkbox";
     input.id = fileInputId;
     input.name = fileName;
-    input.value = fileId;
+    input.value = `${fileId}_${fileName}`;
     input.checked = currentSelections.has(fileId) ? currentSelections.get(fileId) : true;
 
     label.appendChild(input);

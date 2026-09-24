@@ -4,6 +4,9 @@
 
 
 # utils
+import logging
+logger = logging.getLogger("uvicorn")
+
 import helpers.config as CFG
 from helpers.functional import raise_internal_server_error
 from typing import Annotated
@@ -39,6 +42,7 @@ from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
 from clients.llms.llm_clients import HuggingfaceLLMClient, GoogleLLMClient, GroqLLMClient
 from clients.llms.prompt_templates import PromptTemplateParser
 from sqlalchemy.ext.asyncio import AsyncSession
+from tavily import TavilyClient
 
 # dependecies
 from app_core.dependecies.auth import require_authentication
@@ -47,7 +51,8 @@ from app_core.dependecies.clients import (
     get_vector_db_client, 
     get_prompt_template_parser, 
     get_llm_clients,
-    get_db_client
+    get_db_client,
+    get_tavily_client
 )
 
 
@@ -116,19 +121,6 @@ def merge_chat_settings(chat: Chat, new_settings: ChatSettings | None = None) ->
     return normalize_chat_settings(base_settings)
 
 
-def parse_file_ids(files: list[str] | None) -> list[int] | None:
-    if files is None:
-        return None
-
-    try:
-        return [int(file_id) for file_id in files]
-    except ValueError:
-        raise HTTPException(
-            status_code = status.HTTP_400_BAD_REQUEST,
-            detail      = "Invalid file selection",
-        )
-
-
 
 def build_public_chat(chat: Chat) -> ChatPublic:
     return ChatPublic(
@@ -144,6 +136,7 @@ def build_public_message(message: Message) -> MessagePublic:
         chat_id = message.chat_id,
         role = message.role,
         content = message.content,
+        llm_resources = message.llm_resources,
         created_at = message.created_at,
     )
 
@@ -364,7 +357,6 @@ async def get_user_chat_messages(
 
 
 # ---------------------------------- Send a Query to LLMs -------------------------------- #
-
 @chat_router.post("/chat")
 async def chat_will_llm(
     auth                  : Annotated[AuthContext, Depends(require_authentication)],
@@ -373,15 +365,17 @@ async def chat_will_llm(
     embedding_client      : Annotated[HuggingfaceLLMClient | GoogleLLMClient, Depends(get_embedding_client)],
     llm_clients           : Annotated[dict[str, HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient], Depends(get_llm_clients)],
     prompt_template_parser: Annotated[PromptTemplateParser, Depends(get_prompt_template_parser)],
+    tavily_client         : Annotated[TavilyClient, Depends(get_tavily_client)],
     chat_request          : ChatRequest
 ):
     # - setup
     vector_db_controller = VectorDBController(vector_db_client = vector_db_client, embedding_client = embedding_client)
-    chat_controller = ChatController(prompt_template_parser = prompt_template_parser, llm_clients = llm_clients)
+    chat_controller = ChatController(prompt_template_parser = prompt_template_parser, llm_clients = llm_clients, tavily_client = tavily_client)
 
     chunk_model = ChunkModel(db_client = db_client)
     chat_model = ChatModel(db_client = db_client)
     user: User = auth.user
+    query = chat_request.query
 
     # - acquire chat settings
     active_chat = await chat_model.get_user_chat(user_id = user.user_id, chat_id = chat_request.chat_id)
@@ -389,7 +383,7 @@ async def chat_will_llm(
         raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail = "Chat not found")
 
     chat_settings = merge_chat_settings(chat = active_chat, new_settings = chat_request.settings)
-    file_ids = parse_file_ids(chat_settings["files"])
+    files = chat_settings["files"]
     model_configurations = resolve_model_configurations(chat_settings)
 
 
@@ -401,80 +395,141 @@ async def chat_will_llm(
         )
 
         if active_chat is None:
-            raise_internal_server_error()
+            raise raise_internal_server_error()
+
 
     if not await chat_model.insert_message(
         Message(
             chat_id = active_chat.chat_id,
             role    = "user",
-            content = chat_request.query,
+            content = query,
         )
     ):
-        raise_internal_server_error()
+        raise raise_internal_server_error()
 
+    
+    # --------------------- Begin Agentic Work ----------------------------- #
+    # - QA
+    user_requirements = await chat_controller.call_llm(
+        task = AgentTasks.QA.value,
+        prompt_vars = {'query': query},
+        response_key = 'user_requirements'
+    )
+    
+    # - FI
+    files_information = {}
+    for file in files:
+        file_id, file_name = file.split("_", maxsplit = 1)
 
-    # - search only in required files
-    information_resources = []
-    file_filters = file_ids if file_ids is not None else [None]
+        if not file_id:
+            logger.error(f"File: {file_name} is not valid")
+            raise raise_internal_server_error()
 
-    for file_id in file_filters:
         chunks = await chunk_model.get_user_chunks(
             user_id = user.user_id,
-            asset_ids = [file_id] if file_id is not None else None,
+            asset_ids = [int(file_id)]
         )
 
         if chunks is None:
-            raise_internal_server_error()
+            logger.error(f"Cannot access {file_name} chunks")
+            raise raise_internal_server_error()
 
         chunk_ids = [c.chunk_id for c in chunks]
-        if not chunk_ids:
-            continue
 
         retrieved = await vector_db_controller.search_vector_db_collection(
             user_name = user.user_name,
-            text      = chat_request.query,
+            text      = query,
             limit     = chat_request.retrieve_limit,
             chunk_ids = chunk_ids
         )
 
-        
-        file_information = await chat_controller.get_llm_response(
-            query     = chat_request.query,
-            task      = AgentTasks.FI.value,
-            provider  = get_settings().FILES_INFORMATION_EXTRACTION_BACKEND,
-            documents = retrieved
+        file_information = await chat_controller.call_llm(
+            task = AgentTasks.FI.value,
+            prompt_vars = {'query': query, 'documents': retrieved},
         )
 
-        import logging
-        logger = logging.getLogger("uvicorn")
-        if not file_information:
-            logger.error(f"Invalid File Information: {file_information}")
-            return {}
         
-        if not chat_controller.parse_llm_response(file_information, 'need_additional_info'):
-            information_resources.append(chat_controller.parse_llm_response(file_information, 'related_information'))
+        
+        if not file_information:
+            logger.error(f"Cannot Extract {file_name} Information. Information Extracted: {file_information}")
+            raise raise_internal_server_error()
+        
+        if not file_information.get('need_additional_info'):
+            files_information[file_name] = file_information.get('related_information')
 
-
-    # - final answer
-    final_answer = await chat_controller.get_llm_response(
-        query = chat_request.query,
-        provider = get_settings().FINAL_REPORT_GENERATION_BACKEND,
-        task = AgentTasks.RG.value,
-        information_resources = information_resources
+    # - SI
+    websearch_results = chat_controller.get_tavily_search_results(
+        query = query
     )
+
+    websearch_info = await chat_controller.call_llm(
+        task = AgentTasks.SI.value,
+        prompt_vars = {
+            'query': query,
+            'websearch_results': websearch_results
+        }
+    )
+
+    if not websearch_info:
+        logger.error(f"Error Searching. Information from Web: {websearch_info}")
+        raise raise_internal_server_error()
+        
+    if not websearch_info.get('need_additional_info'):
+        websearch_info = websearch_info.get('related_information')
+        websearch_info_2 = {}
+        for info in websearch_info:
+            websearch_info_2[info.get('url')] = {
+                'info': info.get('info'),
+                'relevance_score': info.get('relevance_score'),
+            }
+
+
+    # - RG & OR
+    success = False
+    num_of_calls = 1
+    while(num_of_calls):
+        final_answer = await chat_controller.call_llm(
+            task              = AgentTasks.RG.value,
+            prompt_vars = {
+                'files_information': files_information,
+                'websearch_info'   : websearch_info_2,
+                'user_requirements': user_requirements
+            },
+        )
+
+        report = final_answer.get('report')
+
+        # - OR
+        success = await chat_controller.call_llm(
+            task = AgentTasks.OR.value,
+            prompt_vars = {
+                'user_requirements' : user_requirements,
+                'assistant_response': report
+            },
+            response_key = 'all_answered'
+        )
+
+
+        if success: break
+
+        num_of_calls -= 1
+
+    resources = final_answer.get('resources') if success else None
 
     if not await chat_model.insert_message(
         Message(
-            chat_id = active_chat.chat_id,
-            role = "assistant",
-            content = final_answer or "",
+            chat_id       = active_chat.chat_id,
+            role          = "assistant",
+            content       = report or "",
+            llm_resources = resources or {}
         )
     ):
         raise_internal_server_error()
-
+    
     return {
-        "answer": final_answer,
-        "settings": chat_settings,
+        "report"              : report,
+        "llm_resources"       : resources,
+        "settings"            : chat_settings,
         "model_configurations": model_configurations,
     }
 

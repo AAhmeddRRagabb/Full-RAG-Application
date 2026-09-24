@@ -8,6 +8,7 @@ from clients.llms.prompt_templates import PromptTemplateParser
 
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
+from tavily import TavilyClient
 
 def get_redis(request: Request) -> Redis:
     return request.app.state.redis_client
@@ -26,3 +27,6 @@ def get_embedding_client(request: Request) -> HuggingfaceLLMClient | GoogleLLMCl
 
 def get_prompt_template_parser(request: Request) -> PromptTemplateParser:
     return request.app.state.prompt_template_parser
+
+def get_tavily_client(request: Request) -> TavilyClient:
+    return request.app.state.tavily_client

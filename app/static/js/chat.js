@@ -183,17 +183,47 @@ function applySettings() {
 }
 
 /* ------------------------------------------ Manage Messages --------------------------------------- */
-function messageNode(role, content) {
-    const message = document.createElement("article");
-    const avatar  = document.createElement("div");
-    const body    = document.createElement("div");
+function normalizeLlmResources(llm_resources = null) {
+    if (!llm_resources) return [];
 
-    message.className  = `message ${role === "user" ? "user-message" : "assistant-message"}`;
-    avatar.className   = "avatar";
+    return Array.isArray(llm_resources)
+        ? llm_resources.filter(Boolean)
+        : [llm_resources].filter(Boolean);
+}
+
+
+function messageNode(role, content, llm_resources = null ) {
+    const message      = document.createElement("article");
+    const avatar       = document.createElement("div");
+    const contentGroup = document.createElement("div");
+    const body         = document.createElement("div");
+    const resources    = normalizeLlmResources(llm_resources);
+
+    message.className      = `message ${role === "user" ? "user-message" : "assistant-message"}`;
+    avatar.className       = "avatar";
+    contentGroup.className = "message-body";
+    body.className         = "message-content";
+    
     avatar.textContent = role === "user" ? "You" : "AI";
-    body.className     = "message-content";
     body.innerHTML     = DOMPurify.sanitize(marked.parse(content));
-    message.append(...(role === "user" ? [body, avatar] : [avatar, body]));
+    contentGroup.append(body);
+
+    if (role !== "user" && resources.length) {
+        const resourcesList = document.createElement("div");
+        resourcesList.className = "message-llm-resources";
+
+        resources.forEach(llm_resource => {
+            const resource = document.createElement("span");
+            resource.className = "message-llm-resource";
+            resource.innerHTML = '<i class="fa-solid fa-bookmark"></i>';
+            resource.append(document.createTextNode(String(llm_resource)));
+            resourcesList.append(resource);
+        }); 
+
+        contentGroup.append(resourcesList);
+    }
+
+    message.append(...(role === "user" ? [contentGroup, avatar] : [avatar, contentGroup]));
 
     return message;
 }
@@ -211,7 +241,11 @@ function renderMessages() {
         return;
     }
 
-    activeChat.messages.forEach((message) => messagesArea.appendChild(messageNode(message.role, message.content)));
+    activeChat.messages.forEach((message) => {
+        messagesArea.appendChild(messageNode(
+            message.role, message.content, message.llm_resources
+        ))
+    });
     messagesArea.scrollTop = messagesArea.scrollHeight;
 }
 
@@ -398,7 +432,7 @@ async function sendQuery(event) {
     if (!data) return;
 
     activeChat.settings = normalizeSettings(data.settings);
-    activeChat.messages.push({ role: "assistant", content: data.answer || "No answer was returned." });
+    activeChat.messages.push({ role: "assistant", content: data.report || "No answer was returned.", llm_resources: data.llm_resources || {} });
 
     applySettings();
     renderMessages();

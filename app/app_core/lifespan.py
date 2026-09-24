@@ -3,6 +3,9 @@
 from helpers.config import get_settings, Settings
 from helpers.functional import print_title, print_success_message
 import logging
+from tavily import TavilyClient
+
+
 logger = logging.getLogger('uvicorn')
 
 # fastapi
@@ -12,7 +15,7 @@ from contextlib import asynccontextmanager
 # clients
 from clients.llms import LLMAgentFactory
 from clients.llms.prompt_templates import PromptTemplateParser
-from clients.llms.config import AgentTasks
+from clients.llms.config import AgentTasks, PromptTypes
 
 from clients.vector_dbs import VectorDBFactory
 from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
@@ -22,8 +25,6 @@ from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-
-
 
 
 @asynccontextmanager
@@ -91,6 +92,18 @@ async def lifespan(app: FastAPI):
     print_title("Loading LLM Clients")
 
     # LLM Agents
+
+    print(f"- Initiating Prompt Templates Parser...")
+    app.state.prompt_template_parser = PromptTemplateParser(
+        language = app.state.settings.PRIMARY_LANGUAGE,
+        default_language = app.state.settings.DEFAULT_LANGUAGE
+    )
+
+    print_success_message(f"Initiated Prompt Template Parser Successfully")
+    print()
+
+
+
     print(f"- Initiating LLM Agents...")
 
     llm_clients_factory = LLMAgentFactory(config = app.state.settings)
@@ -98,27 +111,47 @@ async def lifespan(app: FastAPI):
 
     app.state.llm_clients[AgentTasks.QA.value] = llm_clients_factory.create_agent(
         provider = app.state.settings.QUERY_UNDERSTANDING_BACKEND,
-        generation_model_id = app.state.settings.QUERY_UNDERSTANDING_AGENT
+        generation_model_id = app.state.settings.QUERY_UNDERSTANDING_AGENT,
+        system_prompt       = app.state.prompt_template_parser.get_prompt(
+            task = AgentTasks.QA.value,
+            key  = PromptTypes.SYSTEM_PROMPT.value
+        )
     )
 
     app.state.llm_clients[AgentTasks.FI.value] = llm_clients_factory.create_agent(
-        provider = app.state.settings.FILES_INFORMATION_EXTRACTION_BACKEND,
-        generation_model_id = app.state.settings.FILES_INFORMATION_EXTRACTION_AGENT
+        provider            = app.state.settings.FILES_INFORMATION_EXTRACTION_BACKEND,
+        generation_model_id = app.state.settings.FILES_INFORMATION_EXTRACTION_AGENT,
+        system_prompt       = app.state.prompt_template_parser.get_prompt(
+            task = AgentTasks.FI.value,
+            key  = PromptTypes.SYSTEM_PROMPT.value
+        )
     )
 
     app.state.llm_clients[AgentTasks.SI.value] = llm_clients_factory.create_agent(
-        provider = app.state.settings.SEARCH_INFORMATION_EXTRACTION_BACKEND,
-        generation_model_id = app.state.settings.SEARCH_INFORMATION_EXTRACTION_AGENT
+        provider            = app.state.settings.SEARCH_INFORMATION_EXTRACTION_BACKEND,
+        generation_model_id = app.state.settings.SEARCH_INFORMATION_EXTRACTION_AGENT,
+        system_prompt       = app.state.prompt_template_parser.get_prompt(
+            task = AgentTasks.SI.value,
+            key  = PromptTypes.SYSTEM_PROMPT.value
+        )
     )
 
     app.state.llm_clients[AgentTasks.RG.value] = llm_clients_factory.create_agent(
-        provider = app.state.settings.FINAL_REPORT_GENERATION_BACKEND,
-        generation_model_id = app.state.settings.FILES_INFORMATION_EXTRACTION_AGENT
+        provider            = app.state.settings.FINAL_REPORT_GENERATION_BACKEND,
+        generation_model_id = app.state.settings.FILES_INFORMATION_EXTRACTION_AGENT,
+        system_prompt       = app.state.prompt_template_parser.get_prompt(
+            task = AgentTasks.RG.value,
+            key  = PromptTypes.SYSTEM_PROMPT.value
+        )
     )
 
     app.state.llm_clients[AgentTasks.OR.value] = llm_clients_factory.create_agent(
         provider = app.state.settings.ORCHESTRATION_BACKEND,
-        generation_model_id = app.state.settings.ORCHESTRATION_AGENT
+        generation_model_id = app.state.settings.ORCHESTRATION_AGENT,
+        system_prompt       = app.state.prompt_template_parser.get_prompt(
+            task = AgentTasks.OR.value,
+            key  = PromptTypes.SYSTEM_PROMPT.value
+        )
     )
 
     if not app.state.llm_clients or len(app.state.llm_clients) < 5:  # 010 428 91 015
@@ -127,6 +160,7 @@ async def lifespan(app: FastAPI):
 
     print_success_message(f"Initiated LLM Agents Successfully")
     print()
+
 
     print(f"- Initiating Embedding Agent...")
     app.state.embedding_client = llm_clients_factory.create_agent(provider = app.state.settings.EMBEDDING_BACKEND)
@@ -138,13 +172,16 @@ async def lifespan(app: FastAPI):
     print()
 
 
-    print(f"- Initiating Prompt Templates Parser...")
-    app.state.prompt_template_parser = PromptTemplateParser(
-        language = app.state.settings.PRIMARY_LANGUAGE,
-        default_language = app.state.settings.DEFAULT_LANGUAGE
+    print(f"- Connecting to Tavily Client...")
+    app.state.tavily_client = TavilyClient(
+        api_key = app.state.settings.TAVILY_API_KEY
     )
 
-    print_success_message(f"Initiated Prompt Template Parser Successfully")
+    if not app.state.tavily_client:
+        logger.error(f"Error While Connecting to Tavily Client: {app.state.tavily_client}")
+        exit()
+
+    print_success_message(f"Connected to Tavily Client Successfully")
     print()
 
 

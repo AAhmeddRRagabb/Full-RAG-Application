@@ -46,4 +46,5 @@ class MessagePublic(BaseModel):
     chat_id: int
     role: str
     content: str
+    llm_resources: list[str] | None = None
     created_at: datetime | None = None

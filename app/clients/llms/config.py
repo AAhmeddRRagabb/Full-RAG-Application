@@ -68,4 +68,3 @@ class AgentTasks(Enum):
 class PromptTypes(Enum):
     SYSTEM_PROMPT = "system_prompt"
     TASK_PROMPT = "task_prompt"
-    FOOTER_PROMPT = "footer_prompt"

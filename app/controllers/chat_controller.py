@@ -1,14 +1,7 @@
 import json
 from typing import Any
-from helpers.config import get_settings
 from .base_controller import BaseController
 
-from models.enums import ResponsesEnum
-from models.db_schemas import DataChunk
-from models.system_schemas import RetrievedChunk
-
-# vector db utils
-from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
 
 
 # llms utils
@@ -17,6 +10,7 @@ from clients.llms.llm_clients import (
     GroqLLMClient,
     HuggingfaceLLMClient
 )
+from tavily import TavilyClient
 
 from clients.llms import LLMAgentFactory
 from clients.llms.prompt_templates import PromptTemplateParser
@@ -34,105 +28,70 @@ class ChatController(BaseController):
         self,
         llm_clients           : dict[str, HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient],
         prompt_template_parser: PromptTemplateParser | None = None,
+        tavily_client         : TavilyClient | None = None
     ):
         super().__init__()
 
 
         self.prompt_template_parser = prompt_template_parser
         self.llm_clients = llm_clients
-        self.llms = llm_clients
+        self.tavily_client = tavily_client
 
 
-    def init_llm(self, provider: str, llm_task: str):
-        system_prompt = self.prompt_template_parser.get_prompt(
-            task = llm_task,
-            key = PromptTypes.SYSTEM_PROMPT.value
-        )
+    def get_tavily_search_results(self, query: str) -> dict | None:
+        try:
+            response = self.tavily_client.search(
+                query = query,
+                search_depth = 'advanced',  # ['advanced', 'basic', 'fast', 'ultra-fast']
+                chunks_per_source = 1,       # max num of relevant chunks per source
+                max_results = 3 
+            )
+        except Exception as e:
+            self.logger.error(f"Error Searching for Web Results: {e}")
+            return None
 
-        self.llms[llm_task] = self.llm_factory.create_agent(
-            provider = provider,
-            system_prompt = system_prompt
-        )
+        return [
+            {
+                'content'       : res.get('content'),
+                'score'         : res.get('score'),
+                'url'           : res.get('url'),
+                'published_date': res.get('published_date')
+            }
+            for res in response['results']
+        ]
 
-
-    def get_task_prompt(
-        self, 
-        task                 : str, 
-        documents            : list[RetrievedChunk] | None = None,
-        online_search_result : None = None,
-        information_resources: list[dict] | None = None
-    ):
-
-        if task == AgentTasks.FI.value:
-            vars = {'documents': documents}
-
-        elif task == AgentTasks.SI.value:
-            vars = online_search_result
-
-        elif task == AgentTasks.RG.value:
-            vars = {'information_resources': information_resources}
-
-        return self.prompt_template_parser.get_prompt(
-            task = task,
-            key = PromptTypes.TASK_PROMPT.value,
-            vars = vars
-        )
-
-
-    def get_footer_prompt(self, task: str, query: str | None = None):
-        vars = {'query': query}
-        return self.prompt_template_parser.get_prompt(
-            task = task,
-            key = PromptTypes.FOOTER_PROMPT.value,
-            vars = vars
-        )
-    
 
     async def get_llm_response(
         self, 
-        query                : str,
-        task                 : str,
-        provider             : str = LLMsProviders.HUGGING_FACE.value,
-        documents            : list[RetrievedChunk] | None = None,
-        online_search_result : None = None,
-        information_resources: list[dict] | None = None
+        task       : str,
+        prompt_vars: dict
     ) -> str:
         """
+        Args:
+            task       : to accomplish [must be from AgentTasks].
+            prompt_vars: variables to be injected the task prompt.
+
         Returns:
             if success -> llm_response  
             if failure -> None 
         """
-        if not self.llms.get(task, None):
+
+        if not self.llm_clients.get(task, None):
             self.logger.error(f"Missing LLM Client for Task: {task}")
             return None
 
-
-        task_prompt = self.get_task_prompt(
+        task_prompt = self.prompt_template_parser.get_prompt(
             task = task,
-            documents = documents,
-            online_search_result = online_search_result,
-            information_resources = information_resources
+            key  = PromptTypes.TASK_PROMPT.value,
+            vars = prompt_vars
         )
-
 
         if not task_prompt:
             self.logger.error(f"Error Acquiring Task Prompt. Task Prompt: {task_prompt}")
             return None
 
 
-        footer_prompt = self.get_footer_prompt(task = task, query = query)
-        if not footer_prompt:
-            self.logger.error(f"Error Acquiring Footer Prompt. Footer Prompt: {footer_prompt}")
-            return None
-
- 
-        full_prompt = "\n".join([
-            task_prompt,
-            footer_prompt,
-        ])
-
-        llm_response = self.llms[task].generate_text(user_prompt = full_prompt)
-
+        llm_response = self.llm_clients[task].generate_text(user_prompt = task_prompt)
         if not llm_response:
             self.logger.error("Invalid LLM Response")
             return None
@@ -143,7 +102,7 @@ class ChatController(BaseController):
     def parse_llm_response(
         self,
         llm_response: str,
-        key: str
+        key: str | None = None,
     ) -> Any | None:
         """
         Parse LLM Response & Returned Required Key
@@ -154,4 +113,37 @@ class ChatController(BaseController):
             self.logger.error(f"Model Returned Invalid JSON: {llm_response}")
             return None
 
+        if not key:
+            return llm_response
+
         return llm_response.get(key, None)
+
+
+    async def call_llm(
+        self,
+        task        : str,
+        prompt_vars : dict,
+        response_key: str | None = None
+    ):
+        """
+        Call the LLM & parse its response.
+
+        Args:
+            task        : to accomplish [must be from AgentTasks].
+            prompt_vars : variables to be injected the task prompt.
+            response_key: if specified => return only that specific value from the LLM response 
+
+        Return:
+            on success => the LLM response or the specified key
+            on failure => None
+        """
+        llm_response = await self.get_llm_response(
+            task = task,
+            prompt_vars = prompt_vars
+        )
+
+
+        return self.parse_llm_response(
+            llm_response = llm_response,
+            key = response_key
+        )

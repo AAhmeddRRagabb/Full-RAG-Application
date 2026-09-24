@@ -3,7 +3,7 @@ from .fullrag_base import SQLAlchemyBase
 
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, func, Index
 from sqlalchemy.orm import relationship
-
+from sqlalchemy.dialects.postgresql import JSONB
 
 class Message(SQLAlchemyBase):
     __tablename__ = 'messages'
@@ -15,6 +15,11 @@ class Message(SQLAlchemyBase):
 
     role = Column(String, nullable = False)
     content = Column(String, nullable = False)
+    llm_resources = Column(  # resources where the LLM gets the answer
+        JSONB, 
+        nullable = True
+    )
+
     created_at = Column(DateTime(timezone = True), server_default = func.now(), nullable = False)
 
     # linking
