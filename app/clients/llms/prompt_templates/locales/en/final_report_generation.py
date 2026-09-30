@@ -21,8 +21,8 @@ Return valid JSON only:
 
 
 # documents summarization
-def task_prompt(query: str, user_requirements: list[str], file_evidence: list[dict], web_evidence: list[dict]) -> str:
-    evidence = list(file_evidence or []) + list(web_evidence or [])
+def task_prompt(query: str, user_requirements: list[str], evidence: list[dict]) -> str:
+    evidence = list(evidence or [])
 
     evidence_str = "## Evidence:\n\n"
     if not evidence:

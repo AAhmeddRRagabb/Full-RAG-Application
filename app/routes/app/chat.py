@@ -385,6 +385,14 @@ async def chat_will_llm(
     files = chat_settings["files"]
     model_configurations = resolve_model_configurations(chat_settings)
 
+    previous_messages = await chat_model.get_chat_messages(
+        user_id = user.user_id,
+        chat_id = active_chat.chat_id,
+    )
+
+    if previous_messages is None:
+        raise_internal_server_error()
+
 
     if chat_request.settings is not None:
         active_chat = await chat_model.update_chat_settings(
@@ -443,6 +451,10 @@ async def chat_will_llm(
         retrieve_limit = chat_request.retrieve_limit,
         search_online = chat_settings.get("search_online", False),
         file_searcher = search_file_chunks,
+        chat_messages = [
+            build_public_message(message).model_dump(mode = "json")
+            for message in previous_messages
+        ],
     )
 
     if agent_result is None:

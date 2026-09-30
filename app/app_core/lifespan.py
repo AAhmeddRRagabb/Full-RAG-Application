@@ -7,6 +7,7 @@ from tavily import TavilyClient
 
 
 logger = logging.getLogger('uvicorn')
+CHAT_CONTEXT_EXTRACTION_AGENTS_COUNT = 5
 
 # fastapi
 from fastapi import FastAPI
@@ -118,6 +119,18 @@ async def lifespan(app: FastAPI):
         )
     )
 
+    app.state.llm_clients[AgentTasks.CC.value] = [
+        llm_clients_factory.create_agent(
+            provider            = app.state.settings.SEARCH_INFORMATION_EXTRACTION_BACKEND,
+            generation_model_id = app.state.settings.SEARCH_INFORMATION_EXTRACTION_AGENT,
+            system_prompt       = app.state.prompt_template_parser.get_prompt(
+                task = AgentTasks.CC.value,
+                key  = PromptTypes.SYSTEM_PROMPT.value
+            )
+        )
+        for _ in range(CHAT_CONTEXT_EXTRACTION_AGENTS_COUNT)
+    ]
+
     app.state.llm_clients[AgentTasks.FI.value] = llm_clients_factory.create_agent(
         provider            = app.state.settings.FILES_INFORMATION_EXTRACTION_BACKEND,
         generation_model_id = app.state.settings.FILES_INFORMATION_EXTRACTION_AGENT,
@@ -154,7 +167,11 @@ async def lifespan(app: FastAPI):
         )
     )
 
-    if not app.state.llm_clients or len(app.state.llm_clients) < 5:  # 010 428 91 015
+    if (
+        not app.state.llm_clients
+        or len(app.state.llm_clients) < 6
+        or any(client is None for client in app.state.llm_clients[AgentTasks.CC.value])
+    ):  # 010 428 91 015
         logger.error(f"Error While Initiating LLMs Agents: {app.state.llm_clients}")
         exit()
 

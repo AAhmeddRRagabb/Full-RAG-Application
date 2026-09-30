@@ -1,5 +1,3 @@
-from string import Template
-from models.system_schemas import RetrievedChunk
 from models.system_schemas.agent_schemas import AGENTIC_TOOLS_SERIALIZABLE
 import json
 
@@ -14,15 +12,15 @@ Available tools:
 
 Workflow:
 1. If requirements are missing, use understand_user_query.
-2. If selected files exist and file evidence is missing, use search_files.
-3. If web search is allowed and web evidence is missing, use search_web.
-4. If enough evidence is available and final_report is missing, use generate_final_report.
+2. If previous chat context is available and chat_context is missing, use get_chat_context.
+3. If files or web search are available and search_results is missing, use search.
+4. If final_report is missing, use generate_final_report.
 5. If final_report exists, use finish.
 
 Choose exactly one next action. Return valid JSON only:
 {{
     "reason": "short reason",
-    "action": "understand_user_query | search_files | search_web | generate_final_report | finish",
+    "action": "understand_user_query | get_chat_context | search | generate_final_report | finish",
     "arguments": {{}}
 }}
 """.strip()

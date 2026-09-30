@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Any, Awaitable, Callable
 
@@ -21,10 +22,10 @@ class ChatController(BaseController):
     """
     Controller RAG generation workflows.
     """
-    
+
     def __init__(
         self,
-        llm_clients           : dict[str, HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient],
+        llm_clients           : dict[str, HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient | list[HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient]],
         prompt_template_parser: PromptTemplateParser | None = None,
         tavily_client         : TavilyClient | None = None,
     ):
@@ -34,8 +35,9 @@ class ChatController(BaseController):
         self.llm_clients = llm_clients
         self.tavily_client = tavily_client
 
+
     # ---------------------------------------- Utils ---------------------------------------- #
-    def get_tavily_search_results(self, query: str) -> list[dict] | None:
+    def get_tavily_search_results(self, query: str, max_results: int = 5) -> list[dict] | None:
         if self.tavily_client is None:
             self.logger.error("Missing Tavily Client")
             return None
@@ -45,9 +47,9 @@ class ChatController(BaseController):
                 query = query,
                 search_depth = "advanced",
                 chunks_per_source = 1,
-                max_results = 3,
+                max_results = max_results,
             )
-            
+
         except Exception as e:
             self.logger.error(f"Error Searching for Web Results: {e}")
             return None
@@ -63,10 +65,46 @@ class ChatController(BaseController):
         ]
 
 
+    def get_resource_name(self, file: str) -> str:
+        if "_" not in file:
+            return file
+
+        return file.split("_", maxsplit = 1)[1]
+
+
+    def normalize_llm_json(self, llm_response: str) -> str:
+        llm_response = llm_response.strip()
+
+        if llm_response.startswith("```"):
+            llm_response = llm_response.strip("`").strip()
+            if llm_response.startswith("json"):
+                llm_response = llm_response[4:].strip()
+
+        return llm_response
+
+
+    def get_llm_client(
+        self,
+        task: str,
+        client_idx: int = 0,
+    ) -> HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient | None:
+
+        task_clients = self.llm_clients.get(task, None)
+
+        if isinstance(task_clients, list):
+            if not task_clients:
+                return None
+
+            return task_clients[client_idx % len(task_clients)]
+
+        return task_clients
+
+
     async def get_llm_response(
         self,
         task       : str,
         prompt_vars: dict,
+        client_idx : int = 0,
     ) -> str | None:
         """
         Args:
@@ -78,7 +116,12 @@ class ChatController(BaseController):
             if failure -> None
         """
 
-        if not self.llm_clients.get(task, None):
+        llm_client = self.get_llm_client(
+            task = task,
+            client_idx = client_idx,
+        )
+
+        if llm_client is None:
             self.logger.error(f"Missing LLM Client for Task: {task}")
             return None
 
@@ -92,7 +135,11 @@ class ChatController(BaseController):
             self.logger.error(f"Error Acquiring Task Prompt. Task Prompt: {task_prompt}")
             return None
 
-        llm_response = self.llm_clients[task].generate_text(user_prompt = task_prompt)
+        llm_response = await asyncio.to_thread(
+            llm_client.generate_text,
+            user_prompt = task_prompt,
+        )
+
         if not llm_response:
             self.logger.error("Invalid LLM Response")
             return None
@@ -106,17 +153,12 @@ class ChatController(BaseController):
         key: str | None = None,
     ) -> Any | None:
         """
-        Parse LLM Response & Returned Required Key
+        Parse LLM Response & Returned Required Key.
         """
         try:
-            llm_response = llm_response.strip()
-
-            if llm_response.startswith("```"):
-                llm_response = llm_response.strip("`").strip()
-                if llm_response.startswith("json"):
-                    llm_response = llm_response[4:].strip()
-
-            llm_response: dict = json.loads(llm_response)
+            llm_response: dict = json.loads(
+                self.normalize_llm_json(llm_response = llm_response)
+            )
 
         except json.JSONDecodeError:
             self.logger.error(f"Model Returned Invalid JSON: {llm_response}")
@@ -133,22 +175,15 @@ class ChatController(BaseController):
         task        : str,
         prompt_vars : dict,
         response_key: str | None = None,
+        client_idx  : int = 0,
     ):
         """
         Call the LLM & parse its response.
-
-        Args:
-            task        : to accomplish [must be from AgentTasks].
-            prompt_vars : variables to be injected the task prompt.
-            response_key: if specified => return only that specific value from the LLM response
-
-        Return:
-            on success => the LLM response or the specified key
-            on failure => None
         """
         llm_response = await self.get_llm_response(
             task = task,
             prompt_vars = prompt_vars,
+            client_idx = client_idx,
         )
 
         if llm_response is None:
@@ -159,11 +194,13 @@ class ChatController(BaseController):
             key = response_key,
         )
 
+
     async def call_llm_schema(
         self,
         task       : str,
         prompt_vars: dict,
         schema     : type[BaseModel],
+        client_idx : int = 0,
     ) -> BaseModel | None:
         """
         Call the LLM & validate its response against a schema.
@@ -171,6 +208,7 @@ class ChatController(BaseController):
         llm_response = await self.call_llm(
             task = task,
             prompt_vars = prompt_vars,
+            client_idx = client_idx,
         )
 
         if llm_response is None:
@@ -178,7 +216,7 @@ class ChatController(BaseController):
 
         try:
             return schema.model_validate(llm_response)
-        
+
         except ValidationError as e:
             self.logger.error(f"Error Validating LLM Output: {e}")
             self.logger.error(f"LLM Output: {llm_response}")
@@ -191,7 +229,6 @@ class ChatController(BaseController):
         query: str,
         current_state: dict,
     ):
-
         return await self.call_llm(
             task = AgentTasks.OR.value,
             prompt_vars = {
@@ -201,23 +238,18 @@ class ChatController(BaseController):
         )
 
 
-    def _parse_action(self, action: NextAction) -> tuple[str, dict]:
+    def parse_action(self, action: NextAction) -> tuple[str, dict]:
         return action.action.lower(), action.arguments
-
-
-    def _get_resource_name(self, file: str) -> str:
-        if "_" not in file:
-            return file
-
-        return file.split("_", maxsplit = 1)[1]
 
 
     def get_default_next_action(
         self,
-        agent_state   : AgentState,
-        files         : list[str],
-        retrieve_limit: int,
-        search_online : bool,
+        agent_state    : AgentState,
+        files          : list[str],
+        search_web     : bool,
+        max_file_chunks: int,
+        max_web_results: int,
+        chat_messages  : list[dict],
     ) -> NextAction:
 
         if not agent_state.requirements:
@@ -229,24 +261,26 @@ class ChatController(BaseController):
                 },
             )
 
-        if files and not agent_state.retrieved_chunks:
+        if chat_messages and not agent_state.chat_context:
             return NextAction(
-                reason = "Selected files still need to be searched.",
-                action = "search_files",
+                reason = "Previous chat messages may contain useful context.",
+                action = "get_chat_context",
                 arguments = {
                     "query": agent_state.user_query,
-                    "files": files,
-                    "retrieve_limit": retrieve_limit,
+                    "max_results": 5,
                 },
             )
 
-        if search_online and not agent_state.web_results:
+        if (files or search_web) and not agent_state.search_results:
             return NextAction(
-                reason = "Online search is enabled and web evidence is missing.",
-                action = "search_web",
+                reason = "Still need external evidence to answer.",
+                action = "search",
                 arguments = {
                     "query": agent_state.user_query,
-                    "max_results": 3,
+                    "files": files,
+                    "search_web": search_web,
+                    "max_file_chunks": max_file_chunks,
+                    "max_web_results": max_web_results,
                 },
             )
 
@@ -256,6 +290,7 @@ class ChatController(BaseController):
                 action = "generate_final_report",
                 arguments = {
                     "query": agent_state.user_query,
+                    "search_results": agent_state.search_results,
                 },
             )
 
@@ -266,19 +301,23 @@ class ChatController(BaseController):
         )
 
 
-    async def get_planned_next_action(
+    async def get_next_action(
         self,
-        agent_state   : AgentState,
-        files         : list[str],
-        retrieve_limit: int,
-        search_online : bool,
+        agent_state    : AgentState,
+        files          : list[str],
+        search_web     : bool,
+        max_file_chunks: int,
+        max_web_results: int,
+        chat_messages  : list[dict],
     ) -> NextAction:
 
         default_action = self.get_default_next_action(
             agent_state = agent_state,
             files = files,
-            retrieve_limit = retrieve_limit,
-            search_online = search_online,
+            search_web = search_web,
+            max_file_chunks = max_file_chunks,
+            max_web_results = max_web_results,
+            chat_messages = chat_messages,
         )
 
         next_action = await self.get_next_step(
@@ -286,37 +325,35 @@ class ChatController(BaseController):
             current_state = {
                 **agent_state.model_dump(),
                 "selected_files": files,
-                "search_online": search_online,
+                "search_web": search_web,
+                "has_chat_messages": bool(chat_messages),
             },
         )
 
         try:
             next_action = NextAction.model_validate(next_action)
+
         except ValidationError as e:
             self.logger.error(f"Error Validating Planner Output: {e}")
             self.logger.error(f"Planner Output: {next_action}")
             return default_action
 
-        action, _ = self._parse_action(next_action)
+        action, _ = self.parse_action(next_action)
+
         if action == "understand_user_query" and agent_state.requirements:
             return default_action
 
-        if action == "search_files" and not files:
+        if action == "get_chat_context" and (not chat_messages or agent_state.chat_context):
             return default_action
 
-        if action == "search_files" and agent_state.retrieved_chunks:
-            return default_action
-
-        if action == "search_web" and not search_online:
-            return default_action
-
-        if action == "search_web" and agent_state.web_results:
+        if action == "search" and (agent_state.search_results or (not files and not search_web)):
             return default_action
 
         if action == "generate_final_report" and agent_state.final_report:
             return default_action
 
         return next_action
+
 
     # ---------------------------------------- Individual LLMs Work ---------------------------------------- #
     async def understand_user_query(self, query: str) -> list[str]:
@@ -334,30 +371,107 @@ class ChatController(BaseController):
         return result.requirements or [query]
 
 
-    async def extract_file_evidence(
+    async def extract_message_evidence(
         self,
-        query         : str,
-        files         : list[str],
-        retrieve_limit: int,
-        file_searcher : Callable[[str, str, int], Awaitable[list[RetrievedChunk] | None]] | None,
+        query: str,
+        message: dict,
+        client_idx: int,
     ) -> list[Evidence]:
 
+        message_content = str(message.get("content") or "").strip()
+        if not message_content:
+            return []
+
+        message_id = message.get("message_id", "local")
+
+        result: EvidenceResult = await self.call_llm_schema(
+            task = AgentTasks.CC.value,
+            prompt_vars = {
+                "query": query,
+                "message_content": message_content,
+                "message_id": message_id,
+                "message_role": message.get("role"),
+            },
+            schema = EvidenceResult,
+            client_idx = client_idx,
+        )
+
+        if result is None or result.need_additional_info:
+            return []
+
+        evidence: list[Evidence] = []
+        for item in result.evidence:
+            evidence.append(
+                Evidence(
+                    content = message_content,
+                    relevance_score = item.relevance_score,
+                    resource = f"message:{message_id}",
+                )
+            )
+
+        return evidence
+
+
+    async def get_chat_context(
+        self,
+        query: str,
+        chat_messages: list[dict],
+        max_results: int = 5,
+    ) -> list[Evidence]:
+
+        if not chat_messages:
+            return []
+
+        context_groups = await asyncio.gather(*[
+            self.extract_message_evidence(
+                query = query,
+                message = message,
+                client_idx = idx,
+            )
+            for idx, message in enumerate(chat_messages)
+        ])
+
+        context = [
+            evidence
+            for group in context_groups
+            for evidence in group
+        ]
+
+        return sorted(
+            context,
+            key = lambda evidence: evidence.relevance_score,
+            reverse = True,
+        )[:max_results]
+
+
+    async def extract_file_evidence(
+        self,
+        query          : str,
+        files          : list[str],
+        max_file_chunks: int,
+        file_searcher  : Callable[[str, str, int], Awaitable[list[RetrievedChunk] | None]] | None,
+    ) -> list[Evidence]:
+
+        if not files:
+            return []
+
         if file_searcher is None:
+            self.logger.error("File Searcher Not Found")
             return []
 
         file_evidence: list[Evidence] = []
 
         for file in files:
-            documents = await file_searcher(query, file, retrieve_limit)
+            documents = await file_searcher(query, file, max_file_chunks)
             if not documents:
                 continue
 
-            result = await self.call_llm_schema(
+            result: EvidenceResult = await self.call_llm_schema(
                 task = AgentTasks.FI.value,
                 prompt_vars = {
                     "query": query,
                     "documents": documents,
-                    "resource": self._get_resource_name(file),
+                    "resource": self.get_resource_name(file = file),
                 },
                 schema = EvidenceResult,
             )
@@ -373,17 +487,23 @@ class ChatController(BaseController):
     async def extract_web_evidence(
         self,
         query: str,
-        search_online: bool,
+        search_web: bool,
+        max_web_results: int,
     ) -> list[Evidence]:
 
-        if not search_online:
+        if not search_web:
             return []
 
-        websearch_results = self.get_tavily_search_results(query = query)
+        websearch_results = self.get_tavily_search_results(
+            query = query,
+            max_results = max_web_results,
+        )
+
         if not websearch_results:
+            self.logger.error(f"Error Searching the Web. Search Results: {websearch_results}")
             return []
 
-        result = await self.call_llm_schema(
+        result: EvidenceResult = await self.call_llm_schema(
             task = AgentTasks.SI.value,
             prompt_vars = {
                 "query": query,
@@ -393,9 +513,42 @@ class ChatController(BaseController):
         )
 
         if result is None or result.need_additional_info:
+            self.logger.error(f"Error Extracting Web Evidence. Search Results: {result}")
             return []
 
         return result.evidence
+
+
+    async def search(
+        self,
+        query          : str,
+        files          : list[str],
+        file_searcher  : Callable[[str, str, int], Awaitable[list[RetrievedChunk] | None]] | None,
+        search_web     : bool,
+        max_file_chunks: int = 5,
+        max_web_results: int = 5,
+    ) -> list[Evidence]:
+
+        evidence: list[Evidence] = []
+
+        file_evidence = await self.extract_file_evidence(
+            query = query,
+            files = files,
+            max_file_chunks = max_file_chunks,
+            file_searcher = file_searcher,
+        )
+
+        evidence.extend(file_evidence)
+
+        web_evidence = await self.extract_web_evidence(
+            query = query,
+            search_web = search_web,
+            max_web_results = max_web_results,
+        )
+
+        evidence.extend(web_evidence)
+
+        return evidence
 
 
     async def generate_final_report(
@@ -403,49 +556,50 @@ class ChatController(BaseController):
         agent_state: AgentState,
     ) -> FinalReportResult | None:
 
+        evidence = [
+            evidence.model_dump()
+            for evidence in [*agent_state.chat_context, *agent_state.search_results]
+        ]
+
         return await self.call_llm_schema(
             task = AgentTasks.RG.value,
             prompt_vars = {
                 "query": agent_state.user_query,
                 "user_requirements": agent_state.requirements,
-                "file_evidence": [
-                    evidence.model_dump()
-                    for evidence in agent_state.retrieved_chunks
-                ],
-                "web_evidence": [
-                    evidence.model_dump()
-                    for evidence in agent_state.web_results
-                ],
+                "evidence": evidence,
             },
             schema = FinalReportResult,
         )
 
+
     # ---------------------------------------- Final Driver Function ---------------------------------------- #
     async def answer_user_query(
         self,
-        query         : str,
-        files         : list[str] | None = None,
-        retrieve_limit: int = 5,
-        search_online : bool = False,
-        file_searcher : Callable[[str, str, int], Awaitable[list[RetrievedChunk] | None]] | None = None,
-        max_steps     : int = 8,
+        query          : str,
+        files          : list[str] | None = None,
+        retrieve_limit : int = 5,
+        search_online  : bool = False,
+        file_searcher  : Callable[[str, str, int], Awaitable[list[RetrievedChunk] | None]] | None = None,
+        chat_messages  : list[dict] | None = None,
+        max_web_results: int = 5,
+        max_steps      : int = 8,
     ) -> dict | None:
 
-        # - setup
         files = files or []
+        chat_messages = chat_messages or []
         agent_state = AgentState(user_query = query)
 
         for _ in range(max_steps):
-            # - get next action
-            next_action = await self.get_planned_next_action(
+            next_action = await self.get_next_action(
                 agent_state = agent_state,
                 files = files,
-                retrieve_limit = retrieve_limit,
-                search_online = search_online,
+                search_web = search_online,
+                max_file_chunks = retrieve_limit,
+                max_web_results = max_web_results,
+                chat_messages = chat_messages,
             )
 
-            # - execute next action
-            action, arguments = self._parse_action(next_action)
+            action, arguments = self.parse_action(next_action)
 
             if action == "finish":
                 break
@@ -455,18 +609,27 @@ class ChatController(BaseController):
                     query = arguments.get("query", query),
                 )
 
-            elif action == "search_files":
-                agent_state.retrieved_chunks = await self.extract_file_evidence(
+            elif action == "get_chat_context":
+                agent_state.chat_context = await self.get_chat_context(
                     query = arguments.get("query", query),
-                    files = arguments.get("files") or files,
-                    retrieve_limit = arguments.get("retrieve_limit", retrieve_limit),
-                    file_searcher = file_searcher,
+                    chat_messages = chat_messages,
+                    max_results = arguments.get("max_results", 5),
                 )
 
-            elif action == "search_web":
-                agent_state.web_results = await self.extract_web_evidence(
+            elif action == "search":
+                selected_files = [
+                    file
+                    for file in arguments.get("files", [])
+                    if file in files
+                ] or files
+
+                agent_state.search_results = await self.search(
                     query = arguments.get("query", query),
-                    search_online = search_online,
+                    files = selected_files,
+                    file_searcher = file_searcher,
+                    search_web = search_online and bool(arguments.get("search_web", search_online)),
+                    max_file_chunks = arguments.get("max_file_chunks", retrieve_limit),
+                    max_web_results = arguments.get("max_web_results", max_web_results),
                 )
 
             elif action == "generate_final_report":

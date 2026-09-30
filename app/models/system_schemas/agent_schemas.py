@@ -25,9 +25,9 @@ class FinalReportResult(BaseModel):
 class AgentState(BaseModel):
     user_query: str
     requirements: list[str] = Field(default_factory = list)
-    
-    retrieved_chunks: list[Evidence] = Field(default_factory = list)
-    web_results     : list[Evidence] = Field(default_factory = list)
+
+    chat_context      : list[Evidence] = Field(default_factory = list)
+    search_results: list[Evidence] = Field(default_factory = list)
 
     final_report: str | None = None
     llm_resources: list[str] = Field(default_factory = list)
@@ -35,15 +35,12 @@ class AgentState(BaseModel):
 
 
 
-
-
-
 class NextAction(BaseModel):
     reason: str
     action: Literal[
         'understand_user_query',
-        'search_files',
-        'search_web',
+        'get_chat_context',
+        'search',
         'generate_final_report',
         'finish'
     ]
@@ -77,38 +74,13 @@ AGENTIC_TOOLs = {
         }
     ),
 
-    "search_files": ToolDefinition(
-        name = "search_files",
-        description = "Search selected uploaded files for information related to the user query.",
+    "get_chat_context": ToolDefinition(
+        name = "get_chat_context",
+        description = "Searches the previous chat messages for relevant information.",
         parameters = {
             "query": {
                 "type": "string",
-                "description": "The query or requirement to search for in uploaded files."
-            },
-            "files": {
-                "type": "list",
-                "description": "Selected file names or file identifiers to search in."
-            },
-            "retrieve_limit": {
-                "type": "integer",
-                "description": "Maximum number of relevant chunks from each file to retrieve."
-            }
-        },
-        returns = {
-            "retrieved_chunks": {
-                "type": "list",
-                "description": "Evidence extracted from selected files. Each item contains content, relevance-score, and resource."
-            }
-        }
-    ),
-
-    "search_web": ToolDefinition(
-        name = "search_web",
-        description = "Search the web for external information related to the user query.",
-        parameters = {
-            "query": {
-                "type": "string",
-                "description": "The query or requirement to search for online."
+                "description": "The query or requirement to search for in the previous chat messages."
             },
             "max_results": {
                 "type": "integer",
@@ -116,12 +88,51 @@ AGENTIC_TOOLs = {
             }
         },
         returns = {
-            "web_results": {
+            "chat_relevant_context": {
                 "type": "list",
-                "description": "Relevant web results with content, relevance-score, and URL."
+                "description": "Relevant chat messages with content, relevance-score, and message-id."
             }
         }
     ),
+
+    "search": ToolDefinition(
+        name = "search",
+        description = "Search uploaded files or the web for information related to the user query.",
+        parameters = {
+            "query": {
+                "type": "string",
+                "description": "The query or requirement to search for."
+            },
+
+            "files": {
+                "type": "list",
+                "description": "Selected file names or file identifiers to search in."
+            },
+
+            "search_web": {
+                "type": "bool",
+                "description": "whether to search the web for information or not."
+            },
+
+            "max_file_chunks": {
+                "type": "integer",
+                "description": "Maximum number of relevant chunks from each file to retrieve."
+            },
+
+            "max_web_results": {
+                "type": "integer",
+                "description": "Maximum number of web search results."
+            }
+
+        },
+        returns = {
+            "search_results": {
+                "type": "list",
+                "description": "Evidence extracted. Each item contains content, relevance-score, and resource."
+            }
+        }
+    ),
+
 
     "generate_final_report": ToolDefinition(
         name = "generate_final_report",
@@ -131,20 +142,19 @@ AGENTIC_TOOLs = {
                 "type": "string",
                 "description": "The original user query."
             },
-            "retrieved_chunks": {
+
+            "search_results": {
                 "type": "list",
-                "description": "Evidence extracted from uploaded files."
-            },
-            "web_results": {
-                "type": "list",
-                "description": "Evidence extracted from web results."
+                "description": "Evidence extracted. Each item contains content, relevance-score, and resource."
             }
         },
+
         returns = {
             "report": {
                 "type": "string",
                 "description": "Generated report grounded in retrieved information."
             },
+            
             "resources": {
                 "type": "list",
                 "description": "Resources used by the model to generate the report."
