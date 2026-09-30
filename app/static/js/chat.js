@@ -1,6 +1,6 @@
 
 
-import { CHAT_ROUTES_PATH, ERROR_MESSAGE } from "./constants.js";
+import { CHAT_ROUTES_PATH, DATA_ROUTES_PATH, ERROR_MESSAGE } from "./constants.js";
 import { getActiveShellUser, getErrorMessage, parseJsonResponse, showAlert } from "./utils.js";
 
 
@@ -186,23 +186,138 @@ function applySettings() {
 function normalizeLlmResources(llm_resources = null) {
     if (!llm_resources) return [];
 
-    return Array.isArray(llm_resources)
-        ? llm_resources.filter(Boolean)
-        : [llm_resources].filter(Boolean);
+    if (Array.isArray(llm_resources)) {
+        return llm_resources.filter(Boolean);
+    }
+
+    if (typeof llm_resources === "object") {
+        return Object.values(llm_resources).flat().filter(Boolean);
+    }
+
+    return [llm_resources].filter(Boolean);
 }
 
 
-function messageNode(role, content, llm_resources = null ) {
+function isUrlResource(resource) {
+    return /^https?:\/\//i.test(String(resource));
+}
+
+
+function isMessageResource(resource) {
+    return String(resource).startsWith("message:");
+}
+
+
+function getMessageResourceId(resource) {
+    return String(resource).replace("message:", "").trim();
+}
+
+
+function getDocumentResource(resource) {
+    const resourceText = String(resource).trim();
+    const resourceMatch = resourceText.match(/^(\d+)_(.+)$/);
+
+    if (resourceMatch) {
+        return {
+            fileId: resourceMatch[1],
+            fileName: resourceMatch[2],
+        };
+    }
+
+    const fileInput = Array.from(filesContainer.querySelectorAll("input[type='checkbox']")).find((input) => {
+        const [, fileName = ""] = input.value.match(/^[^_]+_(.*)$/) || [];
+        return input.name === resourceText || fileName === resourceText || input.value === resourceText;
+    });
+
+    if (!fileInput) {
+        return {
+            fileId: null,
+            fileName: resourceText,
+        };
+    }
+
+    return {
+        fileId: fileInput.value.split("_")[0],
+        fileName: fileInput.name || resourceText,
+    };
+}
+
+
+function scrollToMessage(messageId) {
+    const target = messagesArea.querySelector(`[data-message-id="${CSS.escape(String(messageId))}"]`);
+    if (!target) {
+        showAlert("Referenced message is not visible in this chat.", ERROR_MESSAGE);
+        return;
+    }
+
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    target.classList.add("message-highlight");
+    setTimeout(() => target.classList.remove("message-highlight"), 1600);
+}
+
+
+function resourceNode(resource) {
+    const resourceText = String(resource).trim();
+    const icon = document.createElement("i");
+    let node;
+
+    if (isUrlResource(resourceText)) {
+        node = document.createElement("a");
+        node.href = resourceText;
+        node.target = "_blank";
+        node.rel = "noopener noreferrer";
+        node.setAttribute("aria-label", "Open web source");
+        node.title = "Open web source";
+        icon.className = "fa-solid fa-arrow-up-right-from-square";
+    } else if (isMessageResource(resourceText)) {
+        const messageId = getMessageResourceId(resourceText);
+        node = document.createElement("button");
+        node.type = "button";
+        node.setAttribute("aria-label", "Go to referenced message");
+        node.title = "Go to referenced message";
+        node.addEventListener("click", () => scrollToMessage(messageId));
+        icon.className = "fa-solid fa-message";
+    } else {
+        const documentResource = getDocumentResource(resourceText);
+        node = documentResource.fileId ? document.createElement("a") : document.createElement("span");
+        node.setAttribute("aria-label", `Open document source: ${documentResource.fileName}`);
+        node.title = documentResource.fileName;
+        icon.className = documentResource.fileName.toLowerCase().endsWith(".pdf")
+            ? "fa-solid fa-file-pdf"
+            : "fa-solid fa-file-lines";
+
+        if (documentResource.fileId) {
+            node.href = `${DATA_ROUTES_PATH}/files/${encodeURIComponent(documentResource.fileId)}`;
+            node.target = "_blank";
+            node.rel = "noopener noreferrer";
+        }
+    }
+
+    node.className = "message-llm-resource";
+    node.dataset.resource = resourceText;
+    node.append(icon);
+    return node;
+}
+
+
+function messageNode(messageData) {
+    const role         = messageData.role;
+    const content      = messageData.content;
+    const llmResources = messageData.llm_resources;
     const message      = document.createElement("article");
     const avatar       = document.createElement("div");
     const contentGroup = document.createElement("div");
     const body         = document.createElement("div");
-    const resources    = normalizeLlmResources(llm_resources);
+    const resources    = normalizeLlmResources(llmResources);
 
     message.className      = `message ${role === "user" ? "user-message" : "assistant-message"}`;
     avatar.className       = "avatar";
     contentGroup.className = "message-body";
     body.className         = "message-content";
+
+    if (messageData.message_id) {
+        message.dataset.messageId = String(messageData.message_id);
+    }
     
     avatar.textContent = role === "user" ? "You" : "AI";
     body.innerHTML     = DOMPurify.sanitize(marked.parse(content));
@@ -212,12 +327,8 @@ function messageNode(role, content, llm_resources = null ) {
         const resourcesList = document.createElement("div");
         resourcesList.className = "message-llm-resources";
 
-        resources.forEach(llm_resource => {
-            const resource = document.createElement("span");
-            resource.className = "message-llm-resource";
-            resource.innerHTML = '<i class="fa-solid fa-bookmark"></i>';
-            resource.append(document.createTextNode(String(llm_resource)));
-            resourcesList.append(resource);
+        resources.forEach((llmResource) => {
+            resourcesList.append(resourceNode(llmResource));
         }); 
 
         contentGroup.append(resourcesList);
@@ -237,14 +348,12 @@ function renderMessages() {
     headerTitle.textContent = activeChat.title;
 
     if (!activeChat.messages.length) {
-        messagesArea.appendChild(messageNode("assistant", "Ask a question to begin."));
+        messagesArea.appendChild(messageNode({ role: "assistant", content: "Ask a question to begin." }));
         return;
     }
 
     activeChat.messages.forEach((message) => {
-        messagesArea.appendChild(messageNode(
-            message.role, message.content, message.llm_resources
-        ))
+        messagesArea.appendChild(messageNode(message));
     });
     messagesArea.scrollTop = messagesArea.scrollHeight;
 }
@@ -432,7 +541,7 @@ async function sendQuery(event) {
     if (!data) return;
 
     activeChat.settings = normalizeSettings(data.settings);
-    activeChat.messages.push({ role: "assistant", content: data.report || "No answer was returned.", llm_resources: data.llm_resources || {} });
+    activeChat.messages.push({ role: "assistant", content: data.report || "No answer was returned.", llm_resources: data.llm_resources || [] });
 
     applySettings();
     renderMessages();
@@ -461,6 +570,7 @@ function bindEvents() {
     filesContainer.addEventListener("change", () => saveSettings());
     document.addEventListener("files-selection-updated", () => {
         applySettings();
+        renderMessages();
         saveSettings();
     });
     

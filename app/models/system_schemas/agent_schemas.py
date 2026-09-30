@@ -17,6 +17,11 @@ class EvidenceResult(BaseModel):
     need_additional_info: bool = False
 
 
+class ChatContextRelevanceResult(BaseModel):
+    is_relevant: bool = False
+    relevance_score: float | None = Field(default = None, ge = 0, le = 1)
+
+
 class FinalReportResult(BaseModel):
     report: str
     resources: list[str] = Field(default_factory = list)

@@ -384,7 +384,7 @@ class ChatController(BaseController):
 
         message_id = message.get("message_id", "local")
 
-        result: EvidenceResult = await self.call_llm_schema(
+        result: ChatContextRelevanceResult = await self.call_llm_schema(
             task = AgentTasks.CC.value,
             prompt_vars = {
                 "query": query,
@@ -392,24 +392,20 @@ class ChatController(BaseController):
                 "message_id": message_id,
                 "message_role": message.get("role"),
             },
-            schema = EvidenceResult,
+            schema = ChatContextRelevanceResult,
             client_idx = client_idx,
         )
 
-        if result is None or result.need_additional_info:
+        if result is None or not result.is_relevant or result.relevance_score is None:
             return []
 
-        evidence: list[Evidence] = []
-        for item in result.evidence:
-            evidence.append(
-                Evidence(
-                    content = message_content,
-                    relevance_score = item.relevance_score,
-                    resource = f"message:{message_id}",
-                )
+        return [
+            Evidence(
+                content = message_content,
+                relevance_score = result.relevance_score,
+                resource = f"message:{message_id}",
             )
-
-        return evidence
+        ]
 
 
     async def get_chat_context(

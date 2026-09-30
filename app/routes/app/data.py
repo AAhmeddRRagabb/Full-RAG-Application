@@ -13,6 +13,7 @@ from helpers.functional import log_title, raise_internal_server_error
 
 # fastapi
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from app_core.dependecies.auth import require_authentication
 from app_core.dependecies.clients import get_db_client, get_embedding_client, get_vector_db_client
 
@@ -206,3 +207,42 @@ async def get_user_files(
     return {
         "user_files": user_files
     }
+
+
+@data_router.get("/files/{asset_id}")
+async def get_user_file(
+    db_client: Annotated[AsyncSession, Depends(get_db_client)],
+    auth     : Annotated[AuthContext, Depends(require_authentication)],
+    asset_id : int,
+):
+    user: User = auth.user
+    asset_model = AssetModel(db_client = db_client)
+    user_files = await asset_model.get_user_assets(
+        user_id = user.user_id,
+        asset_type = AssetTypesEnum.ASSET_FILE.value
+    )
+
+    if user_files is None:
+        raise_internal_server_error()
+
+    asset = next((file for file in user_files if file.asset_id == asset_id), None)
+    if asset is None:
+        raise HTTPException(
+            status_code = status.HTTP_404_NOT_FOUND,
+            detail = "File not found"
+        )
+
+    user_path = UserController().get_user_path(user_name = user.user_name)
+    file_path = os.path.abspath(os.path.join(user_path, asset.asset_name))
+
+    if not file_path.startswith(os.path.abspath(user_path)) or not os.path.exists(file_path):
+        raise HTTPException(
+            status_code = status.HTTP_404_NOT_FOUND,
+            detail = "File not found"
+        )
+
+    return FileResponse(
+        path = file_path,
+        filename = asset.asset_name,
+        media_type = "application/pdf" if asset.asset_name.lower().endswith(".pdf") else "text/plain"
+    )
