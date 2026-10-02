@@ -1,44 +1,30 @@
 from datetime import datetime
+from typing import Literal
+from pydantic import BaseModel
 
-from pydantic import BaseModel, Field
-
-
-class ANSWER_QUERY_REQUEST(BaseModel):
-    query: str
-    retrieve_limit: int = 5
-    files_to_use: list[str] = Field(default_factory = list)
-
-
-class ChatSettings(BaseModel):
-    search_online       : bool = False
-    files               : list[str] | None = None
-    tone                : str = "technical"
-    model_configurations: dict | None = None
 
 
 class ChatRequest(BaseModel):
     query: str
     chat_id: int
-    retrieve_limit: int = 5
-    settings: ChatSettings | None = None
+    tone: Literal[
+        "technical",
+        "creative"
+    ] = "technical"
+    depth: Literal[
+        "low",
+        "moderate",
+        "high"
+    ] = "moderate"
+
+    files: list[str] | None = None
 
 
-class CreateChatRequest(BaseModel):
-    chat_name: str | None = None
-
-
-class RenameChatRequest(BaseModel):
-    chat_name: str
-
-
-class UpdateChatSettingsRequest(BaseModel):
-    settings: ChatSettings
 
 
 class ChatPublic(BaseModel):
     chat_id: int
     chat_name: str
-    settings: ChatSettings = Field(default_factory = ChatSettings)
 
 
 class MessagePublic(BaseModel):

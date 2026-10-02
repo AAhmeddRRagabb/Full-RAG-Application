@@ -58,8 +58,7 @@ class LLMsEmbeddingModels(Enum):
 
 
 class AgentTasks(Enum):
-    QA = "query_understanding"
-    CC = "chat_context_extraction"
+    CC = "get_chat_context"
     FI = "files_info_extaction"
     SI = "search_info_extraction"
     RG = "final_report_generation"

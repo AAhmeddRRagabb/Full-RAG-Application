@@ -5,15 +5,12 @@ from .config import (
 
 
 from helpers.config import Settings
-from models.enums import ResponsesEnum
 
-from controllers.base_controller import BaseController
 from sqlalchemy.ext.asyncio import AsyncSession
 
 class VectorDBFactory:
     def __init__(self, config: Settings, db_client: AsyncSession):
         self.config = config
-        self.base_controller = BaseController()
         self.db_client = db_client
 
     def create_vector_db(self, provider: str) -> PGVectorVDBClient | None:

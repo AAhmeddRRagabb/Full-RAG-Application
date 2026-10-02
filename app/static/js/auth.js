@@ -17,7 +17,6 @@ import {
 
 import {
     activateAppShell,
-    activateGuestShell,
     activateLoginForm,
     activateRegisterForm,
 
@@ -25,11 +24,12 @@ import {
     clearMessage,
     showAlert,
 
+    csrfHeaders,
+    getCsrfToken,
     getErrorMessage,
     parseJsonResponse,
+    updateCsrfToken,
 } from "./utils.js";
-
-let csrfToken = null;
 
 const closeFormBtns = document.querySelectorAll(".close-form");
 
@@ -53,11 +53,6 @@ const haveNoEmailBtn = LOGIN_FORM.querySelector(".have-no-email");
 
 
 
-/* Csrf Token Handlers */
-function updateCsrfToken(token) {
-    csrfToken = token || null;
-}
-
 async function refreshCsrfToken() {
     const response = await fetch(
         `${AUTH_ROUTES_PATH}/csrf`,
@@ -73,7 +68,7 @@ async function refreshCsrfToken() {
     }
 
     updateCsrfToken(data.csrf_token);
-    return csrfToken;
+    return data.csrf_token;
 }
 
 
@@ -89,19 +84,19 @@ async function restoreAuthentication() {
             }
         );
     } catch {
-        activateGuestShell();
+        activateLoginForm();
         return;
     }
 
     if (!userResponse.ok) {
-        activateGuestShell();
+        activateLoginForm();
         return;
     }
 
     try {
         await refreshCsrfToken();
     } catch {
-        activateGuestShell();
+        activateLoginForm();
         return;
     }
 
@@ -203,7 +198,7 @@ async function registerUser(event) {
 /* logout */
 async function logoutUser() {
     try {
-        if (!csrfToken) {
+        if (!getCsrfToken()) {
             await refreshCsrfToken();
         }
 
@@ -212,9 +207,7 @@ async function logoutUser() {
             {
                 method: "POST",
                 credentials: "include",
-                headers: {
-                    "X-CSRF-Token": csrfToken,
-                },
+                headers: csrfHeaders(),
             }
         );
 
@@ -227,7 +220,7 @@ async function logoutUser() {
 
         updateCsrfToken(null);
         showAlert(data.message || "Logged out successfully.", SUCCESS_MESSAGE);
-        activateGuestShell();
+        activateLoginForm();
     } catch {
         showAlert("Could not log out. Please try again.", ERROR_MESSAGE);
     }
@@ -252,7 +245,7 @@ function bindAuthEvents() {
     });
 
     closeFormBtns.forEach((button) => {
-        button.addEventListener("click", activateGuestShell);
+        button.addEventListener("click", activateLoginForm);
     });
 }
 

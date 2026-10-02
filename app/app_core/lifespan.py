@@ -7,7 +7,6 @@ from tavily import TavilyClient
 
 
 logger = logging.getLogger('uvicorn')
-CHAT_CONTEXT_EXTRACTION_AGENTS_COUNT = 5
 
 # fastapi
 from fastapi import FastAPI
@@ -37,14 +36,8 @@ async def lifespan(app: FastAPI):
 
     # - connect to PostGres
     print("- Connecting to PostGres...")
-    db_url = (
-        "postgresql+asyncpg://"
-        f"{app.state.settings.POSTGRES_USERNAME}:{app.state.settings.POSTGRES_PASSWORD}"
-        f"@{app.state.settings.POSTGRES_HOST}:{app.state.settings.POSTGRES_PORT}"
-        f"/{app.state.settings.POSTGRES_MAIN_DB_NAME}"
-    )
 
-    app.state.db_engine = create_async_engine(url = db_url)
+    app.state.db_engine = create_async_engine(url = app.state.settings.DATABASE_URL)
     app.state.db_client = sessionmaker(
         bind = app.state.db_engine,
         class_ = AsyncSession,
@@ -108,28 +101,17 @@ async def lifespan(app: FastAPI):
     print(f"- Initiating LLM Agents...")
 
     llm_clients_factory = LLMAgentFactory(config = app.state.settings)
+    app.state.llm_clients_factory = llm_clients_factory
     app.state.llm_clients = {}
 
-    app.state.llm_clients[AgentTasks.QA.value] = llm_clients_factory.create_agent(
-        provider = app.state.settings.QUERY_UNDERSTANDING_BACKEND,
-        generation_model_id = app.state.settings.QUERY_UNDERSTANDING_AGENT,
+    app.state.llm_clients[AgentTasks.CC.value] = llm_clients_factory.create_agent(
+        provider = app.state.settings.CHAT_CONTEXT_BACKEND,
+        generation_model_id = app.state.settings.CHAT_CONTEXT_AGENT,
         system_prompt       = app.state.prompt_template_parser.get_prompt(
-            task = AgentTasks.QA.value,
+            task = AgentTasks.CC.value,
             key  = PromptTypes.SYSTEM_PROMPT.value
         )
     )
-
-    app.state.llm_clients[AgentTasks.CC.value] = [
-        llm_clients_factory.create_agent(
-            provider            = app.state.settings.SEARCH_INFORMATION_EXTRACTION_BACKEND,
-            generation_model_id = app.state.settings.SEARCH_INFORMATION_EXTRACTION_AGENT,
-            system_prompt       = app.state.prompt_template_parser.get_prompt(
-                task = AgentTasks.CC.value,
-                key  = PromptTypes.SYSTEM_PROMPT.value
-            )
-        )
-        for _ in range(CHAT_CONTEXT_EXTRACTION_AGENTS_COUNT)
-    ]
 
     app.state.llm_clients[AgentTasks.FI.value] = llm_clients_factory.create_agent(
         provider            = app.state.settings.FILES_INFORMATION_EXTRACTION_BACKEND,
@@ -151,7 +133,7 @@ async def lifespan(app: FastAPI):
 
     app.state.llm_clients[AgentTasks.RG.value] = llm_clients_factory.create_agent(
         provider            = app.state.settings.FINAL_REPORT_GENERATION_BACKEND,
-        generation_model_id = app.state.settings.FILES_INFORMATION_EXTRACTION_AGENT,
+        generation_model_id = app.state.settings.FINAL_REPORT_GENERATION_AGENT,
         system_prompt       = app.state.prompt_template_parser.get_prompt(
             task = AgentTasks.RG.value,
             key  = PromptTypes.SYSTEM_PROMPT.value
@@ -169,9 +151,12 @@ async def lifespan(app: FastAPI):
 
     if (
         not app.state.llm_clients
-        or len(app.state.llm_clients) < 6
-        or any(client is None for client in app.state.llm_clients[AgentTasks.CC.value])
-    ):  # 010 428 91 015
+        or len(app.state.llm_clients) < 5
+        or any(
+            client is None
+            for client in app.state.llm_clients.values()
+        )
+    ):
         logger.error(f"Error While Initiating LLMs Agents: {app.state.llm_clients}")
         exit()
 
@@ -213,6 +198,7 @@ async def lifespan(app: FastAPI):
     await app.state.redis_client.aclose()
 
     app.state.llm_clients = None
+    app.state.llm_clients_factory = None
     app.state.embedding_client = None
 
 

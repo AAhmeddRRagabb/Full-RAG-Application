@@ -1,6 +1,5 @@
 
 from models.db_schemas import Asset
-from models.enums import ResponsesEnum
 from .chunk_model import ChunkModel
 
 from .base_obj_model import BaseObjModel
@@ -70,8 +69,31 @@ class AssetModel(BaseObjModel):
         return record
 
 
+    async def get_user_asset(self, user_id: int, asset_id: int) -> Asset | None:
+        session: AsyncSession
 
-    async def get_user_assets(self, user_id: int, asset_type: str) -> list[Asset] | None:
+        try:
+            async with self.db_client() as session:
+                result = await session.execute(
+                    select(Asset).where(
+                        Asset.user_id == user_id,
+                        Asset.asset_id == asset_id,
+                    )
+                )
+
+                return result.scalar_one_or_none()
+
+        except Exception as e:
+            self.logger.error(f"Error Accessing Asset: {e}")
+            return None
+
+
+    async def get_user_assets(
+        self,
+        user_id: int,
+        asset_type: str,
+        statuses: list[str] | None = None,
+    ) -> list[Asset] | None:
         """
         Returns:
             if success -> list of user assets  
@@ -81,11 +103,18 @@ class AssetModel(BaseObjModel):
 
         try:
             async with self.db_client() as session:
-                result = await session.execute(
-                    select(Asset).where(
+                conditions = [
                         Asset.user_id == user_id,
-                        Asset.asset_type == asset_type
-                    )
+                        Asset.asset_type == asset_type,
+                ]
+
+                if statuses:
+                    conditions.append(Asset.asset_status.in_(statuses))
+
+                result = await session.execute(
+                    select(Asset)
+                    .where(*conditions)
+                    .order_by(Asset.asset_id)
                 )
 
                 assets = list(result.scalars().all())
@@ -96,7 +125,54 @@ class AssetModel(BaseObjModel):
 
         return assets
 
+
+    async def update_asset_status(self, user_id: int, asset_id: int, asset_status: str) -> Asset | None:
+        session: AsyncSession
+
+        try:
+            async with self.db_client() as session:
+                result = await session.execute(
+                    select(Asset).where(
+                        Asset.user_id == user_id,
+                        Asset.asset_id == asset_id,
+                    )
+                )
+
+                asset = result.scalar_one_or_none()
+                if asset is None:
+                    return None
+
+                asset.asset_status = asset_status
+                await session.commit()
+                await session.refresh(asset)
+                return asset
+
+        except Exception as e:
+            self.logger.error(f"Error Updating Asset Status: {e}")
+            return None
+
     # -------------------------- Deleting -------------------------------- #
+    async def delete_asset(self, user_id: int, asset_id: int) -> bool:
+        session: AsyncSession
+
+        try:
+            async with self.db_client() as session:
+                result = await session.execute(
+                    delete(Asset).where(
+                        Asset.user_id == user_id,
+                        Asset.asset_id == asset_id,
+                    )
+                )
+
+                await session.commit()
+
+        except Exception as e:
+            self.logger.error(f"Error Deleting Asset: {e}")
+            return False
+
+        return result.rowcount > 0
+
+
     async def delete_user_assets(self, user_id: int) -> bool:
         """
         Returns:

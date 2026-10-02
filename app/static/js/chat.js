@@ -1,122 +1,53 @@
-
-
 import { CHAT_ROUTES_PATH, DATA_ROUTES_PATH, ERROR_MESSAGE } from "./constants.js";
-import { getActiveShellUser, getErrorMessage, parseJsonResponse, showAlert } from "./utils.js";
+import { csrfHeaders, getActiveShellUser, getErrorMessage, parseJsonResponse, showAlert } from "./utils.js";
 
 
-const headerTitle  = document.querySelector(".header-title");
+const headerTitle = document.querySelector(".header-title");
 const messagesArea = document.getElementById("messages");
-
-const queryForm  = document.getElementById("queryForm");
+const queryForm = document.getElementById("queryForm");
 const queryInput = document.getElementById("queryArea");
+const sendBtn = document.querySelector(".query-form_submit-btn");
+const cancelBtn = document.querySelector(".query-cancel-btn");
+const runStatus = document.querySelector(".run-status");
+const chatsList = document.querySelector(".chats-list");
+const addChatBtn = document.querySelector(".add-new-chat-btn");
+const filesBox = document.querySelector(".chat-settings-modal .file-list");
+const summaryText = document.querySelector(".chat-settings-modal .resources-status");
 
-const chatsList     = document.querySelector(".chats-list");
-const addNewChatBtn = document.querySelector(".add-new-chat-btn");
-
-const searchOnlineBtn = document.querySelector(".chat-settings-modal .search-online-btn");
-const filesContainer  = document.querySelector(".chat-settings-modal .file-list");
-const resourcesStatus = document.querySelector(".chat-settings-modal .resources-status");
-
-const customConfigurations = document.querySelector(".custom-configurations");
-const toneOptions          = Array.from(document.querySelectorAll(".tone-option"));
-const configInputs         = Array.from(document.querySelectorAll(".config-input"));
-
-const customDefaults = { temperature: 0.5, max_tokens: 512, top_p: 0.9 };
 let chats = [];
-let activeChat    = null;
-let currentUser   = null;
-let settingsTimer = null;
+let activeChat = null;
+let currentUser = null;
+let activeRun = null;
+const defaultTitle = document.title || "Ahmed Bot";
 
 
 
 
-/* ------------------------------------------ Helpful Functions --------------------------------------- */
-
-function normalizeSettings(settings = {}) {
-    const tone = ["technical", "creative", "custom"].includes(settings?.tone) ? settings.tone : "technical";
-
+/* ------------------------------------------ API --------------------------------------- */
+function headers(method = "GET") {
     return {
-        search_online: Boolean(settings?.search_online),
-        files        : Array.isArray(settings?.files) ? settings.files.map(String) : null,
-        tone,
-        model_configurations: tone === "custom" ? { ...customDefaults, ...(settings?.model_configurations || {}) } : null,
+        "Content-Type": "application/json",
+        ...(method === "GET" ? {} : csrfHeaders()),
     };
 }
 
 
-function normalizeChat(chat = {}) {
-    return {
-        id      : chat.chat_id ? String(chat.chat_id) : crypto.randomUUID(),
-        serverId: chat.chat_id || null, //!
-        title   : chat.chat_name || `chat #${chats.length + 1}`,
-        settings: normalizeSettings(chat.settings),
-        messages: Array.from(chat.messages || []),
-    };
-}
-
-
-function jsonOptions(method, body = null) {
-    return {
-        method,
-        credentials: "include",
-        headers    : { "Content-Type": "application/json" },
-        ...(body ? { body: JSON.stringify(body) } : {}),
-    };
-}
-
-/* ------------------------------------------ Acquiring User Selections --------------------------------------- */
-function selectedTone() {
-    return document.querySelector(".tone-option.selected")?.dataset.tone || "technical";
-}
-
-function selectedFiles() {
-    const inputs = Array.from(filesContainer.querySelectorAll("input[type='checkbox']"));
-    return inputs.length ? inputs.filter((input) => input.checked).map((input) => input.value) : activeChat?.settings.files ?? null;
-}
-
-function customConfig() {
-    return Object.fromEntries(configInputs.map((input) => [input.dataset.configKey, Number(input.value)]));
-}
-
-
-function readSettings() {
-    const tone = selectedTone();
-
-    return normalizeSettings({
-        search_online: searchOnlineBtn.classList.contains("active"),
-        files        : selectedFiles(),
-        tone,
-        model_configurations: tone === "custom" ? customConfig() : null,
-    });
-}
-
-
-function updateResourcesStatus() {
-    if (!activeChat) return;
-
-    const parts = [];
-    const files = selectedFiles();
-
-    if (activeChat.settings.search_online) parts.push("web");
-    if (files?.length) parts.push(`${files.length} file${files.length === 1 ? "" : "s"}`);
-
-    resourcesStatus.textContent = parts.length ? `Using ${parts.join(" + ")}.` : "Nothing selected.";
-}
-
-
-/* ------------------------------------------ API Function --------------------------------------- */
-async function chatApi(path, options) {
+async function api(path, method = "GET", body = null) {
     let response;
 
     try {
-        response = await fetch(`${CHAT_ROUTES_PATH}${path}`, options);
+        response = await fetch(`${CHAT_ROUTES_PATH}${path}`, {
+            method,
+            credentials: "include",
+            headers: headers(method),
+            ...(body ? { body: JSON.stringify(body) } : {}),
+        });
     } catch {
         showAlert("Could not reach the chat service.", ERROR_MESSAGE);
         return null;
     }
 
     const data = await parseJsonResponse(response);
-
     if (!response.ok) {
         showAlert(getErrorMessage(response, data), ERROR_MESSAGE);
         return null;
@@ -126,120 +57,139 @@ async function chatApi(path, options) {
 }
 
 
-
-/* ------------------------------------------ Manage Chat Settings --------------------------------------- */
-async function saveSettings(settings = readSettings()) {
-    if (!activeChat) return;
-
-    activeChat.settings = normalizeSettings(settings);
-    updateResourcesStatus();
-
-    if (!currentUser || !activeChat.serverId) return;
-
-    const data = await chatApi(`/chats/${activeChat.serverId}/settings`, jsonOptions("PATCH", {
-        settings: activeChat.settings,
-    }));
-
-    if (data?.chat) activeChat.settings = normalizeSettings(data.chat.settings);
-}
+const getChats = () => api("/chats");
+const getChat = (chatId) => api(`/chats/${encodeURIComponent(chatId)}`);
+const createChatApi = (name) => api(`/chats?chat_name=${encodeURIComponent(name)}`, "POST");
+const renameChatApi = (chatId, name) => api(`/chats/${encodeURIComponent(chatId)}?chat_name=${encodeURIComponent(name)}`, "PATCH");
+const deleteChatApi = (chatId) => api(`/chats/${encodeURIComponent(chatId)}`, "DELETE");
 
 
-function queueSettingsSave() {
-    clearTimeout(settingsTimer);
-    settingsTimer = setTimeout(() => saveSettings(), 300);
-}
-
-
-function applySettings() {
-    if (!activeChat) return;
-
-    const settings = activeChat.settings;
-    const isCustom = settings.tone === "custom";
-
-
-    searchOnlineBtn.classList.toggle("active", settings.search_online);
-    searchOnlineBtn.setAttribute("aria-pressed", String(settings.search_online));
-    customConfigurations.classList.toggle("inactive", !isCustom);
-
-    toneOptions.forEach((option) => {
-        const selected = option.dataset.tone === settings.tone;
-        option.classList.toggle("selected", selected);
-        option.setAttribute("aria-pressed", String(selected));
-    });
-
-
-    configInputs.forEach((input) => {
-        const value    = settings.model_configurations?.[input.dataset.configKey] ?? input.value;
-        input.disabled = !isCustom;
-        input.value    = value;
-        input.nextElementSibling.textContent = value;
-    });
-
-    filesContainer.querySelectorAll("input[type='checkbox']").forEach((input) => {
-        input.checked = settings.files === null || settings.files.includes(input.value);
-    });
-
-    updateResourcesStatus();
-}
-
-/* ------------------------------------------ Manage Messages --------------------------------------- */
-function normalizeLlmResources(llm_resources = null) {
-    if (!llm_resources) return [];
-
-    if (Array.isArray(llm_resources)) {
-        return llm_resources.filter(Boolean);
+async function streamChat(body, signal) {
+    try {
+        return await fetch(`${CHAT_ROUTES_PATH}/chat/stream`, {
+            method: "POST",
+            credentials: "include",
+            headers: headers("POST"),
+            body: JSON.stringify(body),
+            signal,
+        });
+    } catch (error) {
+        if (error.name === "AbortError") throw error;
+        showAlert("Could not reach the chat service.", ERROR_MESSAGE);
+        return null;
     }
-
-    if (typeof llm_resources === "object") {
-        return Object.values(llm_resources).flat().filter(Boolean);
-    }
-
-    return [llm_resources].filter(Boolean);
 }
 
 
-function isUrlResource(resource) {
-    return /^https?:\/\//i.test(String(resource));
+
+
+/* ------------------------------------------ Current Controls --------------------------------------- */
+function selectedFiles() {
+    return Array.from(filesBox.querySelectorAll("input[type='checkbox']"))
+        .filter((input) => input.checked && !input.disabled)
+        .map((input) => input.value);
 }
 
 
-function isMessageResource(resource) {
-    return String(resource).startsWith("message:");
+function selectedTone() {
+    return document.querySelector("input[name='chatTone']:checked")?.value || "technical";
 }
 
 
-function getMessageResourceId(resource) {
-    return String(resource).replace("message:", "").trim();
+function selectedDepth() {
+    return document.querySelector("input[name='answerDepth']:checked")?.value || "moderate";
 }
 
 
-function getDocumentResource(resource) {
-    const resourceText = String(resource).trim();
-    const resourceMatch = resourceText.match(/^(\d+)_(.+)$/);
-
-    if (resourceMatch) {
-        return {
-            fileId: resourceMatch[1],
-            fileName: resourceMatch[2],
-        };
-    }
-
-    const fileInput = Array.from(filesContainer.querySelectorAll("input[type='checkbox']")).find((input) => {
-        const [, fileName = ""] = input.value.match(/^[^_]+_(.*)$/) || [];
-        return input.name === resourceText || fileName === resourceText || input.value === resourceText;
-    });
-
-    if (!fileInput) {
-        return {
-            fileId: null,
-            fileName: resourceText,
-        };
-    }
-
+function currentRequestOptions() {
     return {
-        fileId: fileInput.value.split("_")[0],
-        fileName: fileInput.name || resourceText,
+        files: selectedFiles(),
+        tone: selectedTone(),
+        depth: selectedDepth(),
     };
+}
+
+
+function updateControlSummary() {
+    if (!summaryText) return;
+
+    const options = currentRequestOptions();
+    const fileText = options.files.length ? `${options.files.length} file${options.files.length === 1 ? "" : "s"}` : "No files";
+    summaryText.textContent = `${fileText} | ${options.tone} | ${options.depth} depth`;
+}
+
+
+
+
+/* ------------------------------------------ URLs --------------------------------------- */
+function slugify(value) {
+    return String(value || "chat")
+        .trim()
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]+/gu, "-")
+        .replace(/^-+|-+$/g, "") || "chat";
+}
+
+
+function userSlug() {
+    return `${currentUser?.user_uuid_prefix || "usr"}_${slugify(currentUser?.user_name || "user")}`;
+}
+
+
+function chatUrl(chat) {
+    return `/${encodeURIComponent(userSlug())}/${encodeURIComponent(slugify(chat?.title || "chat"))}`;
+}
+
+
+function currentChatSlug() {
+    const [, , chatSlug = null] = window.location.pathname.split("/");
+    return chatSlug ? decodeURIComponent(chatSlug) : null;
+}
+
+
+function pushChatUrl(chat, replace = false) {
+    if (!currentUser || !chat?.serverId) return;
+
+    const nextUrl = chatUrl(chat);
+    if (window.location.pathname !== nextUrl) {
+        window.history[replace ? "replaceState" : "pushState"]({}, "", nextUrl);
+    }
+}
+
+
+
+
+/* ------------------------------------------ Resource Rendering --------------------------------------- */
+function normalizeResources(resources) {
+    if (!resources) return [];
+    if (Array.isArray(resources)) return resources.filter(Boolean);
+    if (typeof resources === "object") return Object.values(resources).flat().filter(Boolean);
+    return [resources].filter(Boolean);
+}
+
+
+function websiteName(url) {
+    try {
+        return new URL(url).hostname.replace(/^www\./, "");
+    } catch {
+        return "web source";
+    }
+}
+
+
+function documentResource(resource) {
+    const text = String(resource).trim();
+    const direct = text.match(/^(\d+)_(.+)$/);
+    if (direct) return { id: direct[1], name: direct[2] };
+
+    const input = Array.from(filesBox.querySelectorAll("input[type='checkbox']")).find((fileInput) => {
+        const [, fileName = ""] = fileInput.value.match(/^[^_]+_(.*)$/) || [];
+        return fileInput.name === text || fileName === text || fileInput.value === text;
+    });
+
+    return input
+        ? { id: input.value.split("_")[0], name: input.name || text }
+        : { id: null, name: text };
 }
 
 
@@ -256,351 +206,426 @@ function scrollToMessage(messageId) {
 }
 
 
-function resourceNode(resource) {
-    const resourceText = String(resource).trim();
+function resourceButton(resource) {
+    const text = String(resource).trim();
     const icon = document.createElement("i");
     let node;
 
-    if (isUrlResource(resourceText)) {
+    if (/^https?:\/\//i.test(text)) {
+        const name = websiteName(text);
         node = document.createElement("a");
-        node.href = resourceText;
+        node.href = text;
         node.target = "_blank";
         node.rel = "noopener noreferrer";
-        node.setAttribute("aria-label", "Open web source");
-        node.title = "Open web source";
+        node.title = name;
+        node.setAttribute("aria-label", `Open ${name}`);
         icon.className = "fa-solid fa-arrow-up-right-from-square";
-    } else if (isMessageResource(resourceText)) {
-        const messageId = getMessageResourceId(resourceText);
+    } else if (text.startsWith("message:")) {
+        const messageId = text.replace("message:", "").trim();
         node = document.createElement("button");
         node.type = "button";
-        node.setAttribute("aria-label", "Go to referenced message");
         node.title = "Go to referenced message";
+        node.setAttribute("aria-label", "Go to referenced message");
         node.addEventListener("click", () => scrollToMessage(messageId));
         icon.className = "fa-solid fa-message";
     } else {
-        const documentResource = getDocumentResource(resourceText);
-        node = documentResource.fileId ? document.createElement("a") : document.createElement("span");
-        node.setAttribute("aria-label", `Open document source: ${documentResource.fileName}`);
-        node.title = documentResource.fileName;
-        icon.className = documentResource.fileName.toLowerCase().endsWith(".pdf")
-            ? "fa-solid fa-file-pdf"
-            : "fa-solid fa-file-lines";
+        const doc = documentResource(text);
+        node = doc.id ? document.createElement("a") : document.createElement("span");
+        node.title = doc.name;
+        node.setAttribute("aria-label", `Open document source: ${doc.name}`);
+        icon.className = doc.name.toLowerCase().endsWith(".pdf") ? "fa-solid fa-file-pdf" : "fa-solid fa-file-lines";
 
-        if (documentResource.fileId) {
-            node.href = `${DATA_ROUTES_PATH}/files/${encodeURIComponent(documentResource.fileId)}`;
+        if (doc.id) {
+            node.href = `${DATA_ROUTES_PATH}/files/${encodeURIComponent(doc.id)}`;
             node.target = "_blank";
             node.rel = "noopener noreferrer";
         }
     }
 
     node.className = "message-llm-resource";
-    node.dataset.resource = resourceText;
+    node.dataset.resource = text;
     node.append(icon);
     return node;
 }
 
 
-function messageNode(messageData) {
-    const role         = messageData.role;
-    const content      = messageData.content;
-    const llmResources = messageData.llm_resources;
-    const message      = document.createElement("article");
-    const avatar       = document.createElement("div");
-    const contentGroup = document.createElement("div");
-    const body         = document.createElement("div");
-    const resources    = normalizeLlmResources(llmResources);
 
-    message.className      = `message ${role === "user" ? "user-message" : "assistant-message"}`;
-    avatar.className       = "avatar";
-    contentGroup.className = "message-body";
-    body.className         = "message-content";
 
-    if (messageData.message_id) {
-        message.dataset.messageId = String(messageData.message_id);
-    }
-    
-    avatar.textContent = role === "user" ? "You" : "AI";
-    body.innerHTML     = DOMPurify.sanitize(marked.parse(content));
-    contentGroup.append(body);
-
-    if (role !== "user" && resources.length) {
-        const resourcesList = document.createElement("div");
-        resourcesList.className = "message-llm-resources";
-
-        resources.forEach((llmResource) => {
-            resourcesList.append(resourceNode(llmResource));
-        }); 
-
-        contentGroup.append(resourcesList);
-    }
-
-    message.append(...(role === "user" ? [contentGroup, avatar] : [avatar, contentGroup]));
-
-    return message;
+/* ------------------------------------------ Rendering --------------------------------------- */
+function chatFromApi(chat) {
+    return {
+        id: String(chat.chat_id),
+        serverId: chat.chat_id,
+        title: chat.chat_name,
+        messages: Array.from(chat.messages || []),
+    };
 }
 
 
 function renderMessages() {
     messagesArea.innerHTML = "";
 
-    if (!activeChat) return;
-
-    headerTitle.textContent = activeChat.title;
-
-    if (!activeChat.messages.length) {
-        messagesArea.appendChild(messageNode({ role: "assistant", content: "Ask a question to begin." }));
+    if (!activeChat) {
+        headerTitle.textContent = "New Chat";
+        document.title = defaultTitle;
         return;
     }
 
-    activeChat.messages.forEach((message) => {
-        messagesArea.appendChild(messageNode(message));
-    });
+    headerTitle.textContent = activeChat.title;
+    document.title = activeChat.title || defaultTitle;
+
+    const messages = activeChat.messages.length
+        ? activeChat.messages
+        : [{ role: "assistant", content: "Ask a question to begin." }];
+
+    messages.forEach((message) => messagesArea.append(messageNode(message)));
     messagesArea.scrollTop = messagesArea.scrollHeight;
 }
 
-/* ------------------------------------------ Load / Render Chats --------------------------------------- */
+
+function messageNode(message) {
+    const article = document.createElement("article");
+    const avatar = document.createElement("div");
+    const bodyWrap = document.createElement("div");
+    const body = document.createElement("div");
+    const isUser = message.role === "user";
+
+    article.className = `message ${isUser ? "user-message" : "assistant-message"}`;
+    avatar.className = "avatar";
+    bodyWrap.className = "message-body";
+    body.className = "message-content";
+    avatar.textContent = isUser ? "You" : "AI";
+    body.innerHTML = DOMPurify.sanitize(marked.parse(message.content || ""));
+
+    if (message.message_id) article.dataset.messageId = String(message.message_id);
+
+    bodyWrap.append(body);
+
+    if (!isUser) {
+        const resources = normalizeResources(message.llm_resources).slice(0, 3);
+        if (resources.length) {
+            const list = document.createElement("div");
+            list.className = "message-llm-resources";
+            resources.forEach((resource) => list.append(resourceButton(resource)));
+            bodyWrap.append(list);
+        }
+    }
+
+    article.append(...(isUser ? [bodyWrap, avatar] : [avatar, bodyWrap]));
+    return article;
+}
+
+
 function renderChats() {
     chatsList.innerHTML = "";
 
     chats.forEach((chat) => {
-        const item      = document.createElement("article");
-        const selectBtn = document.createElement("button");
-        const actions   = document.createElement("div");
-        const editBtn   = document.createElement("button");
-        const deleteBtn = document.createElement("button");
+        const item = document.createElement("article");
+        const select = document.createElement("button");
+        const actions = document.createElement("div");
+        const rename = document.createElement("button");
+        const remove = document.createElement("button");
 
-        item.className      = `chat-item ${chat.id === activeChat?.id ? "active" : ""}`;
-        selectBtn.className = "chat-select";
-        actions.className   = "chat-actions";
-        editBtn.className   = "chat-edit-name";
-        deleteBtn.className = "chat-delete";
+        item.className = `chat-item ${chat.id === activeChat?.id ? "active" : ""}`;
+        select.className = "chat-select";
+        actions.className = "chat-actions";
+        rename.className = "chat-edit-name";
+        remove.className = "chat-delete";
 
-        
-        selectBtn.type = "button";
-        selectBtn.textContent = chat.title;
-        selectBtn.addEventListener("click", () => selectChat(chat.id));
-        
-        editBtn.type = "button";
-        editBtn.setAttribute("aria-label", "Rename this chat");
-        editBtn.innerHTML = '<i class="fa-solid fa-pen"></i>';
-        editBtn.addEventListener("click", () => renameChat(chat, selectBtn));
-        
-        deleteBtn.type = "button";
-        deleteBtn.setAttribute("aria-label", "Delete this chat");
-        deleteBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
-        deleteBtn.addEventListener("click", () => deleteChat(chat));
+        select.type = "button";
+        select.textContent = chat.title;
+        select.addEventListener("click", () => selectChat(chat.id));
 
-        actions.append(editBtn, deleteBtn);
-        item.append(selectBtn, actions);
-        chatsList.appendChild(item);
+        rename.type = "button";
+        rename.setAttribute("aria-label", "Rename this chat");
+        rename.innerHTML = '<i class="fa-solid fa-pen"></i>';
+        rename.addEventListener("click", () => renameChat(chat, select));
+
+        remove.type = "button";
+        remove.setAttribute("aria-label", "Delete this chat");
+        remove.innerHTML = '<i class="fa-solid fa-trash"></i>';
+        remove.addEventListener("click", () => deleteChat(chat));
+
+        actions.append(rename, remove);
+        item.append(select, actions);
+        chatsList.append(item);
     });
 }
 
 
-async function selectChat(chatId) {
-    activeChat = chats.find((chat) => chat.id === chatId) || null;
-    renderChats();
-    applySettings();
-    renderMessages();
-
-    if (!currentUser || !activeChat?.serverId) return;
-
-    const data = await chatApi(`/chats/${activeChat.serverId}`, jsonOptions("GET"));
-    if (!data) return;
-
-    activeChat.title    = data.chat.chat_name;
-    activeChat.settings = normalizeSettings(data.chat.settings);
-    activeChat.messages = Array.from(data.messages || []);
-
-    renderChats();
-    applySettings();
-    renderMessages();
-}
 
 
+/* ------------------------------------------ Chat Actions --------------------------------------- */
 async function loadChats(user) {
     currentUser = user;
-
-    const data = await chatApi("/chats", jsonOptions("GET"));
-    chats = Array.from(data?.chats || []).map(normalizeChat);
+    const data = await getChats();
+    chats = Array.from(data?.chats || []).map(chatFromApi);
 
     if (!chats.length) {
-        await addChat("chat #1");
+        await createChat("chat #1");
         return;
     }
 
-    await selectChat(chats[0].id);
+    const slug = currentChatSlug();
+    const requested = slug ? chats.find((chat) => slugify(chat.title) === slug) : null;
+    await selectChat((requested || chats[0]).id);
 }
 
 
-function loadVisitorChat() {
-    currentUser = null;
-    chats = [normalizeChat({ chat_name: "chat #1" })];
-    activeChat = chats[0];
-
+async function selectChat(chatId, updateUrl = true) {
+    activeChat = chats.find((chat) => chat.id === chatId) || null;
     renderChats();
-    applySettings();
     renderMessages();
+
+    if (!activeChat) return;
+
+    const data = await getChat(activeChat.serverId);
+    if (!data) return;
+
+    activeChat.title = data.chat.chat_name;
+    activeChat.messages = Array.from(data.messages || []);
+    renderChats();
+    renderMessages();
+    if (updateUrl) pushChatUrl(activeChat);
 }
 
 
-/* ------------------------------------------ Add / Edit / Delete Chats --------------------------------------- */
-async function addChat(chatName = null) {
-    let chat = normalizeChat({ chat_name: chatName });
+async function createChat(name = `chat #${chats.length + 1}`) {
+    if (!currentUser) return;
 
-    if (currentUser) {
-        const data = await chatApi("/chats", jsonOptions("POST", { chat_name: chatName }));
-        if (!data?.chat) return;
-        chat = normalizeChat(data.chat);
-    }
+    const data = await createChatApi(name);
+    if (!data?.chat) return;
 
+    const chat = chatFromApi(data.chat);
     chats.push(chat);
     await selectChat(chat.id);
 }
 
 
-function renameChat(chat, selectBtn) {
+function renameChat(chat, button) {
     const oldTitle = chat.title;
-    const input    = document.createElement("input");
-    let done       = false;
+    const input = document.createElement("input");
+    let finished = false;
 
     input.className = "chat-rename-input";
-    input.value     = chat.title;
-    selectBtn.replaceWith(input);
-
+    input.value = chat.title;
+    button.replaceWith(input);
     input.focus();
     input.select();
 
     const finish = async (save) => {
-        if (done) return;
-        done = true;
+        if (finished) return;
+        finished = true;
+
         chat.title = save ? input.value.trim() || oldTitle : oldTitle;
 
-        if (save && currentUser && chat.serverId) {
-            await chatApi(`/chats/${chat.serverId}`, jsonOptions("PATCH", { chat_name: chat.title }));
+        if (save) {
+            const data = await renameChatApi(chat.serverId, chat.title);
+            if (data?.chat) chat.title = data.chat.chat_name;
         }
 
         renderChats();
         renderMessages();
+        if (activeChat?.id === chat.id) pushChatUrl(chat, true);
     };
 
     input.addEventListener("input", () => {
         chat.title = input.value.trim() || "Untitled chat";
-        if (activeChat?.id === chat.id) headerTitle.textContent = chat.title;
+        if (activeChat?.id === chat.id) {
+            headerTitle.textContent = chat.title;
+            document.title = chat.title;
+            pushChatUrl(chat, true);
+        }
     });
 
     input.addEventListener("keydown", (event) => {
         if (event.key === "Enter") finish(true);
         if (event.key === "Escape") finish(false);
     });
-
     input.addEventListener("blur", () => finish(true), { once: true });
 }
 
 
 async function deleteChat(chat) {
-    if (currentUser && chat.serverId) {
-        const data = await chatApi(`/chats/${chat.serverId}`, jsonOptions("DELETE"));
-        if (!data) return;
-    }
+    const data = await deleteChatApi(chat.serverId);
+    if (!data) return;
 
     chats = chats.filter((item) => item.id !== chat.id);
 
     if (!chats.length) {
-        await addChat("chat #1");
+        await createChat("chat #1");
         return;
     }
 
-    await selectChat((activeChat?.id === chat.id ? chats[0] : activeChat).id);
+    await selectChat(activeChat?.id === chat.id ? chats[0].id : activeChat.id);
 }
 
-/* ------------------------------------------ Send Query --------------------------------------- */
+
+function clearChats() {
+    currentUser = null;
+    chats = [];
+    activeChat = null;
+    renderChats();
+    renderMessages();
+}
+
+
+
+
+/* ------------------------------------------ Streaming --------------------------------------- */
+function setRunState(text = "", running = false) {
+    runStatus.textContent = text;
+    runStatus.classList.toggle("active", Boolean(text));
+    cancelBtn.hidden = !running;
+    sendBtn.disabled = running;
+}
+
+
+function applyStreamEvent(event, assistantMessage, chat) {
+    if (event.type === "stage") {
+        setRunState(event.message || "thinking", true);
+        return;
+    }
+
+    if (event.type === "token") {
+        if (assistantMessage.content === "...") assistantMessage.content = "";
+        assistantMessage.content += event.value || "";
+        if (activeChat?.id === chat.id) renderMessages();
+        return;
+    }
+
+    if (event.type === "done") {
+        assistantMessage.content = event.report || "No answer was returned.";
+        assistantMessage.llm_resources = event.llm_resources || [];
+        return;
+    }
+
+    if (event.type === "error") {
+        assistantMessage.content = "The response could not be completed.";
+        showAlert(event.detail || "The chat request failed.", ERROR_MESSAGE);
+    }
+}
+
+
+async function readStream(response, assistantMessage, chat) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+            if (line.trim()) applyStreamEvent(JSON.parse(line), assistantMessage, chat);
+        }
+
+        if (done) break;
+    }
+
+    if (buffer.trim()) applyStreamEvent(JSON.parse(buffer), assistantMessage, chat);
+}
+
+
 async function sendQuery(event) {
     event.preventDefault();
 
+    if (activeRun) {
+        showAlert("A response is already running.", ERROR_MESSAGE);
+        return;
+    }
+
     const query = queryInput.value.trim();
-    if (!query || !activeChat) {
+    if (!query || !currentUser || !activeChat?.serverId) {
         showAlert("Please enter a question first.", ERROR_MESSAGE);
         return;
     }
 
-    const settings = readSettings();
-    activeChat.settings = settings;
-    activeChat.messages.push({ role: "user", content: query });
+    const options = currentRequestOptions();
+    const targetChat = activeChat;
+    const assistantMessage = { role: "assistant", content: "...", llm_resources: [] };
 
+    targetChat.messages.push({ role: "user", content: query }, assistantMessage);
     queryInput.value = "";
     renderMessages();
 
-    const data = await chatApi("/chat", jsonOptions("POST", {
-        query,
-        chat_id       : activeChat.serverId,
-        retrieve_limit: 5,
-        settings,
-    }));
+    activeRun = new AbortController();
+    setRunState("parsing query", true);
 
-    if (!data) return;
+    try {
+        const response = await streamChat(
+            {
+                query,
+                chat_id: targetChat.serverId,
+                files: options.files,
+                tone: options.tone,
+                depth: options.depth,
+            },
+            activeRun.signal,
+        );
 
-    activeChat.settings = normalizeSettings(data.settings);
-    activeChat.messages.push({ role: "assistant", content: data.report || "No answer was returned.", llm_resources: data.llm_resources || [] });
+        if (!response) {
+            assistantMessage.content = "The response could not be completed.";
+            return;
+        }
 
-    applySettings();
-    renderMessages();
+        if (!response.ok) {
+            const data = await parseJsonResponse(response);
+            showAlert(getErrorMessage(response, data), ERROR_MESSAGE);
+            assistantMessage.content = "The response could not be completed.";
+            return;
+        }
+
+        await readStream(response, assistantMessage, targetChat);
+    } catch (error) {
+        assistantMessage.content = error.name === "AbortError"
+            ? "Still working. Reopen this chat in a moment."
+            : "The response could not be completed.";
+
+        showAlert(
+            error.name === "AbortError" ? "Stopped waiting. The answer will finish in this chat." : "Could not reach the chat service.",
+            ERROR_MESSAGE,
+        );
+    } finally {
+        activeRun = null;
+        setRunState("", false);
+        if (activeChat?.id === targetChat.id) renderMessages();
+    }
 }
 
 
 
-/* ------------------------------------------ Driver Functions --------------------------------------- */
-function handleShellReady(event) {
-    const user = event.detail?.user || null;
-    user ? loadChats(user) : loadVisitorChat();
-}
 
-
+/* ------------------------------------------ Events --------------------------------------- */
 function bindEvents() {
     queryForm.addEventListener("submit", sendQuery);
+    cancelBtn?.addEventListener("click", () => activeRun?.abort());
+    addChatBtn.addEventListener("click", () => createChat());
 
-    addNewChatBtn.addEventListener("click", () => addChat());
+    filesBox.addEventListener("change", updateControlSummary);
+    document.querySelectorAll("input[name='chatTone'], input[name='answerDepth']").forEach((input) => {
+        input.addEventListener("change", updateControlSummary);
+    });
+    document.addEventListener("files-selection-updated", updateControlSummary);
 
-    searchOnlineBtn.addEventListener("click", () => {
-        searchOnlineBtn.classList.toggle("active");
-        searchOnlineBtn.setAttribute("aria-pressed", String(searchOnlineBtn.classList.contains("active")));
-        saveSettings();
+    document.addEventListener("app-shell-ready", (event) => {
+        const user = event.detail?.user || null;
+        user ? loadChats(user) : clearChats();
     });
 
-    filesContainer.addEventListener("change", () => saveSettings());
-    document.addEventListener("files-selection-updated", () => {
-        applySettings();
-        renderMessages();
-        saveSettings();
-    });
-    
-    document.addEventListener("app-shell-ready", handleShellReady);
-
-    toneOptions.forEach((option) => {
-        option.addEventListener("click", () => {
-            toneOptions.forEach((item) => item.classList.remove("selected"));
-            option.classList.add("selected");
-            activeChat.settings = readSettings();
-            applySettings();
-            saveSettings(activeChat.settings);
-        });
-    });
-
-    configInputs.forEach((input) => {
-        input.addEventListener("input", () => {
-            input.nextElementSibling.textContent = input.value;
-            queueSettingsSave();
-        });
+    window.addEventListener("popstate", () => {
+        const slug = currentChatSlug();
+        const chat = chats.find((item) => slugify(item.title) === slug);
+        if (chat && chat.id !== activeChat?.id) selectChat(chat.id, false);
     });
 }
 
 
-function init() {
-    bindEvents();
+bindEvents();
+updateControlSummary();
 
-    const user = getActiveShellUser();
-    user ? loadChats(user) : loadVisitorChat();
-}
-
-
-init();
+const user = getActiveShellUser();
+user ? loadChats(user) : clearChats();

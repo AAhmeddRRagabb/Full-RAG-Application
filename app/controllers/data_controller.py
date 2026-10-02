@@ -22,11 +22,11 @@ class DataController(BaseController):
         * Reading File Content
         * Chunking Files
     """
-    def __init__(self, user_name: str):
+    def __init__(self, user_key: str):
         super().__init__()
         self.mb_2_b = 1024 * 1024
-        self.user_name = user_name
-        self.user_path = UserController().get_user_path(user_name = user_name)
+        self.user_key = user_key
+        self.user_path = UserController().get_user_path(user_key = user_key)
 
 
     def validate_uploaded_file(self, file: UploadFile) -> dict[str, bool | str]:
@@ -125,7 +125,7 @@ class DataController(BaseController):
 
 
 
-    def get_chunks(self, file_content: list, chunk_size: int = 100, overlap_size: int = 100) -> list | None:
+    def get_chunks(self, file_content: list, chunk_size: int = 1000, overlap_size: int = 150) -> list | None:
         """
         Returns:  
             if success -> list of chunks  

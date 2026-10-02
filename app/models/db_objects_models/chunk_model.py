@@ -2,7 +2,6 @@
 # Building a database model for chunks
 # ----------------------------------------------------
 
-from models.enums import ResponsesEnum
 from models.db_schemas import DataChunk
 
 from .base_obj_model import BaseObjModel
@@ -149,6 +148,17 @@ class ChunkModel(BaseObjModel):
             return records
 
 
+    async def get_asset_chunk_ids(self, user_id: int, asset_id: int) -> list[int] | None:
+        chunks = await self.get_user_chunks(user_id = user_id, asset_ids = [asset_id])
+        if chunks is None:
+            return None
+
+        return [
+            chunk.chunk_id
+            for chunk in chunks
+        ]
+
+
     async def get_user_chunks_count(self, user_id: int) -> int | None:
         """
         Returns:
@@ -189,6 +199,26 @@ class ChunkModel(BaseObjModel):
 
         except Exception as e:
             self.logger.error(f"Error Deleting Chunks: {e}")
+            return False
+
+        return True
+
+
+    async def delete_asset_chunks(self, user_id: int, asset_id: int) -> bool:
+        session: AsyncSession
+
+        try:
+            async with self.db_client() as session:
+                await session.execute(
+                    delete(DataChunk).where(
+                        DataChunk.user_id == user_id,
+                        DataChunk.asset_id == asset_id,
+                    )
+                )
+                await session.commit()
+
+        except Exception as e:
+            self.logger.error(f"Error Deleting Asset Chunks: {e}")
             return False
 
         return True

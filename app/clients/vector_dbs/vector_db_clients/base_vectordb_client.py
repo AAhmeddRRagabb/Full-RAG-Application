@@ -96,6 +96,14 @@ class BaseVectorClient(ABC):
         pass
 
 
+    async def delete_by_chunk_ids(
+        self,
+        collection_name: str,
+        chunk_ids: list[int],
+    ) -> bool:
+        pass
+
+
 
 
     

@@ -1,7 +1,6 @@
-import json
+import re
 from .base_controller import BaseController
 
-from models.enums import ResponsesEnum
 from models.db_schemas import DataChunk
 from models.system_schemas import RetrievedChunk
 
@@ -12,11 +11,10 @@ from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
 # llms utils
 from clients.llms.llm_clients import (
     GoogleLLMClient,
-    GroqLLMClient,
     HuggingfaceLLMClient
 )
 
-from clients.llms.config import LLMsGeneralEmbeddingQueryTypes, LLMsGenerationMessageTypes
+from clients.llms.config import LLMsGeneralEmbeddingQueryTypes
 from fastapi.encoders import jsonable_encoder
 
 class VectorDBController(BaseController):
@@ -39,25 +37,26 @@ class VectorDBController(BaseController):
 
 
     # -------------------------------------------- Vector DB Functionalities --------------------------------------------- #
-    def get_collection_name(self, user_name: str) -> str:
+    def get_collection_name(self, user_key: str) -> str:
         """
         Returns:
             str: vector database collection name for the given user.
         """
-        return f"collection_{user_name}_{self.vector_db_client.default_vector_size}".strip()
+        user_key = re.sub(r"[^a-zA-Z0-9_]", "_", str(user_key).lower())
+        return f"collection_{user_key[3:20]}_{self.vector_db_client.default_vector_size}".strip()
 
 
-    async def get_vector_db_collection_info(self, user_name: str) -> dict | None:
+    async def get_vector_db_collection_info(self, user_key: str) -> dict | None:
         """
         Returns:
             if success -> collection info  
             if failure or not existing collection -> None 
         """
-        collection_name = self.get_collection_name(user_name = user_name)
+        collection_name = self.get_collection_name(user_key = user_key)
         return jsonable_encoder(await self.vector_db_client.get_collection_info(collection_name = collection_name))
 
         
-    async def create_collection(self, user_name: str, do_reset: bool = False) -> bool:
+    async def create_collection(self, user_key: str, do_reset: bool = False) -> bool:
         """
         Create a collection with the given name & embedding size
 
@@ -65,7 +64,7 @@ class VectorDBController(BaseController):
             a bool indicates whether the collection was created successfully or not.
         """
 
-        collection_name = self.get_collection_name(user_name = user_name)
+        collection_name = self.get_collection_name(user_key = user_key)
 
         return await self.vector_db_client.create_collection(
             collection_name = collection_name,
@@ -74,20 +73,20 @@ class VectorDBController(BaseController):
         )
 
     
-    async def delete_collection(self, user_name: str) -> bool:
+    async def delete_collection(self, user_key: str) -> bool:
         """
         Delete the given collection
 
         Returns:
             a bool indicates whether the collection was deleted successfully or not.
         """
-        collection_name = self.get_collection_name(user_name = user_name)
+        collection_name = self.get_collection_name(user_key = user_key)
         return await self.vector_db_client.delete_collection(collection_name = collection_name)
 
 
     async def insert_chunks_into_vector_db(
         self,
-        user_name   : str,
+        user_key    : str,
         chunks      : list[DataChunk],
         chunks_ids  : list[int],
     ) -> bool:
@@ -96,7 +95,7 @@ class VectorDBController(BaseController):
             a bool indicates whether the records were inserted successfully or not.
         """
 
-        collection_name = self.get_collection_name(user_name = user_name)
+        collection_name = self.get_collection_name(user_key = user_key)
             
         # prepare chunks 
         texts    = [c.chunk_text for c in chunks]
@@ -124,7 +123,7 @@ class VectorDBController(BaseController):
 
     async def search_vector_db_collection(
         self,
-        user_name     : str,
+        user_key      : str,
         text          : str,
         limit         : int = 5,
         chunk_ids     : list[int] | None = None,
@@ -132,7 +131,7 @@ class VectorDBController(BaseController):
     ) -> list[RetrievedChunk]:
         """
         Args:
-            user_name     : user_name to access the user_collection
+            user_key      : user UUID key used to access the user collection
             text          : text to use in searching
             limit         : number of search results to retrieve
             chunk_ids     : list of chunk ids to only search in them.
@@ -142,7 +141,7 @@ class VectorDBController(BaseController):
             if success -> list of retrieved chunks       
             if failure -> None 
         """
-        collection_name = self.get_collection_name(user_name = user_name)
+        collection_name = self.get_collection_name(user_key = user_key)
 
         # embed query
         embeddings = self.embedding_client.embed_text(
@@ -168,6 +167,14 @@ class VectorDBController(BaseController):
             return jsonable_encoder(retrieved)
 
         return retrieved
+
+
+    async def delete_chunks_from_vector_db(self, user_key: str, chunk_ids: list[int]) -> bool:
+        collection_name = self.get_collection_name(user_key = user_key)
+        return await self.vector_db_client.delete_by_chunk_ids(
+            collection_name = collection_name,
+            chunk_ids = chunk_ids,
+        )
 
 
     

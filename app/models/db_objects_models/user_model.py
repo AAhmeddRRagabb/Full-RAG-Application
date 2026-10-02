@@ -3,7 +3,6 @@
 # ----------------------------------------------------
 
 from uuid import UUID
-from models.enums import ResponsesEnum
 from models.db_schemas import User
 
 from .base_obj_model import BaseObjModel

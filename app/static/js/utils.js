@@ -13,6 +13,7 @@ import {
 
 let alertTimeoutId;
 let activeShellUser = null;
+let csrfToken = null;
 
 
 /*
@@ -49,6 +50,21 @@ function notifyAppShellReady(user = null) {
 
 export function getActiveShellUser() {
     return activeShellUser;
+}
+
+
+export function updateCsrfToken(token) {
+    csrfToken = token || null;
+}
+
+
+export function getCsrfToken() {
+    return csrfToken;
+}
+
+
+export function csrfHeaders() {
+    return csrfToken ? { "X-CSRF-Token": csrfToken } : {};
 }
 
 
@@ -136,7 +152,7 @@ export async function parseJsonResponse(response) {
 */
 
 export function setUserProfile(user = null) {
-    const userName = user?.user_name || "Visitor";
+    const userName = user?.user_name || "User";
 
     showMessage(WELCOME_MESSAGE_CONTAINER, `Welcome ${userName}`, SUCCESS_MESSAGE);
 
@@ -162,27 +178,19 @@ export function activateAppShell(user = null) {
 }
 
 
-export function activateGuestShell() {
-    setAuthBackdrop(false);
-    REGISTER_FORM.classList.remove("active");
-    LOGIN_FORM.classList.remove("active");
-    APP_SHELL?.classList.add("active");
-    setUserProfile(null);
-    notifyAppShellReady(null);
-}
-
-
 export function activateLoginForm() {
     setAuthBackdrop(true);
     REGISTER_FORM.classList.remove("active");
-    APP_SHELL?.classList.add("active");
+    APP_SHELL?.classList.remove("active");
     LOGIN_FORM.classList.add("active");
+    setUserProfile(null);
+    notifyAppShellReady(null);
 }
 
 
 export function activateRegisterForm() {
     setAuthBackdrop(true);
     LOGIN_FORM.classList.remove("active");
-    APP_SHELL?.classList.add("active");
+    APP_SHELL?.classList.remove("active");
     REGISTER_FORM.classList.add("active");
 }

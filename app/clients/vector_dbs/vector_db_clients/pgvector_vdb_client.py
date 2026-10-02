@@ -485,6 +485,33 @@ class PGVectorVDBClient(BaseVectorClient):
             self.logger.error(f"Error Retrieving: {e}")
             return None
 
+    async def delete_by_chunk_ids(
+        self,
+        collection_name: str,
+        chunk_ids: list[int],
+    ) -> bool:
+        if not chunk_ids:
+            return True
+
+        if not await self.is_collection_existed(collection_name):
+            return True
+
+        try:
+            async with self.db_client() as session:
+                async with session.begin():
+                    delete_stmt = sql_text(
+                        f"DELETE FROM {collection_name} "
+                        f"WHERE {VectorDBPGVectorTableColumns.CHUNK_ID.value} = ANY(:chunk_ids)"
+                    )
+
+                    await session.execute(delete_stmt, params = {"chunk_ids": chunk_ids})
+
+        except Exception as e:
+            self.logger.error(f"Error Deleting Vector Records: {e}")
+            return False
+
+        return True
+
     # ------------------------------- indices functions -------------------------------
 
     async def is_index_existed(self, collection_name: str) -> bool:

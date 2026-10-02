@@ -12,9 +12,10 @@ settings = get_settings()
 
 
 # fastapi
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from app_core.dependecies.auth import require_authentication, require_csrf
 from app_core.dependecies.clients import get_redis, get_db_client
+from app_core.dependecies.rate_limit import check_rate_limit
 
 
 # databases
@@ -24,7 +25,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # models
 from models.db_schemas import Chat, User
 from models.enums import ResponsesEnum
-from models.request_schemas.chat import ChatSettings
 from models.request_schemas.auth import (
     CsrfResponse,
     LoginRequest,
@@ -57,17 +57,23 @@ def build_public_user(user: User) -> UserPublic:
     return UserPublic(
         user_name = user.user_name,
         user_email = user.user_email,
+        user_uuid_prefix = user.user_uuid.hex[:3],
     )
 
 
 
 @auth_router.post("/register")
 async def register_user(
+    request         : Request,
     register_request: RegisterRequest,
     db_client       : Annotated[AsyncSession, Depends(get_db_client)],
     redis           : Annotated[Redis, Depends(get_redis)],
     response        : Response,
 ) -> RegisterResponse:
+    client_host = request.client.host if request.client else "unknown"
+    email_key = register_request.email.strip().lower()
+    await check_rate_limit(redis, f"register:ip:{client_host}", limit = 8, window_seconds = 3600)
+    await check_rate_limit(redis, f"register:email:{email_key}", limit = 5, window_seconds = 3600)
     
     user_model = UserModel(db_client = db_client)
     chat_model = ChatModel(db_client = db_client)
@@ -97,7 +103,6 @@ async def register_user(
         Chat(
             user_id = user.user_id,
             chat_name = "chat #1",
-            chat_settings = ChatSettings().model_dump(),
         )
     ):
         raise_internal_server_error()
@@ -116,11 +121,16 @@ async def register_user(
 
 @auth_router.post("/login")
 async def login_user(
+    request      : Request,
     login_request: LoginRequest,
     db_client    : Annotated[AsyncSession, Depends(get_db_client)],
     redis        : Annotated[Redis, Depends(get_redis)],
     response     : Response,
 ) -> LoginResponse:
+    client_host = request.client.host if request.client else "unknown"
+    email_key = login_request.email.strip().lower()
+    await check_rate_limit(redis, f"login:ip:{client_host}", limit = 20, window_seconds = 900)
+    await check_rate_limit(redis, f"login:email:{email_key}", limit = 10, window_seconds = 900)
     
     user_model = UserModel(db_client = db_client)
     user = await user_model.get_user_by_email(login_request.email)

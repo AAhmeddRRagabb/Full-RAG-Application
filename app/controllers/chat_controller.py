@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from typing import Any, Awaitable, Callable
 
 from pydantic import BaseModel, ValidationError
@@ -15,8 +16,21 @@ from clients.llms.llm_clients import (
 )
 from clients.llms.prompt_templates import PromptTemplateParser
 from models.system_schemas import RetrievedChunk
-from models.system_schemas.agent_schemas import *
+from models.system_schemas.agent_schemas import (
+    AgentState,
+    AnswerCheckResult,
+    Evidence,
+    EvidenceResult,
+    FinalReportResult,
+    NextAction,
+    QueryUnderstandingResult,
+)
 
+from models.db_objects_models import AssetModel, ChunkModel
+from .vector_db_controller import VectorDBController
+
+from helpers.chat import ChatCFG, get_file_id
+from models.db_schemas import User
 
 class ChatController(BaseController):
     """
@@ -28,15 +42,34 @@ class ChatController(BaseController):
         llm_clients           : dict[str, HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient | list[HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient]],
         prompt_template_parser: PromptTemplateParser | None = None,
         tavily_client         : TavilyClient | None = None,
+        user                  : User | None = None,
+        asset_model: AssetModel | None = None,
+        chunk_model: ChunkModel | None = None,
+        vector_db_controller: VectorDBController | None = None,
     ):
         super().__init__()
 
         self.prompt_template_parser = prompt_template_parser
         self.llm_clients = llm_clients
         self.tavily_client = tavily_client
+        self.user = user
+
+        self.asset_model = asset_model
+        self.chunk_model = chunk_model
+        self.vector_db_controller = vector_db_controller
+
 
 
     # ---------------------------------------- Utils ---------------------------------------- #
+    def clamp_int(self, value: Any, default: int, minimum: int, maximum: int) -> int:
+        try:
+            value = int(value)
+        except (TypeError, ValueError):
+            value = default
+
+        return max(minimum, min(value, maximum))
+
+
     def get_tavily_search_results(self, query: str, max_results: int = 5) -> list[dict] | None:
         if self.tavily_client is None:
             self.logger.error("Missing Tavily Client")
@@ -45,7 +78,7 @@ class ChatController(BaseController):
         try:
             response = self.tavily_client.search(
                 query = query,
-                search_depth = "advanced",
+                search_depth = "basic",
                 chunks_per_source = 1,
                 max_results = max_results,
             )
@@ -64,7 +97,40 @@ class ChatController(BaseController):
             for res in response.get("results", [])
         ]
 
+    async def search_file(
+        self,
+        query: str,
+        file_id: int,
+        retrieve_limit: int = 5
+    ) -> list[RetrievedChunk] | None:
 
+        asset = await self.asset_model.get_user_asset(
+            user_id = self.user.user_id, 
+            asset_id = file_id
+        )
+        if asset is None:
+            return None
+
+        chunks = await self.chunk_model.get_user_chunks(
+            user_id = self.user.user_id,
+            asset_ids = [file_id],
+        )
+
+        if chunks is None or not len(chunks):
+            return None
+
+        return await self.vector_db_controller.search_vector_db_collection(
+            user_key = self.user.user_uuid,
+            text = query,
+            limit = retrieve_limit,
+            chunk_ids = [
+                chunk.chunk_id
+                for chunk in chunks
+            ],
+        )
+        
+    
+    
     def get_resource_name(self, file: str) -> str:
         if "_" not in file:
             return file
@@ -72,21 +138,11 @@ class ChatController(BaseController):
         return file.split("_", maxsplit = 1)[1]
 
 
-    def normalize_llm_json(self, llm_response: str) -> str:
-        llm_response = llm_response.strip()
-
-        if llm_response.startswith("```"):
-            llm_response = llm_response.strip("`").strip()
-            if llm_response.startswith("json"):
-                llm_response = llm_response[4:].strip()
-
-        return llm_response
 
 
     def get_llm_client(
         self,
         task: str,
-        client_idx: int = 0,
     ) -> HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient | None:
 
         task_clients = self.llm_clients.get(task, None)
@@ -100,25 +156,15 @@ class ChatController(BaseController):
         return task_clients
 
 
-    async def get_llm_response(
+    async def call_llm_json(
         self,
         task       : str,
         prompt_vars: dict,
-        client_idx : int = 0,
-    ) -> str | None:
-        """
-        Args:
-            task       : to accomplish [must be from AgentTasks].
-            prompt_vars: variables to be injected the task prompt.
-
-        Returns:
-            if success -> llm_response
-            if failure -> None
-        """
-
+        key        : str | None = None,
+    ) -> Any | None:
+        
         llm_client = self.get_llm_client(
             task = task,
-            client_idx = client_idx,
         )
 
         if llm_client is None:
@@ -135,64 +181,24 @@ class ChatController(BaseController):
             self.logger.error(f"Error Acquiring Task Prompt. Task Prompt: {task_prompt}")
             return None
 
-        llm_response = await asyncio.to_thread(
+        response = await asyncio.to_thread(
             llm_client.generate_text,
             user_prompt = task_prompt,
         )
 
-        if not llm_response:
+        if not response:
             self.logger.error("Invalid LLM Response")
             return None
 
-        return llm_response
-
-
-    def parse_llm_response(
-        self,
-        llm_response: str,
-        key: str | None = None,
-    ) -> Any | None:
-        """
-        Parse LLM Response & Returned Required Key.
-        """
         try:
-            llm_response: dict = json.loads(
-                self.normalize_llm_json(llm_response = llm_response)
-            )
+            data = json.loads(response)
 
         except json.JSONDecodeError:
-            self.logger.error(f"Model Returned Invalid JSON: {llm_response}")
+            self.logger.error(f"Model Returned Invalid JSON: {response}")
             return None
 
-        if not key:
-            return llm_response
+        return data if key is None else data.get(key)
 
-        return llm_response.get(key, None)
-
-
-    async def call_llm(
-        self,
-        task        : str,
-        prompt_vars : dict,
-        response_key: str | None = None,
-        client_idx  : int = 0,
-    ):
-        """
-        Call the LLM & parse its response.
-        """
-        llm_response = await self.get_llm_response(
-            task = task,
-            prompt_vars = prompt_vars,
-            client_idx = client_idx,
-        )
-
-        if llm_response is None:
-            return None
-
-        return self.parse_llm_response(
-            llm_response = llm_response,
-            key = response_key,
-        )
 
 
     async def call_llm_schema(
@@ -205,7 +211,7 @@ class ChatController(BaseController):
         """
         Call the LLM & validate its response against a schema.
         """
-        llm_response = await self.call_llm(
+        llm_response = await self.call_llm_json(
             task = task,
             prompt_vars = prompt_vars,
             client_idx = client_idx,
@@ -226,14 +232,14 @@ class ChatController(BaseController):
     # ---------------------------------------- Agentic Work ---------------------------------------- #
     async def get_next_step(
         self,
-        query: str,
-        current_state: dict,
+        user_query: str,
+        current_state: AgentState,
     ):
-        return await self.call_llm(
+        return await self.call_llm_json(
             task = AgentTasks.OR.value,
             prompt_vars = {
-                "query": query,
-                "state": current_state,
+                "user_query": user_query,
+                "state": current_state.model_dump(),
             },
         )
 
@@ -242,309 +248,177 @@ class ChatController(BaseController):
         return action.action.lower(), action.arguments
 
 
-    def get_default_next_action(
-        self,
-        agent_state    : AgentState,
-        files          : list[str],
-        search_web     : bool,
-        max_file_chunks: int,
-        max_web_results: int,
-        chat_messages  : list[dict],
-    ) -> NextAction:
-
-        if not agent_state.requirements:
-            return NextAction(
-                reason = "User requirements are missing.",
-                action = "understand_user_query",
-                arguments = {
-                    "query": agent_state.user_query,
-                },
-            )
-
-        if chat_messages and not agent_state.chat_context:
-            return NextAction(
-                reason = "Previous chat messages may contain useful context.",
-                action = "get_chat_context",
-                arguments = {
-                    "query": agent_state.user_query,
-                    "max_results": 5,
-                },
-            )
-
-        if (files or search_web) and not agent_state.search_results:
-            return NextAction(
-                reason = "Still need external evidence to answer.",
-                action = "search",
-                arguments = {
-                    "query": agent_state.user_query,
-                    "files": files,
-                    "search_web": search_web,
-                    "max_file_chunks": max_file_chunks,
-                    "max_web_results": max_web_results,
-                },
-            )
-
-        if not agent_state.final_report:
-            return NextAction(
-                reason = "Evidence collection is complete.",
-                action = "generate_final_report",
-                arguments = {
-                    "query": agent_state.user_query,
-                    "search_results": agent_state.search_results,
-                },
-            )
-
-        return NextAction(
-            reason = "Final report is ready.",
-            action = "finish",
-            arguments = {},
-        )
-
-
     async def get_next_action(
         self,
-        agent_state    : AgentState,
-        files          : list[str],
-        search_web     : bool,
-        max_file_chunks: int,
-        max_web_results: int,
-        chat_messages  : list[dict],
-    ) -> NextAction:
-
-        default_action = self.get_default_next_action(
-            agent_state = agent_state,
-            files = files,
-            search_web = search_web,
-            max_file_chunks = max_file_chunks,
-            max_web_results = max_web_results,
-            chat_messages = chat_messages,
-        )
+        user_query: str,
+        agent_state: AgentState,
+    ) -> NextAction | None:
 
         next_action = await self.get_next_step(
-            query = agent_state.user_query,
-            current_state = {
-                **agent_state.model_dump(),
-                "selected_files": files,
-                "search_web": search_web,
-                "has_chat_messages": bool(chat_messages),
-            },
+            user_query = user_query,
+            current_state = agent_state
         )
 
         try:
-            next_action = NextAction.model_validate(next_action)
+            return NextAction.model_validate(next_action)
 
         except ValidationError as e:
             self.logger.error(f"Error Validating Planner Output: {e}")
             self.logger.error(f"Planner Output: {next_action}")
-            return default_action
+            return None
 
-        action, _ = self.parse_action(next_action)
-
-        if action == "understand_user_query" and agent_state.requirements:
-            return default_action
-
-        if action == "get_chat_context" and (not chat_messages or agent_state.chat_context):
-            return default_action
-
-        if action == "search" and (agent_state.search_results or (not files and not search_web)):
-            return default_action
-
-        if action == "generate_final_report" and agent_state.final_report:
-            return default_action
-
-        return next_action
 
 
     # ---------------------------------------- Individual LLMs Work ---------------------------------------- #
-    async def understand_user_query(self, query: str) -> list[str]:
-        result = await self.call_llm_schema(
-            task = AgentTasks.QA.value,
-            prompt_vars = {
-                "query": query,
-            },
-            schema = QueryUnderstandingResult,
-        )
-
-        if result is None:
-            return [query]
-
-        return result.requirements or [query]
-
-
-    async def extract_message_evidence(
-        self,
-        query: str,
-        message: dict,
-        client_idx: int,
-    ) -> list[Evidence]:
-
-        message_content = str(message.get("content") or "").strip()
-        if not message_content:
-            return []
-
-        message_id = message.get("message_id", "local")
-
-        result: ChatContextRelevanceResult = await self.call_llm_schema(
-            task = AgentTasks.CC.value,
-            prompt_vars = {
-                "query": query,
-                "message_content": message_content,
-                "message_id": message_id,
-                "message_role": message.get("role"),
-            },
-            schema = ChatContextRelevanceResult,
-            client_idx = client_idx,
-        )
-
-        if result is None or not result.is_relevant or result.relevance_score is None:
-            return []
-
-        return [
-            Evidence(
-                content = message_content,
-                relevance_score = result.relevance_score,
-                resource = f"message:{message_id}",
-            )
-        ]
-
-
     async def get_chat_context(
         self,
-        query: str,
-        chat_messages: list[dict],
-        max_results: int = 5,
-    ) -> list[Evidence]:
+        user_query: str,
+        chat_messages: list[str],
+    ) -> tuple[list[str], dict] | None:
 
-        if not chat_messages:
-            return []
+        response = await self.call_llm_json(
+            task = AgentTasks.CC.value,
+            prompt_vars = {
+                'user_query': user_query,
+                'messages'  : chat_messages
+            }
+        )
 
-        context_groups = await asyncio.gather(*[
-            self.extract_message_evidence(
-                query = query,
-                message = message,
-                client_idx = idx,
-            )
-            for idx, message in enumerate(chat_messages)
-        ])
+        chat_context = response.get('chat_context')
+        references = response.get('references')
 
-        context = [
-            evidence
-            for group in context_groups
-            for evidence in group
-        ]
-
-        return sorted(
-            context,
-            key = lambda evidence: evidence.relevance_score,
-            reverse = True,
-        )[:max_results]
+        return chat_context, references
 
 
     async def extract_file_evidence(
         self,
         query          : str,
-        files          : list[str],
-        max_file_chunks: int,
-        file_searcher  : Callable[[str, str, int], Awaitable[list[RetrievedChunk] | None]] | None,
+        file           : str,
+        file_search_limit: int,
     ) -> list[Evidence]:
 
-        if not files:
-            return []
+        print("Came Here.....")
+        
 
-        if file_searcher is None:
-            self.logger.error("File Searcher Not Found")
-            return []
-
-        file_evidence: list[Evidence] = []
-
-        for file in files:
-            documents = await file_searcher(query, file, max_file_chunks)
-            if not documents:
-                continue
-
-            result: EvidenceResult = await self.call_llm_schema(
-                task = AgentTasks.FI.value,
-                prompt_vars = {
-                    "query": query,
-                    "documents": documents,
-                    "resource": self.get_resource_name(file = file),
-                },
-                schema = EvidenceResult,
-            )
-
-            if result is None or result.need_additional_info:
-                continue
-
-            file_evidence.extend(result.evidence)
-
-        return file_evidence
-
-
-    async def extract_web_evidence(
-        self,
-        query: str,
-        search_web: bool,
-        max_web_results: int,
-    ) -> list[Evidence]:
-
-        if not search_web:
-            return []
-
-        websearch_results = self.get_tavily_search_results(
-            query = query,
-            max_results = max_web_results,
+        documents = await self.search_file(
+            query = query, 
+            file_id = get_file_id(file),
+            retrieve_limit = file_search_limit
         )
 
-        if not websearch_results:
-            self.logger.error(f"Error Searching the Web. Search Results: {websearch_results}")
+        print(documents)
+
+        return
+
+
+        if not documents:
             return []
 
         result: EvidenceResult = await self.call_llm_schema(
-            task = AgentTasks.SI.value,
+            task = AgentTasks.FI.value,
             prompt_vars = {
                 "query": query,
-                "websearch_results": websearch_results,
+                "documents": documents,
+                "resource": self.get_resource_name(file = file),
             },
             schema = EvidenceResult,
         )
 
         if result is None or result.need_additional_info:
-            self.logger.error(f"Error Extracting Web Evidence. Search Results: {result}")
             return []
 
         return result.evidence
 
 
-    async def search(
-        self,
-        query          : str,
-        files          : list[str],
-        file_searcher  : Callable[[str, str, int], Awaitable[list[RetrievedChunk] | None]] | None,
-        search_web     : bool,
-        max_file_chunks: int = 5,
-        max_web_results: int = 5,
-    ) -> list[Evidence]:
+    # async def extract_files_evidence(
+    #     self,
+    #     query            : str,
+    #     files            : list[str],
+    #     file_search_limit: int,
+    # ) -> list[Evidence]:
 
-        evidence: list[Evidence] = []
+    #     if not files:
+    #         return []
 
-        file_evidence = await self.extract_file_evidence(
-            query = query,
-            files = files,
-            max_file_chunks = max_file_chunks,
-            file_searcher = file_searcher,
-        )
 
-        evidence.extend(file_evidence)
+    #     file_results = await asyncio.gather(*[
+    #         self.extract_single_file_evidence(
+    #             query = query,
+    #             file = file,
+    #             max_file_chunks = file_search_limit,
+    #             file_searcher = file_searcher,
+    #         )
+    #         for file in files
+    #     ])
 
-        web_evidence = await self.extract_web_evidence(
-            query = query,
-            search_web = search_web,
-            max_web_results = max_web_results,
-        )
+    #     return [
+    #         evidence
+    #         for file_evidence in file_results
+    #         for evidence in file_evidence
+    #     ]
 
-        evidence.extend(web_evidence)
 
-        return evidence
+    # async def extract_web_evidence(
+    #     self,
+    #     query: str,
+    #     search_web: bool,
+    #     max_web_results: int,
+    # ) -> list[Evidence]:
+
+    #     if not search_web:
+    #         return []
+
+    #     websearch_results = self.get_tavily_search_results(
+    #         query = query,
+    #         max_results = max_web_results,
+    #     )
+
+    #     if not websearch_results:
+    #         self.logger.error(f"Error Searching the Web. Search Results: {websearch_results}")
+    #         return []
+
+    #     result: EvidenceResult = await self.call_llm_schema(
+    #         task = AgentTasks.SI.value,
+    #         prompt_vars = {
+    #             "query": query,
+    #             "websearch_results": websearch_results,
+    #         },
+    #         schema = EvidenceResult,
+    #     )
+
+    #     if result is None or result.need_additional_info:
+    #         self.logger.error(f"Error Extracting Web Evidence. Search Results: {result}")
+    #         return []
+
+    #     return result.evidence
+
+
+    # async def search(
+    #     self,
+    #     query          : str,
+    #     files          : list[str],
+    #     file_search_limit: int,
+    #     web_search_limit: int,
+    # ) -> list[Evidence]:
+
+    #     file_evidence, web_evidence = await asyncio.gather(
+    #         self.extract_file_evidence(
+    #             query = query,
+    #             files = files,
+    #             max_file_chunks = max_file_chunks,
+    #             file_searcher = file_searcher,
+    #         ),
+    #         self.extract_web_evidence(
+    #             query = query,
+    #             search_web = search_web,
+    #             max_web_results = max_web_results,
+    #         ),
+    #     )
+
+    #     return [
+    #         *file_evidence,
+    #         *web_evidence,
+    #     ]
 
 
     async def generate_final_report(
@@ -554,15 +428,23 @@ class ChatController(BaseController):
 
         evidence = [
             evidence.model_dump()
-            for evidence in [*agent_state.chat_context, *agent_state.search_results]
+            for evidence in agent_state.search_results
+        ]
+
+        chat_context = [
+            context.model_dump()
+            for context in agent_state.chat_context
         ]
 
         return await self.call_llm_schema(
             task = AgentTasks.RG.value,
             prompt_vars = {
-                "query": agent_state.user_query,
+                "query": agent_state.enriched_query or agent_state.user_query,
                 "user_requirements": agent_state.requirements,
+                "chat_context": chat_context,
                 "evidence": evidence,
+                "answer_mode": agent_state.answer_mode,
+                "final_tone": agent_state.final_tone,
             },
             schema = FinalReportResult,
         )
@@ -571,90 +453,208 @@ class ChatController(BaseController):
     # ---------------------------------------- Final Driver Function ---------------------------------------- #
     async def answer_user_query(
         self,
-        query          : str,
-        files          : list[str] | None = None,
-        retrieve_limit : int = 5,
-        search_online  : bool = False,
-        file_searcher  : Callable[[str, str, int], Awaitable[list[RetrievedChunk] | None]] | None = None,
-        chat_messages  : list[dict] | None = None,
-        max_web_results: int = 5,
-        max_steps      : int = 8,
+        user_query: str,
+        chat_cfg : ChatCFG,
+
+        files         : list[str] | None = None,
+        chat_messages : list[str] | None = None,
+
+        stage_callback  : Callable[[str], Awaitable[None]] | None = None,
     ) -> dict | None:
 
         files = files or []
         chat_messages = chat_messages or []
-        agent_state = AgentState(user_query = query)
+        run_steps: list[dict[str, Any]] = []
 
-        for _ in range(max_steps):
+
+        agent_state = AgentState(max_search_limit = chat_cfg.max_search_limit)
+
+        from helpers.functional import print_title
+        from pprint import pprint
+        while(True):
+            print_title(f"Step #{agent_state.total_completed_agentic_steps + 1}")
+            
             next_action = await self.get_next_action(
+                user_query = user_query,
                 agent_state = agent_state,
-                files = files,
-                search_web = search_online,
-                max_file_chunks = retrieve_limit,
-                max_web_results = max_web_results,
-                chat_messages = chat_messages,
             )
 
             action, arguments = self.parse_action(next_action)
 
-            if action == "finish":
+            print(f"Next Action:")
+            pprint(next_action.model_dump(), indent = 2)
+            print()
+            
+
+            print("Results:")
+
+            if action == 'get_chat_context':
+                chat_context, references = await self.get_chat_context(
+                    user_query = user_query,
+                    chat_messages = chat_messages,
+                )
+
+                agent_state.chat_context = chat_context
+                agent_state.references = references
+
+                print("Chat Context:")
+                pprint(chat_context)
+
+                print("References:")
+                pprint(references)
+
+
+            elif action == 'search':
+                self.extract_file_evidence(
+                    query = user_query,
+                    file = files[0],
+                    file_search_limit = chat_cfg.file_search_limit
+                )
+    
+            else:
                 break
 
-            if action == "understand_user_query":
-                agent_state.requirements = await self.understand_user_query(
-                    query = arguments.get("query", query),
-                )
 
-            elif action == "get_chat_context":
-                agent_state.chat_context = await self.get_chat_context(
-                    query = arguments.get("query", query),
-                    chat_messages = chat_messages,
-                    max_results = arguments.get("max_results", 5),
-                )
+        #     step_started = time.perf_counter()
+        #     step_input = {
+        #         "action": action,
+        #         "reason": next_action.reason,
+        #         "arguments": arguments,
+        #         "state": agent_state.model_dump(),
+        #     }
+        #     step_output: dict[str, Any] = {}
 
-            elif action == "search":
-                selected_files = [
-                    file
-                    for file in arguments.get("files", [])
-                    if file in files
-                ] or files
+        #     if stage_callback is not None:
+        #         await stage_callback(action)
 
-                agent_state.search_results = await self.search(
-                    query = arguments.get("query", query),
-                    files = selected_files,
-                    file_searcher = file_searcher,
-                    search_web = search_online and bool(arguments.get("search_web", search_online)),
-                    max_file_chunks = arguments.get("max_file_chunks", retrieve_limit),
-                    max_web_results = arguments.get("max_web_results", max_web_results),
-                )
+        #     if action == "finish":
+        #         if agent_state.final_report:
+        #             run_steps.append({
+        #                 "name": action,
+        #                 "input": step_input,
+        #                 "output": {"finished": True},
+        #                 "duration_ms": round((time.perf_counter() - step_started) * 1000, 2),
+        #             })
+        #             break
 
-            elif action == "generate_final_report":
-                final_report = await self.generate_final_report(agent_state = agent_state)
-                if final_report is None:
-                    return None
+        #         continue
 
-                agent_state.final_report = final_report.report
-                agent_state.llm_resources = final_report.resources
 
-            else:
-                self.logger.error(f"Invalid Agent Action: {action}")
-                return None
 
-            agent_state.completed_steps.append({
-                "action": action,
-                "reason": next_action.reason,
-            })
 
-        if not agent_state.final_report:
-            final_report = await self.generate_final_report(agent_state = agent_state)
-            if final_report is None:
-                return None
 
-            agent_state.final_report = final_report.report
-            agent_state.llm_resources = final_report.resources
+        #         if context_item is not None:
+        #             agent_state.chat_context.append(context_item)
 
-        return {
-            "report": agent_state.final_report,
-            "llm_resources": agent_state.llm_resources,
-            "state": agent_state.model_dump(),
-        }
+        #         agent_state.chat_context_reads += 1
+        #         agent_state.chat_context_checked = (
+        #             bool(agent_state.chat_context)
+        #             or agent_state.chat_context_reads >= min(len(chat_messages), 6)
+        #         )
+     
+        #         step_output = {
+        #             "chat_context": [
+        #                 context.model_dump()
+        #                 for context in agent_state.chat_context
+        #             ],
+        #             "enriched_query": agent_state.enriched_query,
+        #             "reads": agent_state.chat_context_reads,
+        #             "checked": agent_state.chat_context_checked,
+        #         }
+
+
+
+        #         agent_state.answer_found = answer_check.answer_found
+        #         agent_state.answer_check_reason = answer_check.reason
+        #         agent_state.final_report_checked = bool(agent_state.final_report)
+
+        #         if answer_check.suggested_query:
+        #             agent_state.enriched_query = answer_check.suggested_query
+        #         step_output = answer_check.model_dump()
+
+        #     elif action == "search":
+        #         if agent_state.search_attempts >= max_search_steps:
+        #             continue
+
+        #         search_results = await self.search(
+        #             query = arguments.get("query", agent_state.enriched_query or query),
+        #             files = arguments.get("files", []),
+        #             file_searcher = file_searcher,
+        #             search_web = bool(arguments.get("search_web", False)),
+        #             max_file_chunks = arguments.get("max_file_chunks", retrieve_limit),
+        #             max_web_results = arguments.get("max_web_results", max_web_results),
+        #         )
+
+        #         agent_state.search_results.extend(search_results)
+        #         agent_state.search_attempts += 1
+        #         agent_state.answer_found = None
+        #         agent_state.final_report_checked = False
+        #         step_output = {
+        #             "search_results": [
+        #                 evidence.model_dump()
+        #                 for evidence in search_results
+        #             ],
+        #         }
+
+        #     elif action == "generate_final_report":
+        #         agent_state.answer_mode = arguments.get("answer_mode", "grounded")
+        #         agent_state.final_tone = arguments.get("final_tone", "technical")
+
+        #         final_report = await self.generate_final_report(agent_state = agent_state)
+        #         if final_report is None:
+        #             return None
+
+        #         agent_state.final_report = final_report.report
+        #         agent_state.llm_resources = final_report.resources
+        #         agent_state.answer_found = None
+        #         agent_state.final_report_checked = False
+        #         step_output = final_report.model_dump()
+
+        #     else:
+        #         self.logger.error(f"Invalid Agent Action: {action}")
+        #         return None
+
+        #     run_steps.append({
+        #         "name": action,
+        #         "input": step_input,
+        #         "output": step_output,
+        #         "duration_ms": round((time.perf_counter() - step_started) * 1000, 2),
+        #     })
+
+        #     agent_state.total_completed_steps.append({
+        #         "action": action,
+        #         "reason": next_action.reason,
+        #         "arguments": arguments,
+        #     })
+
+        #     if agent_state.final_report and agent_state.final_report_checked and agent_state.answer_found:
+        #         break
+
+        # if not agent_state.final_report:
+        #     step_started = time.perf_counter()
+        #     if stage_callback is not None:
+        #         await stage_callback("generate_final_report")
+
+        #     agent_state.answer_mode = "direct" if not agent_state.search_results else "grounded"
+        #     final_report = await self.generate_final_report(agent_state = agent_state)
+        #     if final_report is None:
+        #         return None
+
+        #     agent_state.final_report = final_report.report
+        #     agent_state.llm_resources = final_report.resources
+        #     run_steps.append({
+        #         "name": "generate_final_report",
+        #         "input": {
+        #             "fallback": True,
+        #             "state": agent_state.model_dump(),
+        #         },
+        #         "output": final_report.model_dump(),
+        #         "duration_ms": round((time.perf_counter() - step_started) * 1000, 2),
+        #     })
+
+        # return {
+        #     "report": agent_state.final_report,
+        #     "llm_resources": agent_state.llm_resources,
+        #     "state": agent_state.model_dump(),
+        #     "steps": run_steps,
+        # }

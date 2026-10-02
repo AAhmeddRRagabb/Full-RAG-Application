@@ -48,6 +48,8 @@
 
                         <!-- query form -->
                         <form class="query-form" id="queryForm">
+                            <p class="run-status" aria-live="polite"></p>
+
                             <textarea
                                 id="queryArea"
                                 name="query"
@@ -55,6 +57,10 @@
                                 placeholder="Ask a question..."
                                 required
                             ></textarea>
+
+                            <button type="button" class="query-cancel-btn" aria-label="Stop waiting for response" hidden>
+                                <i class="fa-solid fa-stop"></i>
+                            </button>
 
                             <button type="submit" class="query-form_submit-btn" aria-label="Send message">
                                 <i class="fa-solid fa-arrow-up-long"></i>
@@ -80,7 +86,7 @@
                 </button>
             </div>
 
-            <p class="welcome-message" aria-live="polite">Welcome Visitor</p>
+            <p class="welcome-message" aria-live="polite">Welcome User</p>
 
             <div class="profile-actions">
                 <button type="button" class="login" id="login">Log In</button>
@@ -206,50 +212,49 @@
                     <form class="file-list" aria-label="Uploaded files"></form>
                 </div>
 
-                <div class="settings-card search-control">
+                <!-- tone settings -->
+                <div class="settings-card option-control">
                     <div>
-                        <h4>Search online</h4>
-                        <p>Allow web context for this chat.</p>
+                        <h4>Tone</h4>
+                        <p>Choose how the answer should sound.</p>
                     </div>
 
-                    <button type="button" class="icon-button search-online-btn" aria-label="Toggle web context" aria-pressed="false">
-                        <i class="fa-solid fa-magnifying-glass"></i>
-                    </button>
+                    <div class="settings-options" role="radiogroup" aria-label="Chat tone">
+                        <label>
+                            <input type="radio" name="chatTone" value="technical" checked>
+                            <span>Technical</span>
+                        </label>
+
+                        <label>
+                            <input type="radio" name="chatTone" value="creative">
+                            <span>Creative</span>
+                        </label>
+                    </div>
                 </div>
 
-            </div>
+                <!-- depth settings -->
+                <div class="settings-card option-control">
+                    <div>
+                        <h4>Depth</h4>
+                        <p>Set how much detail to include.</p>
+                    </div>
 
-            <!-- tone settings -->
-            <div class="chat-tone">
-                <div class="settings-section_header">
-                    <h3>Tone</h3>
-                    <p>Choose how this chat should answer.</p>
-                </div>
+                    <div class="settings-options three-options" role="radiogroup" aria-label="Answer depth">
+                        <label>
+                            <input type="radio" name="answerDepth" value="low">
+                            <span>Low</span>
+                        </label>
 
-                <div class="tone-options" role="radiogroup" aria-label="Chat tone">
-                    <button type="button" class="tone-option selected" data-tone="technical" aria-pressed="true">Technical</button>
-                    <button type="button" class="tone-option" data-tone="creative" aria-pressed="false">Creative</button>
-                    <button type="button" class="tone-option" data-tone="custom" aria-pressed="false">Custom</button>
-                </div>
+                        <label>
+                            <input type="radio" name="answerDepth" value="moderate" checked>
+                            <span>Moderate</span>
+                        </label>
 
-                <div class="custom-configurations" aria-label="Custom model settings">
-                    <label>
-                        Temperature
-                        <input type="range" class="config-input" data-config-key="temperature" min="0" max="2" step="0.1" value="0.7">
-                        <output>0.7</output>
-                    </label>
-
-                    <label>
-                        Max tokens
-                        <input type="range" class="config-input" data-config-key="max_tokens" min="256" max="4096" step="256" value="1024">
-                        <output>1024</output>
-                    </label>
-
-                    <label>
-                        Top P
-                        <input type="range" class="config-input" data-config-key="top_p" min="0.1" max="1" step="0.1" value="0.9">
-                        <output>0.9</output>
-                    </label>
+                        <label>
+                            <input type="radio" name="answerDepth" value="high">
+                            <span>High</span>
+                        </label>
+                    </div>
                 </div>
 
             </div>

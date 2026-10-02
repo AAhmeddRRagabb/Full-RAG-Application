@@ -20,6 +20,7 @@ FILE_CHUNK_SIZE_B = 512 * 1024
 FILE_MAX_SIZE_MB = 10
 
 
+
 class Settings(BaseSettings):
     # ----------------------------- APP CGs ------------------------------- #
     APP_NAME: str
@@ -44,6 +45,7 @@ class Settings(BaseSettings):
 
     TAVILY_API_KEY: str
 
+    DATABASE_URL: str
     # -------------------------- LLMs Config ----------------------------- #
     EMBEDDING_MODEL_ID: str
 
@@ -59,14 +61,14 @@ class Settings(BaseSettings):
     DEFAULT_LANGUAGE: str
 
 
-    QUERY_UNDERSTANDING_BACKEND: str
+    CHAT_CONTEXT_BACKEND: str
     FILES_INFORMATION_EXTRACTION_BACKEND: str
     SEARCH_INFORMATION_EXTRACTION_BACKEND: str
     FINAL_REPORT_GENERATION_BACKEND: str
     ORCHESTRATION_BACKEND: str
     EMBEDDING_BACKEND: str
 
-    QUERY_UNDERSTANDING_AGENT: str
+    CHAT_CONTEXT_AGENT: str
     FILES_INFORMATION_EXTRACTION_AGENT: str
     SEARCH_INFORMATION_EXTRACTION_AGENT: str
     FINAL_REPORT_GENERATION_AGENT: str

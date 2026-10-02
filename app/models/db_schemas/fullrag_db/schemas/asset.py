@@ -13,6 +13,8 @@ class Asset(SQLAlchemyBase):
     asset_id   = Column(Integer, primary_key = True, autoincrement = True)
     asset_name = Column(String, nullable = False)
     asset_type = Column(String, nullable = False, default = 'file')
+    asset_status = Column(String, default = 'processing', nullable = False)
+    asset_fail_error = Column(String, nullable = True)
     asset_metadata = Column(
         JSONB, # binary json: fast in reading [data alreay in binary]
         nullable = True
