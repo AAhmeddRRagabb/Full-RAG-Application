@@ -1,10 +1,7 @@
-
 from .fullrag_base import SQLAlchemyBase
-import uuid
 
-from sqlalchemy import Column, Integer, String, ForeignKey, Index
+from sqlalchemy import Column, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
-from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 class Chat(SQLAlchemyBase):
     __tablename__ = 'chats'

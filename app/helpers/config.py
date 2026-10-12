@@ -4,8 +4,6 @@
 from pydantic_settings import BaseSettings
 from pydantic import SecretStr
 
-from typing import List, Literal
-
 
 # Routes
 APP_ROUTES_ROOT_PATH = "/api/v1"

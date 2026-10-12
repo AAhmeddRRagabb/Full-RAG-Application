@@ -5,55 +5,26 @@
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.requests import Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from app_core.lifespan import lifespan
-# from app_core.metrics import setup_metrics
 from helpers.config import get_settings
+from routes.app import auth_router, chat_router, data_router
 
 
 app = FastAPI(lifespan = lifespan)
-# setup_metrics(app=app)
 
 BASE_DIR = Path(__file__).resolve().parent
 settings = get_settings()
 templates = Jinja2Templates(directory = BASE_DIR / "templates")
-
-
-
-# routes
-from routes.app import auth_router
-from routes.app import chat_router
-from routes.app import data_router
 
 app.mount(
     "/static",
     StaticFiles(directory=BASE_DIR / "static"),
     name = "static",
 )
-
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=[
-#         settings.FRONTEND_ORIGIN,
-#     ],
-#     allow_credentials=True,
-#     allow_methods=[
-#         "GET",
-#         "POST",
-#         "PUT",
-#         "PATCH",
-#         "DELETE",
-#         "OPTIONS",
-#     ],
-#     allow_headers=[
-#         "Content-Type",
-#         "X-CSRF-Token",
-#     ],
-# )
 
 
 def render_app(request: Request, page_title: str | None = None):
@@ -84,6 +55,3 @@ def chat_page(request: Request, user_slug: str, chat_slug: str):
         request = request,
         page_title = chat_slug.replace("-", " ").title(),
     )
-
-
-# app.include_router(router=base_router)

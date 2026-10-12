@@ -1,6 +1,5 @@
-import os
 import logging
-from models.enums import ResponsesEnum
+import os
 
 
 class PromptTemplateParser:

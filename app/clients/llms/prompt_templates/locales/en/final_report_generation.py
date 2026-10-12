@@ -13,7 +13,7 @@ Write the final answer using the given evidence.
 - If final_tone is technical, focus on retrieved facts and knowledge, and report them professionally.
 - If final_tone is creative, keep the facts accurate but write in a warmer, friendlier chat style.
 - If answer_mode is grounded and evidence is insufficient, say what is missing.
-- The report should answer the user directly. Do not mention internal chunk numbers.
+- The report should answer the user directly. Do not mention internal chunk numbers or labels like "Evidence #1" or "Evidence #2".
 - Return only resources that directly support the answer.
 
 ## Response Format:
@@ -26,7 +26,17 @@ Return valid JSON only:
 
 
 # documents summarization
-def task_prompt(query: str, user_requirements: list[str], evidence: list[dict], answer_mode: str = "grounded", final_tone: str = "technical", chat_context: list[dict] | None = None) -> str:
+def task_prompt(
+    query: str,
+    user_requirements: list[str],
+    evidence: list[dict],
+    answer_mode: str = "grounded",
+    final_tone: str = "technical",
+    chat_context: list[dict] | None = None,
+    current_date: str | None = None,
+    current_year: int | None = None,
+    calculator_result: str | None = None,
+) -> str:
     evidence = list(evidence or [])
 
     evidence_str = "## Evidence:\n\n"
@@ -35,7 +45,7 @@ def task_prompt(query: str, user_requirements: list[str], evidence: list[dict], 
     else:
         for idx, item in enumerate(evidence, start = 1):
             evidence_str += (
-                f"### Evidence #{idx}\n"
+                f"### Source Item {idx}\n"
                 f"- Resource: {item.get('resource')}\n"
                 f"- Relevance Score: {item.get('relevance_score')}\n"
                 f"- Content: {item.get('content')}\n\n"
@@ -45,12 +55,20 @@ def task_prompt(query: str, user_requirements: list[str], evidence: list[dict], 
     for req in user_requirements:
         user_requirements_str += f"- {req}\n"
     
+    utility_context = []
+    if current_date:
+        utility_context.append(f"- Current Date: {current_date}")
+    if current_year:
+        utility_context.append(f"- Current Year: {current_year}")
+    if calculator_result:
+        utility_context.append(f"- Calculator Result: {calculator_result}")
 
     return "\n".join([
         f"## User Query:\n{query}",
         f"## Answer Mode:\n{answer_mode}",
         f"## Final Tone:\n{final_tone}",
         f"## User Requirements:\n{user_requirements_str}",
+        f"## Utility Context:\n{chr(10).join(utility_context) if utility_context else 'No utility context.'}",
         evidence_str,
         "Return the JSON now:"
     ])

@@ -20,6 +20,30 @@ AGENTIC_TOOLS = {
         },
     ),
 
+    "get_current_date": ToolDefinition(
+        name = "get_current_date",
+        description = "Get the current date and year from the server clock. Use this for current/latest/recent/time-sensitive questions.",
+        parameters = {},
+        returns = {
+            "current_date": {"type": "string"},
+            "current_year": {"type": "integer"},
+        },
+    ),
+
+    "calculator": ToolDefinition(
+        name = "calculator",
+        description = "Evaluate a deterministic arithmetic expression.",
+        parameters = {
+            "expression": {
+                "type": "string",
+                "description": "Arithmetic expression to evaluate.",
+            },
+        },
+        returns = {
+            "result": {"type": "string"},
+        },
+    ),
+
     "search": ToolDefinition(
         name = "search",
         description = "Search selected files and the web using the orchestrator-provided research query.",
@@ -46,7 +70,7 @@ AGENTIC_TOOLS = {
 
     "generate_final_report": ToolDefinition(
         name = "generate_final_report",
-        description = "Generate the final answer from the orchestrator-selected query and current search results.",
+        description = "Generate the final answer. It may answer directly when search evidence is not needed.",
         parameters = {
             "query": {
                 "type": "string",

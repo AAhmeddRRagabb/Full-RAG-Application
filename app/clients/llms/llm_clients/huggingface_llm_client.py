@@ -4,7 +4,6 @@ from clients.llms.config import (
     LLMsHuggingfaceEmbeddingQueryTypes,
     LLMsGenerationMessageTypes,
 )
-from models.enums import ResponsesEnum
 
 import numpy as np
 from .base_llm_client import BaseLLMClient

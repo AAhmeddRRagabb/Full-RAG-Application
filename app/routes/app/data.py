@@ -1,56 +1,35 @@
-# ------------------------------------------------------
-# User data routes
-# ------------------------------------------------------
-
-# utils
-from helpers.config import get_settings
-from sqlalchemy.orm import sessionmaker
-
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-
-engine = create_async_engine(get_settings().DATABASE_URL)
-
-local_db_client = sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
-
-
+import logging
 import os
 from typing import Annotated
-import logging
-import helpers.config as CFG
-logger = logging.getLogger("uvicorn.error")
 
-from helpers.functional import log_title, raise_internal_server_error
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
+from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 
-# fastapi
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status, BackgroundTasks
 from app_core.dependecies.auth import require_authentication
-from app_core.dependecies.clients import get_db_client, get_embedding_client, get_vector_db_client
-
-
-# clients
-from clients.llms.llm_clients import HuggingfaceLLMClient, GoogleLLMClient
+from app_core.dependecies.clients import get_db_client, get_embedding_client, get_redis, get_vector_db_client
+from app_core.dependecies.rate_limit import check_rate_limit
+from clients.llms.llm_clients import GoogleLLMClient, HuggingfaceLLMClient
 from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
-from sqlalchemy.ext.asyncio import AsyncSession
-
-# controllers
-from controllers import DataController
-from controllers import VectorDBController
-from controllers import UserController
-
-# models
+from controllers import DataController, UserController, VectorDBController
+from helpers import config as CFG
+from helpers.config import get_settings
+from helpers.functional import log_title, raise_internal_server_error
 from models.db_objects_models import AssetModel, ChunkModel
 from models.db_schemas import Asset, DataChunk, User
 from models.enums import AssetTypesEnum, ResponsesEnum
 from models.system_schemas import AuthContext
 
 
-from redis.asyncio import Redis
-from app_core.dependecies.rate_limit import check_rate_limit
-from app_core.dependecies.clients import get_redis
+logger = logging.getLogger("uvicorn.error")
+
+engine = create_async_engine(get_settings().DATABASE_URL)
+local_db_client = sessionmaker(
+    bind = engine,
+    class_ = AsyncSession,
+    expire_on_commit = False,
+)
 
 data_router = APIRouter(
     prefix = CFG.DATA_ROUTES_PATH,

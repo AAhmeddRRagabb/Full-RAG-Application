@@ -1,5 +1,4 @@
 from clients.llms.config import LLMsGenerationMessageTypes
-from models.enums import ResponsesEnum
 
 from .base_llm_client import BaseLLMClient
 from groq import Groq

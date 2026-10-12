@@ -1,9 +1,6 @@
-# -------------------------------------------------------
-# Building a Base Model to store/load/act on database 
-# -------------------------------------------------------
-from typing import Any
-from helpers.config import get_settings
 import logging
+
+from helpers.config import get_settings
 
 class BaseObjModel:
     def __init__(self, db_client: object):

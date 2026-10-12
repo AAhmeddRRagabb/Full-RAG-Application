@@ -7,7 +7,6 @@ from clients.llms.config import (
     LLMsEmbeddingModels,
     LLMsGenerationMessageTypes,
 )
-from models.enums import ResponsesEnum
 
 from google.genai import Client
 from google.genai.types import (

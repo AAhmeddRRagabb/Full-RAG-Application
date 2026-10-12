@@ -1,30 +1,24 @@
 
-# utils
-from helpers.config import get_settings, Settings
-from helpers.functional import print_title, print_success_message
 import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from redis.asyncio import Redis
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 from tavily import TavilyClient
+
+from clients.llms import LLMAgentFactory
+from clients.llms.config import AgentTasks, PromptTypes
+from clients.llms.prompt_templates import PromptTemplateParser
+from clients.vector_dbs import VectorDBFactory
+from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
+from helpers.config import get_settings
+from helpers.functional import print_success_message, print_title
 
 
 logger = logging.getLogger('uvicorn')
-
-# fastapi
-from fastapi import FastAPI
-from contextlib import asynccontextmanager
-
-# clients
-from clients.llms import LLMAgentFactory
-from clients.llms.prompt_templates import PromptTemplateParser
-from clients.llms.config import AgentTasks, PromptTypes
-
-from clients.vector_dbs import VectorDBFactory
-from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
-from redis.asyncio import Redis
-
-# sql-alchemy
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
 
 
 @asynccontextmanager

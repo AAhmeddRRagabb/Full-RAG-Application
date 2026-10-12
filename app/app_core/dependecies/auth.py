@@ -1,40 +1,23 @@
-
-
-# utils
 from datetime import datetime, timezone
 from typing import Annotated
+
+from fastapi import Depends, Header, HTTPException, Request, status
 from pydantic import ValidationError
-from helpers.config import get_settings
-
-
-from fastapi import (
-    Depends,
-    Header,
-    HTTPException,
-    Request,
-    status,
-)
-
-from app_core.dependecies.clients import get_redis, get_db_client
-
-# clients
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-# models
+from app_core.dependecies.clients import get_db_client, get_redis
+from helpers.config import get_settings
+from models.db_objects_models import UserModel
 from models.db_schemas.redis_data import SessionData
 from models.system_schemas import AuthContext
-from models.db_objects_models import UserModel
-
-# security
-from security.session_management import hash_session_token
 from security.csrf import verify_csrf_token
-from security.session_management import build_redis_session_key, build_redis_user_version_key
-
-
-
+from security.session_management import (
+    build_redis_session_key,
+    build_redis_user_version_key,
+    hash_session_token,
+)
 
 
 

@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends
-from fastapi.requests import Request
 import helpers.config as CFG
 
 

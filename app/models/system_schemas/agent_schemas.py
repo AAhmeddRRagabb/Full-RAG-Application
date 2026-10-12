@@ -33,6 +33,13 @@ class ReportCompatibilityResult(BaseModel):
 
 
 class AgentState(BaseModel):
+    current_date: str | None = None
+    current_year: int | None = None
+    has_current_date: bool = False
+
+    calculator_result: str | None = None
+    has_calculator_result: bool = False
+
     chat_context: list[str] | None = None
     references: list[dict] | None = None
     has_chat_context: bool = False
@@ -60,6 +67,8 @@ class NextAction(BaseModel):
     reason: str
     action: Literal[
         'get_chat_context',
+        'get_current_date',
+        'calculator',
         'search',
         'check_answer',
         'generate_final_report',

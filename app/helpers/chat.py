@@ -1,7 +1,11 @@
 
+import time
+from asyncio import Queue
 
-from models.request_schemas.chat import ChatPublic, MessagePublic
+from pydantic import BaseModel
+
 from models.db_schemas import Chat, Message
+from models.request_schemas.chat import ChatPublic, MessagePublic
 
 
 
@@ -12,17 +16,12 @@ def get_file_name(file: str) -> str:
 def get_file_id(file: str) -> int:
     return int(file.split("_")[0])
 
-
-
-import time
 def calc_run_time_s(start_time: float) -> float:
     end_time = time.perf_counter()
     run_time = round((end_time - start_time), 2)
 
     return run_time
 
-
-from pydantic import BaseModel
 class ChatCFG(BaseModel):
     chat_tone: str
     file_search_limit: int
@@ -82,10 +81,6 @@ def get_messages_content(messages: list[Message], chat_context_limit: int = 5) -
         for m in reversed(sorted_messages[:chat_context_limit])
     ] # get latest => then re-order
 
-
-# -------- Stage Messages -------- #
-
-from asyncio import Queue
 
 async def emit(queue: Queue, message: str) -> None:
     if message.lower() == 'finish':

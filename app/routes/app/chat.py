@@ -1,44 +1,16 @@
-# ------------------------------------------------------
-# Implementing the routes related to the NLP workflows
-# -------------------------------------------------------
-
-# utils
 import asyncio
 import json
 import logging
 import time
-logger = logging.getLogger("uvicorn")
+from typing import Annotated, Any
 
-import helpers.config as CFG
-from helpers.functional import raise_internal_server_error
-from typing import Annotated, Any, Awaitable, Callable
-
-
-# controllers
-from controllers import VectorDBController
-from controllers import ChatController
-
-# fastapi utils
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi import status
 from fastapi.responses import StreamingResponse
-
-# models & schemas
-from models.db_objects_models import AssetModel, ChatModel, ChunkModel, RunModel
-from models.system_schemas import AuthContext
-from models.db_schemas import Chat, Message, Run, RunStep, User
-from models.request_schemas.chat import ChatRequest
-
-
-# clients
-from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
-from clients.llms.llm_clients import HuggingfaceLLMClient, GoogleLLMClient, GroqLLMClient
-from clients.llms.prompt_templates import PromptTemplateParser
-from sqlalchemy.ext.asyncio import AsyncSession
-from redis.asyncio import Redis
 from tavily import TavilyClient
+from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# dependecies
 from app_core.dependecies.auth import require_authentication, require_csrf
 from app_core.dependecies.clients import (
     get_redis,
@@ -50,8 +22,28 @@ from app_core.dependecies.clients import (
     get_tavily_client
 )
 from app_core.dependecies.rate_limit import check_rate_limit
+from clients.llms.llm_clients import GoogleLLMClient, GroqLLMClient, HuggingfaceLLMClient
+from clients.llms.prompt_templates import PromptTemplateParser
+from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
+from controllers import ChatController, VectorDBController
+from helpers import config as CFG
+from helpers.chat import (
+    build_public_chat,
+    build_public_message,
+    calc_run_time_s,
+    emit,
+    get_chat_cfg,
+    get_file_name,
+    get_messages_content,
+)
+from helpers.functional import raise_internal_server_error
+from models.db_objects_models import AssetModel, ChatModel, ChunkModel, RunModel
+from models.db_schemas import Chat, Message, Run, RunStep, User
+from models.request_schemas.chat import ChatRequest
+from models.system_schemas import AuthContext
 
 
+logger = logging.getLogger("uvicorn")
 
 chat_router = APIRouter(
     prefix = CFG.CHAT_ROUTER_PATH,
@@ -60,20 +52,6 @@ chat_router = APIRouter(
 
 
 PARSING_QUERY_MESSAGE = "Parsing Query..."
-THINKING_MESSAGE = "Thinking..."
-GENERATING_RESPONSE_MESSAGE = "Generating Final Response..."
-FINISH_MESSAGE = "Finish"
-
-
-from helpers.chat import (
-    get_chat_cfg,
-    build_public_chat,
-    build_public_message,
-    get_file_name,
-    calc_run_time_s,
-    get_messages_content,
-    emit
-)
 
 
 # ------------------------- Accessing Chats / messages ---------------------------------- #
@@ -250,27 +228,6 @@ def stream_event(payload: dict[str, Any]) -> str:
     return json.dumps(payload, default = str) + "\n"
 
 
-
-
-
-def log_detached_task_failure(task: asyncio.Task) -> None:
-    try:
-        exception = task.exception()
-    except asyncio.CancelledError:
-        return None
-
-    if exception:
-        logger.error(
-            "Detached chat run failed",
-            exc_info = (type(exception), exception, exception.__traceback__),
-        )
-
-
-# logic should be:-
-# ---> understand query with chat context
-# ---> Search for answers [basic - moderate - advanced] searches
-# ---> generate answer
-
 async def run_chat_request(
     request     : Request,
     chat_request: ChatRequest,
@@ -292,7 +249,6 @@ async def run_chat_request(
 
     user: User = auth.user
     user_uuid  = user.user_uuid
-    user_key   = user_uuid.hex
 
     query   = chat_request.query
     chat_id = chat_request.chat_id
@@ -474,11 +430,7 @@ async def stream_chat_will_llm(
     prompt_template_parser: Annotated[PromptTemplateParser, Depends(get_prompt_template_parser)],
     tavily_client         : Annotated[TavilyClient, Depends(get_tavily_client)],
 ):
-
-    
     queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
-    last_stage_message: str | None = None
-
 
     async def produce() -> None:
         try:
@@ -516,43 +468,23 @@ async def stream_chat_will_llm(
             await queue.put(None)
 
     async def events():
-        nonlocal last_stage_message
+        asyncio.create_task(produce())
 
-        task = asyncio.create_task(produce())
-        task.add_done_callback(log_detached_task_failure)
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
 
-        try:
-            yield stream_event({
-                "type": "stage",
-                "message": last_stage_message,
-            })
-
-            while True:
-                item = await queue.get()
-                if item is None:
-                    break
-
-                if item.get("type") == "result":
-                    data = item["data"]
-                    report = data.get("report") or ""
-
-                    for token in report.split(" "):
-                        if token:
-                            yield stream_event({
-                                "type": "token",
-                                "value": f"{token} ",
-                            })
-
-                    yield stream_event({
-                        "type": "done",
-                        **data,
-                    })
-                    continue
-
+            if item.get("type") != "result":
                 yield stream_event(item)
+                continue
 
-        finally:
-            pass
+            data = item["data"]
+            for token in (data.get("report") or "").split(" "):
+                if token:
+                    yield stream_event({"type": "token", "value": f"{token} "})
+
+            yield stream_event({"type": "done", **data})
 
     return StreamingResponse(
         events(),

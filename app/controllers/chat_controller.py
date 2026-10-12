@@ -1,6 +1,9 @@
 import asyncio
+import ast
 import json
+import operator
 import time
+from datetime import datetime
 from typing import Any, Awaitable, Callable
 
 from pydantic import BaseModel, ValidationError
@@ -34,6 +37,18 @@ from models.db_schemas import User
 
 THINKING_MESSAGE = "Thinking..."
 GENERATING_RESPONSE_MESSAGE = "Generating Final Response..."
+
+CALCULATOR_OPERATORS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
+    ast.USub: operator.neg,
+    ast.UAdd: operator.pos,
+}
 
 class ChatController(BaseController):
     """
@@ -248,8 +263,44 @@ class ChatController(BaseController):
         return result.evidence
     
     # ---------------------------------------- Agentic Work ---------------------------------------- #
+    def get_current_date(self) -> dict[str, Any]:
+        now = datetime.now()
+        return {
+            "current_date": now.date().isoformat(),
+            "current_year": now.year,
+        }
+
+
+    def calculate(self, expression: str) -> str:
+        def eval_node(node):
+            if isinstance(node, ast.Expression):
+                return eval_node(node.body)
+
+            if isinstance(node, ast.Constant) and isinstance(node.value, int | float):
+                return node.value
+
+            if isinstance(node, ast.BinOp) and type(node.op) in CALCULATOR_OPERATORS:
+                return CALCULATOR_OPERATORS[type(node.op)](
+                    eval_node(node.left),
+                    eval_node(node.right),
+                )
+
+            if isinstance(node, ast.UnaryOp) and type(node.op) in CALCULATOR_OPERATORS:
+                return CALCULATOR_OPERATORS[type(node.op)](eval_node(node.operand))
+
+            raise ValueError("Unsupported arithmetic expression")
+
+        parsed = ast.parse(expression, mode = "eval")
+        return str(eval_node(parsed))
+
+
     def get_orchestration_state(self, agent_state: AgentState) -> dict[str, Any]:
         return {
+            "has_current_date": agent_state.has_current_date,
+            "current_date": agent_state.current_date,
+            "current_year": agent_state.current_year,
+            "has_calculator_result": agent_state.has_calculator_result,
+            "calculator_result": agent_state.calculator_result,
             "has_chat_context": agent_state.has_chat_context,
             "references": agent_state.references,
             "has_references": agent_state.has_references,
@@ -359,6 +410,9 @@ class ChatController(BaseController):
         query: str,
         search_results: list[dict],
         chat_tone: str,
+        current_date: str | None = None,
+        current_year: int | None = None,
+        calculator_result: str | None = None,
     ) -> FinalReportResult | None:
 
         return await self.call_llm_schema(
@@ -367,8 +421,11 @@ class ChatController(BaseController):
                 "query": query,
                 "user_requirements": [],
                 "evidence": search_results or [],
-                "answer_mode": "grounded",
+                "answer_mode": "grounded" if search_results else "direct",
                 "final_tone": chat_tone,
+                "current_date": current_date,
+                "current_year": current_year,
+                "calculator_result": calculator_result,
             },
             schema = FinalReportResult,
         )
@@ -464,7 +521,22 @@ class ChatController(BaseController):
             step_output: dict[str, Any] | bool | None = None
 
             try:
-                if action == 'get_chat_context':
+                if action == 'get_current_date':
+                    date_info = self.get_current_date()
+                    agent_state.current_date = date_info["current_date"]
+                    agent_state.current_year = date_info["current_year"]
+                    agent_state.has_current_date = True
+                    step_output = date_info
+
+                elif action == 'calculator':
+                    expression = arguments.get("expression") or ""
+                    step_input = {"expression": expression}
+                    result = self.calculate(expression)
+                    agent_state.calculator_result = result
+                    agent_state.has_calculator_result = True
+                    step_output = {"result": result}
+
+                elif action == 'get_chat_context':
                     step_input = {"query": user_query}
 
                     chat_context, references = await self.get_chat_context(
@@ -548,6 +620,9 @@ class ChatController(BaseController):
                         query = report_query,
                         search_results = search_results,
                         chat_tone = chat_cfg.chat_tone,
+                        current_date = agent_state.current_date,
+                        current_year = agent_state.current_year,
+                        calculator_result = agent_state.calculator_result,
                     )
                     if final_report is None:
                         await record_step(action, step_input, {"error": "generate_final_report failed"}, started_at)
@@ -615,6 +690,8 @@ class ChatController(BaseController):
                     break
 
                 if action not in {
+                    'get_current_date',
+                    'calculator',
                     'get_chat_context',
                     'search',
                     'check_answer',
