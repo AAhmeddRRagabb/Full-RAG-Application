@@ -85,10 +85,10 @@ class Settings(BaseSettings):
 
     # -------------------------- Redis Config ----------------------------- #
     redis_url: str = "redis://localhost:6379/0"
-    session_absolute_days: int = 7
-    session_idle_minutes: int = 60
+    SESSION_ABSOLUTE_DAYS: int = 7
+    SESSION_IDLE_MINUTES: int = 60
 
-    csrf_secret: SecretStr  # !
+    CSRF_SECRET: SecretStr  # !
     FRONTEND_ORIGIN: str
 
     class Config:
@@ -96,7 +96,7 @@ class Settings(BaseSettings):
 
 
     @property
-    def session_cookie_name(self) -> str: # !
+    def SESSION_COOKIE_NAME(self) -> str: # !
         return "session"
     
 def get_settings():

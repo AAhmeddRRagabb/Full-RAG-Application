@@ -55,7 +55,7 @@ class GoogleLLMClient(BaseLLMClient):
             return Client(
             api_key = api_key,
             http_options = HttpOptions(
-                timeout = 60000
+                timeout = 120_000
             )
         )
 

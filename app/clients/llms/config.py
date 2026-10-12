@@ -61,7 +61,9 @@ class AgentTasks(Enum):
     CC = "get_chat_context"
     FI = "files_info_extaction"
     SI = "search_info_extraction"
+    AC = "answer_check"
     RG = "final_report_generation"
+    RC = "check_report_compatability"
     OR = "orchestration"
 
 

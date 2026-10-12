@@ -53,100 +53,6 @@ const haveNoEmailBtn = LOGIN_FORM.querySelector(".have-no-email");
 
 
 
-async function refreshCsrfToken() {
-    const response = await fetch(
-        `${AUTH_ROUTES_PATH}/csrf`,
-        {
-            credentials: "include",
-        }
-    );
-
-    const data = await parseJsonResponse(response);
-
-    if (!response.ok) {
-        throw new Error(getErrorMessage(response, data));
-    }
-
-    updateCsrfToken(data.csrf_token);
-    return data.csrf_token;
-}
-
-
-/* Restore user session */
-async function restoreAuthentication() {
-    let userResponse;
-
-    try {
-        userResponse = await fetch(
-            `${AUTH_ROUTES_PATH}/me`,
-            {
-                credentials: "include",
-            }
-        );
-    } catch {
-        activateLoginForm();
-        return;
-    }
-
-    if (!userResponse.ok) {
-        activateLoginForm();
-        return;
-    }
-
-    try {
-        await refreshCsrfToken();
-    } catch {
-        activateLoginForm();
-        return;
-    }
-
-    const user = await parseJsonResponse(userResponse);
-    activateAppShell(user);
-}
-
-
-
-
-/* login */
-async function loginUser(event) {
-    event.preventDefault();
-    clearMessage(loginMessage);
-
-    let response;
-    try {
-        showMessage(loginMessage, "Verifying credentials...", "info");
-        response = await fetch(
-            `${AUTH_ROUTES_PATH}/login`,
-            {
-                method: "POST",
-                credentials: "include",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    email: userEmailLoginIP.value,
-                    password: userPassLoginIP.value,
-                }),
-            }
-        );
-    } catch {
-        showAlert("Could not reach the server. Please try again.", ERROR_MESSAGE);
-        return;
-    }
-
-    const data = await parseJsonResponse(response);
-
-    if (!response.ok) {
-        showAlert(getErrorMessage(response, data), ERROR_MESSAGE);
-        return;
-    }
-
-    updateCsrfToken(data.csrf_token);
-    showAlert(data.message || `Welcome ${data.user.user_name}.`, SUCCESS_MESSAGE);
-    activateAppShell(data.user);
-}
-
-
 /* Registration */
 async function registerUser(event) {
     event.preventDefault();
@@ -170,8 +76,8 @@ async function registerUser(event) {
                 },
                 body: JSON.stringify({
                     user_name: userNameIP.value,
-                    email: userEmailIP.value,
-                    password: userPassIP.value,
+                    email    : userEmailIP.value,
+                    password : userPassIP.value,
                 }),
             }
         );
@@ -193,6 +99,88 @@ async function registerUser(event) {
 }
 
 
+/* login */
+async function loginUser(event) {
+    event.preventDefault();
+    clearMessage(loginMessage);
+
+    let response;
+    try {
+        showMessage(loginMessage, "Verifying credentials...", "info");
+        response = await fetch(
+            `${AUTH_ROUTES_PATH}/login`,
+            {
+                method: "POST",
+                credentials: "include",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    email   : userEmailLoginIP.value,
+                    password: userPassLoginIP.value,
+                }),
+            }
+        );
+    } catch {
+        showAlert("Could not reach the server. Please try again.", ERROR_MESSAGE);
+        return;
+    }
+
+    const data = await parseJsonResponse(response);
+
+    if (!response.ok) {
+        showAlert(getErrorMessage(response, data), ERROR_MESSAGE);
+        return;
+    }
+
+    updateCsrfToken(data.csrf_token);
+    showAlert(data.message || `Welcome ${data.user.user_name}.`, SUCCESS_MESSAGE);
+    activateAppShell(data.user);
+}
+
+/* Restore Session */
+async function restoreAuthentication() {
+    let userResponse;
+    try {
+        userResponse = await fetch(`${AUTH_ROUTES_PATH}/me`, {
+            credentials: "include",
+        });
+    } catch {
+        activateLoginForm();
+        return;
+    }
+
+    if (!userResponse.ok) {
+        activateLoginForm();
+        return;
+    }
+
+    try {
+        await refreshCsrfToken();
+    } catch {
+        activateLoginForm();
+        return;
+    }
+
+    const user = await parseJsonResponse(userResponse);
+    activateAppShell(user);
+}
+
+/* Restore CSRF Token */
+async function refreshCsrfToken() {
+    const response = await fetch(`${AUTH_ROUTES_PATH}/csrf`, {
+        credentials: "include",
+    });
+
+    const data = await parseJsonResponse(response);
+
+    if (!response.ok) {
+        throw new Error(getErrorMessage(response, data));
+    }
+
+    updateCsrfToken(data.csrf_token);
+    return data.csrf_token;
+}
 
 
 /* logout */

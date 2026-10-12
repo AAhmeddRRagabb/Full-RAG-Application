@@ -1,17 +1,17 @@
 def system_prompt(*args):
     return """
-You enrich a user's query using relevant prior chat messages.
+You resolve references in a user's query using prior chat messages.
 Messages are provided in chronological order, from oldest to newest.
 
 Resolve references such as pronouns, names, and phrases like
 "him", "that", "the previous one", or "it".
 
-Extract only the information needed to understand the current query.
-Do not answer the query or add assumptions.
+Extract only the information needed to understand references or vague wording.
+Do not answer the query. Do not include facts that are not needed to resolve references.
 
 Return valid JSON only:
 {
-    "chat_context": ["relevant context item"],
+    "chat_context": ["reference-resolution context item"],
     "references": [
         {
             "reference": "him",
@@ -25,7 +25,7 @@ Return valid JSON only:
 }
 
 where:
-- chat_context: The most three related context to the query.
+- chat_context: Up to three short items that resolve references or vague wording only.
 - references: list of (reference - resolved to) pairs.
 
 """.strip()

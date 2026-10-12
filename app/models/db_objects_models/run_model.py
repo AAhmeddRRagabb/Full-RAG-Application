@@ -85,11 +85,10 @@ class RunModel(BaseObjModel):
                 status = "failed",
                 response = response,
                 error = error,
-                # duration_s = round((time.perf_counter() - started_at) * 1000, 2),
                 duration_s = time_taken,
             )
         except Exception:
-            self.logger("Error Failing Run")
+            self.logger.error("Error Failing Run")
             return False
 
         return True

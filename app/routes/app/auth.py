@@ -45,20 +45,14 @@ from security.session_management import create_user_session
 
 
 
+# helpers
+from helpers.auth import build_public_user
+
+
 auth_router = APIRouter(
     prefix = CFG.AUTH_ROUTES_PATH,
     tags = ["account"],
 )
-
-
-
-
-def build_public_user(user: User) -> UserPublic:
-    return UserPublic(
-        user_name = user.user_name,
-        user_email = user.user_email,
-        user_uuid_prefix = user.user_uuid.hex[:3],
-    )
 
 
 
@@ -70,8 +64,10 @@ async def register_user(
     redis           : Annotated[Redis, Depends(get_redis)],
     response        : Response,
 ) -> RegisterResponse:
+    
     client_host = request.client.host if request.client else "unknown"
     email_key = register_request.email.strip().lower()
+
     await check_rate_limit(redis, f"register:ip:{client_host}", limit = 8, window_seconds = 3600)
     await check_rate_limit(redis, f"register:email:{email_key}", limit = 5, window_seconds = 3600)
     
@@ -127,8 +123,10 @@ async def login_user(
     redis        : Annotated[Redis, Depends(get_redis)],
     response     : Response,
 ) -> LoginResponse:
+    
     client_host = request.client.host if request.client else "unknown"
     email_key = login_request.email.strip().lower()
+
     await check_rate_limit(redis, f"login:ip:{client_host}", limit = 20, window_seconds = 900)
     await check_rate_limit(redis, f"login:email:{email_key}", limit = 10, window_seconds = 900)
     
@@ -172,8 +170,6 @@ async def get_csrf_token(
     )
 
 
-
-
 @auth_router.post("/logout")
 async def logout_user(
     response: Response,
@@ -190,7 +186,7 @@ async def logout_user(
         )
 
     response.delete_cookie(
-        key = settings.session_cookie_name,
+        key = settings.SESSION_COOKIE_NAME,
         path = "/",
     )
 

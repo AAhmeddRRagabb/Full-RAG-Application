@@ -12,7 +12,6 @@ const runStatus = document.querySelector(".run-status");
 const chatsList = document.querySelector(".chats-list");
 const addChatBtn = document.querySelector(".add-new-chat-btn");
 const filesBox = document.querySelector(".chat-settings-modal .file-list");
-const summaryText = document.querySelector(".chat-settings-modal .resources-status");
 
 let chats = [];
 let activeChat = null;
@@ -104,21 +103,10 @@ function selectedDepth() {
 function currentRequestOptions() {
     return {
         files: selectedFiles(),
-        tone: selectedTone(),
+        tone : selectedTone(),
         depth: selectedDepth(),
     };
 }
-
-
-function updateControlSummary() {
-    if (!summaryText) return;
-
-    const options = currentRequestOptions();
-    const fileText = options.files.length ? `${options.files.length} file${options.files.length === 1 ? "" : "s"}` : "No files";
-    summaryText.textContent = `${fileText} | ${options.tone} | ${options.depth} depth`;
-}
-
-
 
 
 /* ------------------------------------------ URLs --------------------------------------- */
@@ -605,11 +593,6 @@ function bindEvents() {
     cancelBtn?.addEventListener("click", () => activeRun?.abort());
     addChatBtn.addEventListener("click", () => createChat());
 
-    filesBox.addEventListener("change", updateControlSummary);
-    document.querySelectorAll("input[name='chatTone'], input[name='answerDepth']").forEach((input) => {
-        input.addEventListener("change", updateControlSummary);
-    });
-    document.addEventListener("files-selection-updated", updateControlSummary);
 
     document.addEventListener("app-shell-ready", (event) => {
         const user = event.detail?.user || null;
@@ -625,7 +608,7 @@ function bindEvents() {
 
 
 bindEvents();
-updateControlSummary();
+
 
 const user = getActiveShellUser();
 user ? loadChats(user) : clearChats();

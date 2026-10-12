@@ -25,9 +25,9 @@ templates = Jinja2Templates(directory = BASE_DIR / "templates")
 
 
 # routes
-from routes import auth_router
-from routes import chat_router
-from routes import data_router
+from routes.app import auth_router
+from routes.app import chat_router
+from routes.app import data_router
 
 app.mount(
     "/static",

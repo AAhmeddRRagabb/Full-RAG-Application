@@ -48,6 +48,10 @@ from models.enums import AssetTypesEnum, ResponsesEnum
 from models.system_schemas import AuthContext
 
 
+from redis.asyncio import Redis
+from app_core.dependecies.rate_limit import check_rate_limit
+from app_core.dependecies.clients import get_redis
+
 data_router = APIRouter(
     prefix = CFG.DATA_ROUTES_PATH,
     tags = ["data"]
@@ -147,6 +151,7 @@ async def upload_file(
     db_client       : Annotated[AsyncSession, Depends(get_db_client)],
     vector_db_client: Annotated[PGVectorVDBClient, Depends(get_vector_db_client)],
     embedding_client: Annotated[HuggingfaceLLMClient | GoogleLLMClient, Depends(get_embedding_client)],
+    redis           : Annotated[Redis, Depends(get_redis)],
     file            : UploadFile = File(...),
 ) -> dict:
     """
@@ -158,6 +163,8 @@ async def upload_file(
         - save the user data in the users collection.
         - chunk the file & saving its chunks. 
     """
+    await check_rate_limit(redis, f"upload_file:file:{file.filename}", limit = 3, window_seconds = 900)
+
     log_title("Uploading File")
     user: User = auth.user
 
@@ -194,7 +201,7 @@ async def upload_file(
     # - save Asset
     saved = await data_controller.save_file(file = file, file_path = file_path)
     if not saved:
-        raise raise_internal_server_error()
+        raise_internal_server_error()
 
 
     asset = Asset(
@@ -207,7 +214,7 @@ async def upload_file(
     )
 
     if not await asset_model.insert_asset(asset):
-        raise raise_internal_server_error()
+        raise_internal_server_error()
 
     background_tasks.add_task(
         process_uploaded_file,
@@ -228,7 +235,6 @@ async def upload_file(
 
 
 
-    
 @data_router.get("/get_user_files")
 async def get_user_files(
     db_client: Annotated[AsyncSession, Depends(get_db_client)],
@@ -258,6 +264,7 @@ async def get_user_files(
     return {
         "user_files": user_files
     }
+
 
 
 @data_router.delete("/files/{asset_id}")
@@ -295,25 +302,25 @@ async def delete_user_file(
     )
 
     if chunk_ids is None:
-        raise raise_internal_server_error()
+        raise_internal_server_error()
 
     if chunk_ids and not await vector_db_controller.delete_chunks_from_vector_db(
         user_key = user_key,
         chunk_ids = chunk_ids,
     ):
-        raise raise_internal_server_error()
+        raise_internal_server_error()
 
     if not await chunk_model.delete_asset_chunks(
         user_id = user.user_id,
         asset_id = asset.asset_id,
     ):
-        raise raise_internal_server_error()
+        raise_internal_server_error()
 
     if not await asset_model.delete_asset(
         user_id = user.user_id,
         asset_id = asset.asset_id,
     ):
-        raise raise_internal_server_error()
+        raise_internal_server_error()
 
     file_path = os.path.join(UserController().get_user_path(user_key = user_key), asset.asset_name)
     if os.path.exists(file_path):

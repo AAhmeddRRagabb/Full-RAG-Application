@@ -46,7 +46,7 @@ async def require_authentication(
     user_model = UserModel(db_client = db_client)
 
     # - get the session from the request cookie
-    raw_token = request.cookies.get(get_settings().session_cookie_name)
+    raw_token = request.cookies.get(get_settings().SESSION_COOKIE_NAME)
     if not raw_token:
         raise HTTPException(
             status_code = status.HTTP_401_UNAUTHORIZED,
@@ -92,7 +92,7 @@ async def require_authentication(
         )
 
     # - check user version key
-    user_version_key = build_redis_user_version_key(user_id = session_data.user_uuid)
+    user_version_key = build_redis_user_version_key(user_uuid = session_data.user_uuid)
     user_version_val = int(await redis.get(user_version_key) or 0)
 
     if session_data.session_version != user_version_val:
@@ -115,7 +115,7 @@ async def require_authentication(
 
     # - update ttl
     remaining_absolute_seconds = int((session_data.expires_at - now).total_seconds())
-    idle_seconds = (get_settings().session_idle_minutes * 60)
+    idle_seconds = (get_settings().SESSION_IDLE_MINUTES * 60)
     new_ttl = min(idle_seconds, remaining_absolute_seconds)
 
     if new_ttl <= 0:

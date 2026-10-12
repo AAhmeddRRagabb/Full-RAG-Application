@@ -131,12 +131,30 @@ async def lifespan(app: FastAPI):
         )
     )
 
+    app.state.llm_clients[AgentTasks.AC.value] = llm_clients_factory.create_agent(
+        provider = app.state.settings.ORCHESTRATION_BACKEND,
+        generation_model_id = app.state.settings.ORCHESTRATION_AGENT,
+        system_prompt = app.state.prompt_template_parser.get_prompt(
+            task = AgentTasks.AC.value,
+            key = PromptTypes.SYSTEM_PROMPT.value
+        )
+    )
+
     app.state.llm_clients[AgentTasks.RG.value] = llm_clients_factory.create_agent(
         provider            = app.state.settings.FINAL_REPORT_GENERATION_BACKEND,
         generation_model_id = app.state.settings.FINAL_REPORT_GENERATION_AGENT,
         system_prompt       = app.state.prompt_template_parser.get_prompt(
             task = AgentTasks.RG.value,
             key  = PromptTypes.SYSTEM_PROMPT.value
+        )
+    )
+
+    app.state.llm_clients[AgentTasks.RC.value] = llm_clients_factory.create_agent(
+        provider = app.state.settings.ORCHESTRATION_BACKEND,
+        generation_model_id = app.state.settings.ORCHESTRATION_AGENT,
+        system_prompt = app.state.prompt_template_parser.get_prompt(
+            task = AgentTasks.RC.value,
+            key = PromptTypes.SYSTEM_PROMPT.value
         )
     )
 
@@ -151,7 +169,7 @@ async def lifespan(app: FastAPI):
 
     if (
         not app.state.llm_clients
-        or len(app.state.llm_clients) < 5
+        or len(app.state.llm_clients) < 7
         or any(
             client is None
             for client in app.state.llm_clients.values()

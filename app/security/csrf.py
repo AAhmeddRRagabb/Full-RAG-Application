@@ -9,7 +9,7 @@ settings = get_settings()
 def create_csrf_token(session_hash: str) -> str:
     nonce = secrets.token_urlsafe(32)
     message = f"{session_hash}.{nonce}".encode("utf-8")
-    secret = settings.csrf_secret.get_secret_value().encode("utf-8")
+    secret = settings.CSRF_SECRET.get_secret_value().encode("utf-8")
 
     signature = hmac.new(
         secret,
@@ -28,7 +28,7 @@ def verify_csrf_token(session_hash: str, csrf_token: str) -> bool:
         return False
 
     message = f"{session_hash}.{nonce}".encode("utf-8")
-    secret = settings.csrf_secret.get_secret_value().encode("utf-8")
+    secret = settings.CSRF_SECRET.get_secret_value().encode("utf-8")
 
     expected_signature = hmac.new(
         secret,

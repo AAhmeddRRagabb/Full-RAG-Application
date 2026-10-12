@@ -18,11 +18,7 @@ const modalToggles = [
     },
 ];
 
-const modals = modalToggles
-    .map(({ modal }) => modal)
-    .filter(Boolean);
-
-
+const modals = modalToggles.map(({ modal }) => modal).filter(Boolean);
 
 
 /* Modal State */
@@ -34,8 +30,6 @@ function setButtonState(button, isActive) {
     button.classList.toggle(ACTIVE_CLASS, isActive);
     button.setAttribute("aria-expanded", String(isActive));
 }
-
-
 
 
 function closeModal(modalToClose) {
@@ -50,8 +44,6 @@ function closeModal(modalToClose) {
 }
 
 
-
-
 function closeOtherModals(activeModal) {
     modals.forEach((modal) => {
         if (modal !== activeModal) {
@@ -59,8 +51,6 @@ function closeOtherModals(activeModal) {
         }
     });
 }
-
-
 
 
 function toggleModal(modal, button) {
@@ -75,12 +65,9 @@ function toggleModal(modal, button) {
 }
 
 
-
-
 function closeAllModals() {
     modals.forEach(closeModal);
 }
-
 
 
 

@@ -2,7 +2,6 @@
 # Implementing the routes related to the NLP workflows
 # -------------------------------------------------------
 
-
 # utils
 import asyncio
 import json
@@ -60,15 +59,20 @@ chat_router = APIRouter(
 )
 
 
-
+PARSING_QUERY_MESSAGE = "Parsing Query..."
+THINKING_MESSAGE = "Thinking..."
+GENERATING_RESPONSE_MESSAGE = "Generating Final Response..."
+FINISH_MESSAGE = "Finish"
 
 
 from helpers.chat import (
+    get_chat_cfg,
     build_public_chat,
     build_public_message,
     get_file_name,
     calc_run_time_s,
-    get_messages_content
+    get_messages_content,
+    emit
 )
 
 
@@ -82,7 +86,7 @@ async def get_user_chats(
     chats = await chat_model.get_user_chats(user_id = auth.user.user_id)
 
     if chats is None:
-        raise raise_internal_server_error()
+        raise_internal_server_error()
 
     return {
         "chats": [build_public_chat(chat) for chat in chats]
@@ -115,7 +119,7 @@ async def get_user_chat(
     )
 
     if messages is None:
-        raise raise_internal_server_error()
+        raise_internal_server_error()
 
     return {
         "chat"    : build_public_chat(chat),
@@ -147,7 +151,7 @@ async def get_chat_messages(
     )
 
     if messages is None:
-        raise raise_internal_server_error()
+        raise_internal_server_error()
 
     return {
         "messages": [
@@ -167,7 +171,7 @@ async def create_user_chat(
     user_chats = await chat_model.get_user_chats(user_id = auth.user.user_id)
 
     if user_chats is None:
-        raise raise_internal_server_error()
+        raise_internal_server_error()
 
     # - create chat
     chat = Chat(
@@ -176,7 +180,7 @@ async def create_user_chat(
     )
 
     if not await chat_model.insert_chat(chat):
-        raise raise_internal_server_error()
+        raise_internal_server_error()
 
     return {
         "chat": build_public_chat(chat),
@@ -246,28 +250,7 @@ def stream_event(payload: dict[str, Any]) -> str:
     return json.dumps(payload, default = str) + "\n"
 
 
-def stage_label(stage: str) -> str:
-    parsing_stages = {
-        "preparing",
-        "rate_limit",
-        "loading_chat",
-        "saving_message",
-        "understand_user_query",
-        "get_chat_context",
-    }
 
-    finalizing_stages = {
-        "generate_final_report",
-        "finish",
-    }
-
-    if stage in parsing_stages:
-        return "parsing query"
-
-    if stage in finalizing_stages:
-        return "finalizing response"
-
-    return "thinking"
 
 
 def log_detached_task_failure(task: asyncio.Task) -> None:
@@ -289,119 +272,159 @@ def log_detached_task_failure(task: asyncio.Task) -> None:
 # ---> generate answer
 
 async def run_chat_request(
-    request  : Request,
-    auth     : AuthContext,
-    db_client: AsyncSession,
-    
+    request     : Request,
+    chat_request: ChatRequest,
+    queue       : asyncio.Queue,
+
+    auth                  : AuthContext,
+    db_client             : AsyncSession,
     redis                 : Redis,
     vector_db_client      : PGVectorVDBClient,
     embedding_client      : HuggingfaceLLMClient | GoogleLLMClient,
     llm_clients           : dict[str, HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient | list[HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient]],
     prompt_template_parser: PromptTemplateParser,
     tavily_client         : TavilyClient,
-
-    chat_request  : ChatRequest,
-    stage_callback: Callable[[str], Awaitable[None]] | None = None,
 ) -> dict:
 
+    # ------------------------------------ Setup ------------------------------------ #
+    # - define variables
     started_at = time.perf_counter()
-    async def emit(stage: str) -> None:
-        if stage_callback is not None:
-            await stage_callback(stage)
-
-    await emit("rate_limit")
-    client_host = request.client.host if request.client else "unknown"
-    await check_rate_limit(redis, f"chat:ip:{client_host}", limit = 100, window_seconds = 3600)
-    await check_rate_limit(redis, f"chat:user:{auth.user.user_uuid}", limit = 30, window_seconds = 3600)
-
-    # - setup
-    vector_db_controller = VectorDBController(vector_db_client, embedding_client)
-    chat_controller = ChatController(llm_clients, prompt_template_parser, tavily_client)
-
-    chunk_model = ChunkModel(db_client = db_client)
-    chat_model  = ChatModel(db_client = db_client)
-    asset_model = AssetModel(db_client = db_client)
-    run_model   = RunModel(db_client = db_client)
 
     user: User = auth.user
-    user_key   = user.user_uuid.hex
-
+    user_uuid  = user.user_uuid
+    user_key   = user_uuid.hex
 
     query   = chat_request.query
     chat_id = chat_request.chat_id
     tone    = chat_request.tone
     depth   = chat_request.depth
-    files   = chat_request.files
+    files   = chat_request.files or []
 
- 
-    await emit("loading_chat")
+    client_host = request.client.host if request.client else "unknown"
+
+
+    # - define models & controllers
+    chunk_model = ChunkModel(db_client = db_client)
+    chat_model  = ChatModel(db_client = db_client)
+    asset_model = AssetModel(db_client = db_client)
+    run_model   = RunModel(db_client = db_client)
+
+    vector_db_controller = VectorDBController(vector_db_client, embedding_client)
+    chat_controller = ChatController(
+        llm_clients = llm_clients, 
+        prompt_template_parser = prompt_template_parser, 
+        tavily_client = tavily_client,
+        user = user,
+        asset_model = asset_model,
+        chunk_model = chunk_model,
+        vector_db_controller = vector_db_controller
+    )
+
+    # ------------------------------------ Start Working ------------------------------------ #
+
+    # - limit rate
+    await emit(queue = queue, message = PARSING_QUERY_MESSAGE)
+    await check_rate_limit(redis, f"chat:ip:{client_host}", limit = 100, window_seconds = 3600)
+    await check_rate_limit(redis, f"chat:user:{user_uuid}", limit = 30, window_seconds = 3600)
+
+
+    # - load chat
     active_chat = await chat_model.get_user_chat(user_id = user.user_id, chat_id = chat_id)
     if active_chat is None:
         raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail = "Chat not found")
-
-    # - start the Run
-    # run = Run(
-    #     user_id = user.user_id,
-    #     chat_id = active_chat.chat_id,
-    #     user_query = query,
-    #     run_metadata = {
-    #         "files": [get_file_name(file) for file in files]
-    #     },
-    # )
-
-    # if not await run_model.insert_run(run):
-    #     raise raise_internal_server_error()
-
 
     previous_messages = await chat_model.get_chat_messages(
         user_id = user.user_id,
         chat_id = active_chat.chat_id,
     )
 
-    # if previous_messages is None:
-    #     await run_model.fail_run(
-    #         run_id = run.run_id, 
-    #         error = "Could not load chat messages", 
-    #         time_taken = calc_run_time_s(started_at)
-    #     )
-    #     raise raise_internal_server_error()
 
-
-    await emit("saving_message")
-    # if not await chat_model.insert_message(
-    #     Message(
-    #         chat_id = active_chat.chat_id,
-    #         role    = "user",
-    #         content = query,
-    #     )
-    # ):
-    #     await run_model.fail_run(
-    #         run_id = run.run_id, 
-    #         error = "Could not save user message", 
-    #         time_taken = calc_run_time_s(started_at)
-    #     )
-
-    #     raise_internal_server_error()
-
-    
-    # --------------------- Begin Agentic Work ----------------------------- #
-    from helpers.chat import get_chat_cfg
-
-    agent_result = await chat_controller.answer_user_query(
+    # - start the Run
+    run = Run(
+        user_id = user.user_id,
+        chat_id = active_chat.chat_id,
         user_query = query,
-        files = files or [],
-        chat_cfg = get_chat_cfg(
-            chat_tone = tone,
-            chat_depth = depth,
-        ),
-        chat_messages = get_messages_content(previous_messages),
-        stage_callback = emit,
+        run_metadata = {
+            "files": [get_file_name(file) for file in files],
+            "tone": tone,
+            "depth": depth,
+        },
     )
 
-    return {}
+    if not await run_model.insert_run(run):
+        raise_internal_server_error()
+
+
+    if previous_messages is None:
+        await run_model.fail_run(
+            run_id = run.run_id, 
+            error = "Could not load chat messages", 
+            time_taken = calc_run_time_s(started_at)
+        )
+        raise_internal_server_error()
+
+
+    if not await chat_model.insert_message(
+        Message(
+            chat_id = active_chat.chat_id,
+            role    = "user",
+            content = query,
+        )
+    ):
+        await run_model.fail_run(
+            run_id = run.run_id, 
+            error = "Could not save user message", 
+            time_taken = calc_run_time_s(started_at)
+        )
+
+        raise_internal_server_error()
+
+    # --------------------- Agentic Work ----------------------------- #
+    step_order = 0
+
+    async def log_run_step(step: dict[str, Any]) -> None:
+        nonlocal step_order
+
+        step_order += 1
+        if not await run_model.insert_steps([
+            RunStep(
+                run_id = run.run_id,
+                step_order = step_order,
+                step_name = step.get("name", "unknown"),
+                step_input = step.get("input"),
+                step_output = step.get("output"),
+                duration_s = step.get("duration_s"),
+            )
+        ]):
+            raise RuntimeError("Could not save run step")
+
+    try:
+        agent_result = await chat_controller.answer_user_query(
+            user_query = query,
+            files = files,
+            chat_cfg = get_chat_cfg(
+                chat_tone = tone,
+                chat_depth = depth,
+            ),
+            chat_messages = get_messages_content(previous_messages),
+            queue = queue,
+            run_step_logger = log_run_step,
+        )
+
+    except Exception as e:
+        await run_model.fail_run(
+            run_id = run.run_id,
+            error = str(e),
+            time_taken = calc_run_time_s(started_at),
+        )
+        raise_internal_server_error()
 
     if agent_result is None:
-        await fail_run("Agent failed to produce a result")
+        await run_model.fail_run(
+            run_id = run.run_id,
+            error = "Agent failed to produce a result",
+            time_taken = calc_run_time_s(started_at),
+        )
         raise_internal_server_error()
 
     report = agent_result.get("report")
@@ -415,29 +438,19 @@ async def run_chat_request(
             llm_resources = resources
         )
     ):
-        await fail_run("Could not save assistant message", response = report)
-        raise_internal_server_error()
-
-    steps = [
-        RunStep(
+        await run_model.fail_run(
             run_id = run.run_id,
-            step_order = idx,
-            step_name = step.get("name", "unknown"),
-            step_input = step.get("input"),
-            step_output = step.get("output"),
-            duration_ms = step.get("duration_ms"),
+            error = "Could not save assistant message",
+            time_taken = calc_run_time_s(started_at),
+            response = report,
         )
-        for idx, step in enumerate(agent_result.get("steps") or [], start = 1)
-    ]
-
-    if not await run_model.insert_steps(steps):
-        logger.error(f"Error saving run steps. Run ID: {run.run_id}")
+        raise_internal_server_error()
 
     await run_model.finish_run(
         run_id = run.run_id,
         status = "success",
         response = report,
-        duration_ms = round((time.perf_counter() - started_at) * 1000, 2),
+        duration_s = calc_run_time_s(started_at),
     )
     
     return {
@@ -449,7 +462,9 @@ async def run_chat_request(
 
 @chat_router.post("/chat/stream")
 async def stream_chat_will_llm(
-    request               : Request,
+    request     : Request,
+    chat_request: ChatRequest,
+
     auth                  : Annotated[AuthContext, Depends(require_csrf)],
     db_client             : Annotated[AsyncSession, Depends(get_db_client)],
     redis                 : Annotated[Redis, Depends(get_redis)],
@@ -458,24 +473,12 @@ async def stream_chat_will_llm(
     llm_clients           : Annotated[dict[str, HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient | list[HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient]], Depends(get_llm_clients)],
     prompt_template_parser: Annotated[PromptTemplateParser, Depends(get_prompt_template_parser)],
     tavily_client         : Annotated[TavilyClient, Depends(get_tavily_client)],
-    chat_request          : ChatRequest,
 ):
+
+    
     queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
     last_stage_message: str | None = None
 
-    async def emit(stage: str) -> None:
-        nonlocal last_stage_message
-
-        message = stage_label(stage)
-        if message == last_stage_message:
-            return
-
-        last_stage_message = message
-        await queue.put({
-            "type": "stage",
-            "stage": stage,
-            "message": message,
-        })
 
     async def produce() -> None:
         try:
@@ -490,7 +493,7 @@ async def stream_chat_will_llm(
                 prompt_template_parser = prompt_template_parser,
                 tavily_client = tavily_client,
                 chat_request = chat_request,
-                stage_callback = emit,
+                queue = queue
             )
             await queue.put({"type": "result", "data": result})
 
@@ -519,10 +522,8 @@ async def stream_chat_will_llm(
         task.add_done_callback(log_detached_task_failure)
 
         try:
-            last_stage_message = stage_label("preparing")
             yield stream_event({
                 "type": "stage",
-                "stage": "preparing",
                 "message": last_stage_message,
             })
 

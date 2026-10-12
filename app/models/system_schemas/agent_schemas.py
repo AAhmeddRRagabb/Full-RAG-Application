@@ -8,10 +8,6 @@ class Evidence(BaseModel):
     resource: str = Field(..., description = "File name or website URL where the evidence came from.")
 
 
-class QueryUnderstandingResult(BaseModel):
-    requirements: list[str] = Field(default_factory = list)
-
-
 class EvidenceResult(BaseModel):
     evidence: list[Evidence] = Field(default_factory = list)
     need_additional_info: bool = False
@@ -30,27 +26,44 @@ class FinalReportResult(BaseModel):
     resources: list[str] = Field(default_factory = list)
 
 
+class ReportCompatibilityResult(BaseModel):
+    is_valid: bool = False
+    tone_probability: float = Field(..., ge = 0, le = 1)
+    reason: str = ""
+
+
 class AgentState(BaseModel):
     chat_context: list[str] | None = None
     references: list[dict] | None = None
+    has_chat_context: bool = False
+    has_references: bool = False
 
     search_results : list[Evidence] = Field(default_factory = list)
-
-    final_report : str | None = None
-    llm_resources: list[str] = Field(default_factory = list)
-
+    has_search_results: bool = False
     max_search_limit: int
     search_attempts: int = 0
 
-    total_completed_agentic_steps: int = 0    
+    answer_found: bool | None = None
+    answer_reason: str | None = None
 
+    final_report : str | None = None
+    llm_resources: list[str] = Field(default_factory = list)
+    has_final_report: bool = False
+    has_llm_resources: bool = False
+    report_query: str | None = None
+    report_compatible: bool | None = None
+    report_tone_probability: float | None = None
+    report_check_reason: str | None = None
+ 
 
 class NextAction(BaseModel):
     reason: str
     action: Literal[
         'get_chat_context',
         'search',
+        'check_answer',
         'generate_final_report',
+        'check_report_compatability',
         'finish'
     ]
     arguments: dict[str, Any] = Field(default_factory = dict)
