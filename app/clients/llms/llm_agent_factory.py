@@ -5,7 +5,7 @@ from .llm_clients import (
 )
 
 from .config import LLMsProviders
-from helpers.config import Settings
+from core.system_settings import SystemSettings as Settings
 
 class LLMAgentFactory:
     """

@@ -11,8 +11,8 @@ from tavily import TavilyClient
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app_core.dependecies.auth import require_authentication, require_csrf
-from app_core.dependecies.clients import (
+from core.dependecies.auth import require_authentication, require_csrf
+from core.dependecies.clients import (
     get_redis,
     get_embedding_client, 
     get_vector_db_client, 
@@ -21,26 +21,25 @@ from app_core.dependecies.clients import (
     get_db_client,
     get_tavily_client
 )
-from app_core.dependecies.rate_limit import check_rate_limit
+from core.helpers import check_rate_limit
 from clients.llms.llm_clients import GoogleLLMClient, GroqLLMClient, HuggingfaceLLMClient
 from clients.llms.prompt_templates import PromptTemplateParser
 from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
 from controllers import ChatController, VectorDBController
-from helpers import config as CFG
-from helpers.chat import (
-    build_public_chat,
-    build_public_message,
+import core.system_settings as CFG
+from core.chat import (
     calc_run_time_s,
     emit,
     get_chat_cfg,
     get_file_name,
     get_messages_content,
 )
-from helpers.functional import raise_internal_server_error
-from models.db_objects_models import AssetModel, ChatModel, ChunkModel, RunModel
+from core.helpers import build_public_chat, build_public_message, raise_internal_server_error
+from models.db_models import AssetModel, ChatModel, ChunkModel, RunModel
 from models.db_schemas import Chat, Message, Run, RunStep, User
-from models.request_schemas.chat import ChatRequest
-from models.system_schemas import AuthContext
+from models.enums import ResponsesEnum
+from models.api_schemas import ChatRequest
+from models.db_schemas.redis_data import AuthContext
 
 
 logger = logging.getLogger("uvicorn")
@@ -87,7 +86,7 @@ async def get_user_chat(
     if chat is None:
         raise HTTPException(
             status_code = status.HTTP_404_NOT_FOUND,
-            detail      = "Chat not found",
+            detail      = ResponsesEnum.CHAT_NOT_FOUND.value,
         )
 
     # - access messages
@@ -120,7 +119,7 @@ async def get_chat_messages(
     if chat is None:
         raise HTTPException(
             status_code = status.HTTP_404_NOT_FOUND,
-            detail = "Chat not found",
+            detail = ResponsesEnum.CHAT_NOT_FOUND.value,
         )
 
     messages = await chat_model.get_chat_messages(
@@ -176,7 +175,7 @@ async def rename_user_chat(
     if not chat_name:
         raise HTTPException(
             status_code = status.HTTP_400_BAD_REQUEST,
-            detail = "Chat name is required",
+            detail = ResponsesEnum.CHAT_NAME_REQUIRED.value,
         )
 
     chat_model = ChatModel(db_client = db_client)
@@ -191,7 +190,7 @@ async def rename_user_chat(
     if chat is None:
         raise HTTPException(
             status_code = status.HTTP_404_NOT_FOUND,
-            detail      = "Chat not found",
+            detail      = ResponsesEnum.CHAT_NOT_FOUND.value,
         )
 
     return {
@@ -214,11 +213,11 @@ async def delete_user_chat(
     ):
         raise HTTPException(
             status_code = status.HTTP_404_NOT_FOUND,
-            detail = "Chat not found",
+            detail = ResponsesEnum.CHAT_NOT_FOUND.value,
         )
 
     return {
-        "message": "Chat deleted successfully",
+        "message": ResponsesEnum.CHAT_DELETED_SUCCESSFULLY.value,
     }
 
 
@@ -287,7 +286,7 @@ async def run_chat_request(
     # - load chat
     active_chat = await chat_model.get_user_chat(user_id = user.user_id, chat_id = chat_id)
     if active_chat is None:
-        raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail = "Chat not found")
+        raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail = ResponsesEnum.CHAT_NOT_FOUND.value)
 
     previous_messages = await chat_model.get_chat_messages(
         user_id = user.user_id,
@@ -461,7 +460,7 @@ async def stream_chat_will_llm(
             await queue.put({
                 "type": "error",
                 "status_code": 500,
-                "detail": "Internal server error",
+                "detail": ResponsesEnum.INTERNAL_SERVER_ERROR.value,
             })
 
         finally:

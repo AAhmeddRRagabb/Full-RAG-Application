@@ -2,14 +2,11 @@
 import time
 from asyncio import Queue
 
-from pydantic import BaseModel
+from models.db_schemas import Message
 
-from models.db_schemas import Chat, Message
-from models.request_schemas.chat import ChatPublic, MessagePublic
-
+from models.api_schemas.requests import ChatCFG
 
 
-# file: fileId_fileName.ext
 def get_file_name(file: str) -> str:
     return file.split("_")[-1].split(".")[0]
 
@@ -19,15 +16,9 @@ def get_file_id(file: str) -> int:
 def calc_run_time_s(start_time: float) -> float:
     end_time = time.perf_counter()
     run_time = round((end_time - start_time), 2)
-
     return run_time
 
-class ChatCFG(BaseModel):
-    chat_tone: str
-    file_search_limit: int
-    web_search_limit: int
-    max_search_limit: int
-    previous_messages_limit: int = 5
+
 
 def get_chat_cfg(chat_tone: str, chat_depth: str) -> ChatCFG:
     if chat_depth == 'low':
@@ -55,23 +46,6 @@ def get_chat_cfg(chat_tone: str, chat_depth: str) -> ChatCFG:
         )
 
 
-# -------- Public for UI -------- #
-def build_public_chat(chat: Chat) -> ChatPublic:
-    return ChatPublic(
-        chat_id   = chat.chat_id,
-        chat_name = chat.chat_name,
-    )
-
-
-def build_public_message(message: Message) -> MessagePublic:
-    return MessagePublic(
-        message_id = message.message_id,
-        chat_id = message.chat_id,
-        role = message.role,
-        content = message.content,
-        llm_resources = message.llm_resources,
-        created_at = message.created_at,
-    )
 
 def get_messages_content(messages: list[Message], chat_context_limit: int = 5) -> list[str] | None:
     sorted_messages = sorted(messages, key = lambda m: m.created_at, reverse = True)
@@ -90,3 +64,4 @@ async def emit(queue: Queue, message: str) -> None:
         "type": "stage",
         "message": message,
     })
+

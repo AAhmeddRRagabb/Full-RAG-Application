@@ -9,8 +9,8 @@ from fastapi.requests import Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app_core.lifespan import lifespan
-from helpers.config import get_settings
+from core.lifespan import lifespan
+from core.system_settings import get_system_settings as get_settings
 from routes.app import auth_router, chat_router, data_router
 
 

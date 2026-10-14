@@ -51,3 +51,4 @@ docker/config/prometheus/prometheus.yml
 logs/
 tmp/
 temp/
+notes.py

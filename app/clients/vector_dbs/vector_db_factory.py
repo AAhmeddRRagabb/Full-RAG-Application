@@ -4,7 +4,7 @@ from .config import (
 )
 
 
-from helpers.config import Settings
+from core.system_settings import SystemSettings as Settings
 
 from sqlalchemy.ext.asyncio import AsyncSession
 

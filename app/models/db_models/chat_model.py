@@ -9,7 +9,7 @@ class ChatModel(BaseObjModel):
     def __init__(self, db_client):
         super().__init__(db_client = db_client)
 
-
+    # ------------------------------- Insertion ---------------------------------- #
     async def insert_chat(self, chat: Chat) -> bool:
         session: AsyncSession
 
@@ -25,7 +25,49 @@ class ChatModel(BaseObjModel):
 
         return True
 
+    async def insert_message(self, message: Message) -> bool:
+        session: AsyncSession
 
+        try:
+            async with self.db_client() as session:
+                session.add(message)
+                await session.commit()
+                await session.refresh(message)
+
+        except Exception as e:
+            self.logger.error(f"Error Inserting Message: {e}")
+            return False
+
+        return True
+
+
+    async def update_chat_name(self, user_id: int, chat_id: int, chat_name: str) -> Chat | None:
+        session: AsyncSession
+
+        try:
+            async with self.db_client() as session:
+                result = await session.execute(
+                    select(Chat).where(
+                        Chat.chat_id == chat_id,
+                        Chat.user_id == user_id,
+                    )
+                )
+
+                chat = result.scalar_one_or_none()
+                if chat is None:
+                    return None
+
+                chat.chat_name = chat_name
+                await session.commit()
+                await session.refresh(chat)
+
+        except Exception as e:
+            self.logger.error(f"Error Renaming Chat: {e}")
+            return None
+
+        return chat
+
+    # ------------------------------- Retrieving Info ----------------------------- #
     async def get_user_chats(self, user_id: int) -> list[Chat] | None:
         session: AsyncSession
 
@@ -67,70 +109,6 @@ class ChatModel(BaseObjModel):
         return chat
 
 
-    async def update_chat_name(self, user_id: int, chat_id: int, chat_name: str) -> Chat | None:
-        session: AsyncSession
-
-        try:
-            async with self.db_client() as session:
-                result = await session.execute(
-                    select(Chat).where(
-                        Chat.chat_id == chat_id,
-                        Chat.user_id == user_id,
-                    )
-                )
-
-                chat = result.scalar_one_or_none()
-                if chat is None:
-                    return None
-
-                chat.chat_name = chat_name
-                await session.commit()
-                await session.refresh(chat)
-
-        except Exception as e:
-            self.logger.error(f"Error Renaming Chat: {e}")
-            return None
-
-        return chat
-
-
-    async def delete_user_chat(self, user_id: int, chat_id: int) -> bool:
-        session: AsyncSession
-
-        try:
-            async with self.db_client() as session:
-                result = await session.execute(
-                    delete(Chat).where(
-                        Chat.chat_id == chat_id,
-                        Chat.user_id == user_id,
-                    )
-                )
-
-                await session.commit()
-
-        except Exception as e:
-            self.logger.error(f"Error Deleting Chat: {e}")
-            return False
-
-        return result.rowcount > 0
-
-
-    async def insert_message(self, message: Message) -> bool:
-        session: AsyncSession
-
-        try:
-            async with self.db_client() as session:
-                session.add(message)
-                await session.commit()
-                await session.refresh(message)
-
-        except Exception as e:
-            self.logger.error(f"Error Inserting Message: {e}")
-            return False
-
-        return True
-
-
     async def get_chat_messages(self, user_id: int, chat_id: int) -> list[Message] | None:
         session: AsyncSession
 
@@ -153,3 +131,24 @@ class ChatModel(BaseObjModel):
             return None
 
         return messages
+
+    # ------------------------------- Deleting ----------------------------- #
+    async def delete_user_chat(self, user_id: int, chat_id: int) -> bool:
+        session: AsyncSession
+
+        try:
+            async with self.db_client() as session:
+                result = await session.execute(
+                    delete(Chat).where(
+                        Chat.chat_id == chat_id,
+                        Chat.user_id == user_id,
+                    )
+                )
+
+                await session.commit()
+
+        except Exception as e:
+            self.logger.error(f"Error Deleting Chat: {e}")
+            return False
+
+        return result.rowcount > 0

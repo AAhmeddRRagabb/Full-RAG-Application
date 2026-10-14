@@ -11,7 +11,7 @@ class RunModel(BaseObjModel):
     def __init__(self, db_client):
         super().__init__(db_client = db_client)
 
-
+    # ------------------------------- Inserting ----------------------------- #
     async def insert_run(self, run: Run) -> bool:
         session: AsyncSession
 
@@ -27,7 +27,24 @@ class RunModel(BaseObjModel):
 
         return True
 
+    async def insert_steps(self, steps: list[RunStep]) -> bool:
+        if not steps:
+            return True
 
+        session: AsyncSession
+
+        try:
+            async with self.db_client() as session:
+                session.add_all(steps)
+                await session.commit()
+
+        except Exception as e:
+            self.logger.error(f"Error Inserting Run Steps: {e}")
+            return False
+
+        return True
+
+    # ------------------------------- Handling Runs ----------------------------- #
     async def finish_run(
         self,
         run_id    : int,
@@ -57,25 +74,6 @@ class RunModel(BaseObjModel):
             return False
 
         return True
-
-
-    async def insert_steps(self, steps: list[RunStep]) -> bool:
-        if not steps:
-            return True
-
-        session: AsyncSession
-
-        try:
-            async with self.db_client() as session:
-                session.add_all(steps)
-                await session.commit()
-
-        except Exception as e:
-            self.logger.error(f"Error Inserting Run Steps: {e}")
-            return False
-
-        return True
-
 
 
     async def fail_run(self, run_id: int, error: str, time_taken: float, response: str | None = None) -> bool:

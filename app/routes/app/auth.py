@@ -5,17 +5,17 @@
 # utils
 from typing import Annotated
 
-import helpers.config as CFG
-from helpers.functional import raise_internal_server_error
-from helpers.config import get_settings
+import core.system_settings as CFG
+from core.helpers import build_public_user, raise_internal_server_error
+from core.system_settings import get_system_settings as get_settings
 settings = get_settings()
 
 
 # fastapi
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from app_core.dependecies.auth import require_authentication, require_csrf
-from app_core.dependecies.clients import get_redis, get_db_client
-from app_core.dependecies.rate_limit import check_rate_limit
+from core.dependecies.auth import require_authentication, require_csrf
+from core.dependecies.clients import get_redis, get_db_client
+from core.helpers import check_rate_limit
 
 
 # databases
@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # models
 from models.db_schemas import Chat, User
 from models.enums import ResponsesEnum
-from models.request_schemas.auth import (
+from models.api_schemas import (
     CsrfResponse,
     LoginRequest,
     LoginResponse,
@@ -34,19 +34,18 @@ from models.request_schemas.auth import (
     UserPublic,
 )
 
-from models.system_schemas import AuthContext
+from models.db_schemas.redis_data import AuthContext
 
-from models.db_objects_models import ChatModel, UserModel
+from models.db_models import ChatModel, UserModel
 
 # security
-from security.csrf import create_csrf_token
-from security.passwords import hash_password, verify_password
-from security.session_management import create_user_session
+from core.auth.csrf import create_csrf_token
+from core.auth.passwords import hash_password, verify_password
+from core.auth.session_management import create_user_session
 
 
 
 # helpers
-from helpers.auth import build_public_user
 
 
 auth_router = APIRouter(
@@ -145,7 +144,7 @@ async def login_user(
     csrf_token = await create_user_session(response = response, redis = redis, user = user)
 
     return LoginResponse(
-        message = "Login successful",
+        message = ResponsesEnum.USER_LOGIN_SUCCESSFULLY.value,
         user = build_public_user(user),
         csrf_token = csrf_token,
     )
@@ -182,7 +181,7 @@ async def logout_user(
     except RedisError:
         raise HTTPException(
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail = "Authentication service unavailable",
+            detail = ResponsesEnum.AUTH_NOT_AVAILABLE.value,
         )
 
     response.delete_cookie(
@@ -191,5 +190,5 @@ async def logout_user(
     )
 
     return {
-        "message": "Logged out successfully",
+        "message": ResponsesEnum.USER_LOGGED_OUT_SUCCESSFULLY.value,
     }

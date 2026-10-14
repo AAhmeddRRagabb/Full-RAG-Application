@@ -2,7 +2,7 @@ import re
 from .base_controller import BaseController
 
 from models.db_schemas import DataChunk
-from models.system_schemas import RetrievedChunk
+from models.agent_models import RetrievedChunk
 
 # vector db utils
 from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
@@ -101,7 +101,8 @@ class VectorDBController(BaseController):
         texts    = [c.chunk_text for c in chunks]
         metadata = [c.chunk_metadata for c in chunks]
 
-        # embed documen
+        # embed documents
+        self.logger.info("Embedding Chunks...")
         embeddings  = self.embedding_client.embed_text(
             text = texts, 
             prompt_type = LLMsGeneralEmbeddingQueryTypes.DOCUMENT.value,
@@ -112,6 +113,7 @@ class VectorDBController(BaseController):
         
             
         # insert
+        self.logger.info("Inserting...")
         return await self.vector_db_client.insert_many(
             collection_name = collection_name,
             record_ids = chunks_ids,
@@ -148,7 +150,6 @@ class VectorDBController(BaseController):
             text = text,
             prompt_type = LLMsGeneralEmbeddingQueryTypes.SEARCH_QUERY.value,
         )
-
 
         if not embeddings or len(embeddings) == 0:
             return None

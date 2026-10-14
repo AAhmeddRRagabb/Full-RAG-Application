@@ -1,4 +1,4 @@
-from models.system_schemas.agent_tools import AGENTIC_TOOLS_SERIALIZABLE
+from models.agent_models.tools import AGENTIC_TOOLS_SERIALIZABLE
 import json
 
 

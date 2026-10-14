@@ -1,7 +1,7 @@
 import hashlib
 import secrets
 import hmac
-from helpers.config import get_settings
+from core.system_settings import get_system_settings as get_settings
 settings = get_settings()
 
 

@@ -1,4 +1,4 @@
-from models.system_schemas import RetrievedChunk
+from models.agent_models import RetrievedChunk
 
 def system_prompt(*args):
     return """

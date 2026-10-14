@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-import helpers.config as CFG
+import core.system_settings as CFG
 
 
 base_router = APIRouter(
@@ -9,7 +9,7 @@ base_router = APIRouter(
 
 @base_router.get("/health")
 async def check_app(
-    app_settings: CFG.Settings = Depends(CFG.get_settings)
+    app_settings: CFG.SystemSettings = Depends(CFG.get_system_settings)
 ):
 
     app_name = app_settings.APP_NAME

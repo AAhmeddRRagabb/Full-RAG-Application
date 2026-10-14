@@ -6,13 +6,12 @@ from .base_controller import BaseController
 from .user_controller import UserController
 
 from models.enums import ResponsesEnum
-from helpers.config import FILE_ALLOWED_EXTENSIONS, FILE_MAX_SIZE_MB, FILE_CHUNK_SIZE_B
+from core.system_settings import FILE_ALLOWED_EXTENSIONS, FILE_MAX_SIZE_MB, FILE_CHUNK_SIZE_B
 from models.enums import FileExtensionsEnum
 
 from fastapi import UploadFile
 from langchain_community.document_loaders import TextLoader, PyMuPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter # cares for spaces and about
-
+from langchain_text_splitters import RecursiveCharacterTextSplitter 
 
 
 class DataController(BaseController):
@@ -62,6 +61,7 @@ class DataController(BaseController):
             "message": ResponsesEnum.FILE_UPLOADING_SUCCESS.value
         }
 
+
     
     def clean_filename(self, filename: str) -> str:
         """Clean & Standardize the file name"""
@@ -91,7 +91,6 @@ class DataController(BaseController):
     def get_file_extension(self, filename: str) -> str:
         return os.path.splitext(filename)[-1]
     
-    
     def get_file_loader(self, file_id: str):
         """
         Returns:
@@ -113,8 +112,6 @@ class DataController(BaseController):
         
         return None
 
-    
-    
     def get_file_content(self, file_id: str) -> str | None:
         loader = self.get_file_loader(file_id = file_id)
 
@@ -122,8 +119,6 @@ class DataController(BaseController):
             return loader.load()
     
         return None
-
-
 
     def get_chunks(self, file_content: list, chunk_size: int = 1000, overlap_size: int = 150) -> list | None:
         """

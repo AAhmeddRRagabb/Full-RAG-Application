@@ -1,20 +1,25 @@
+
 from pydantic import BaseModel, Field
 from typing import Any, Literal
 
 
+# -- Retrieved Chunk
+class RetrievedChunk(BaseModel):
+    text: str
+    score: float
+
+# -- Evidence
 class Evidence(BaseModel):
     content: str = Field(..., description = "Information related to the user query.")
     relevance_score: float = Field(..., ge = 0, le = 1, description = "Relevance score between the evidence and the user query.")
     resource: str = Field(..., description = "File name or website URL where the evidence came from.")
-
 
 class EvidenceResult(BaseModel):
     evidence: list[Evidence] = Field(default_factory = list)
     need_additional_info: bool = False
 
 
-
-
+# -- Report
 class AnswerCheckResult(BaseModel):
     answer_found: bool = False
     reason: str = ""
@@ -31,7 +36,7 @@ class ReportCompatibilityResult(BaseModel):
     tone_probability: float = Field(..., ge = 0, le = 1)
     reason: str = ""
 
-
+# -- Orchestrator
 class AgentState(BaseModel):
     current_date: str | None = None
     current_year: int | None = None

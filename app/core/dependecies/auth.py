@@ -7,18 +7,19 @@ from redis.asyncio import Redis
 from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app_core.dependecies.clients import get_db_client, get_redis
-from helpers.config import get_settings
-from models.db_objects_models import UserModel
+from core.dependecies.clients import get_db_client, get_redis
+from core.system_settings import get_system_settings as get_settings
+from models.db_models import UserModel
 from models.db_schemas.redis_data import SessionData
-from models.system_schemas import AuthContext
-from security.csrf import verify_csrf_token
-from security.session_management import (
+from models.db_schemas.redis_data import AuthContext
+from core.auth.csrf import verify_csrf_token
+from core.auth.session_management import (
     build_redis_session_key,
     build_redis_user_version_key,
     hash_session_token,
 )
 
+from models.enums import ResponsesEnum
 
 
 async def require_authentication(
@@ -33,7 +34,7 @@ async def require_authentication(
     if not raw_token:
         raise HTTPException(
             status_code = status.HTTP_401_UNAUTHORIZED,
-            detail = "Authentication Required"
+            detail = ResponsesEnum.AUTH_REQUIRED.value
         )
 
     # - get the session from Redis
@@ -45,13 +46,13 @@ async def require_authentication(
     except RedisError:
         raise HTTPException(
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail = "Authentication is Unavailable"
+            detail = ResponsesEnum.AUTH_NOT_AVAILABLE.value
         )
 
     if stored_session is None:
         raise HTTPException(
             status_code = status.HTTP_401_UNAUTHORIZED,
-            detail = "Invalid Credentials"
+            detail = ResponsesEnum.AUTH_INVALID_CRED.value
         )
 
 
@@ -61,7 +62,7 @@ async def require_authentication(
         await redis.delete(session_key)
         raise HTTPException(
             status_code = status.HTTP_401_UNAUTHORIZED,
-            detail = "Invalid session",
+            detail = ResponsesEnum.AUTH_INVALID_SESSION.value
         )
 
     # - check session expiration
@@ -71,7 +72,7 @@ async def require_authentication(
 
         raise HTTPException(
             status_code = status.HTTP_401_UNAUTHORIZED,
-            detail = "Session expired",
+            detail = ResponsesEnum.AUTH_INVALID_SESSION.value
         )
 
     # - check user version key
@@ -82,7 +83,7 @@ async def require_authentication(
         await redis.delete(session_key)
         raise HTTPException(
             status_code = status.HTTP_401_UNAUTHORIZED,
-            detail = "Session revoked",
+            detail = ResponsesEnum.AUTH_INVALID_CRED.value
         )
 
     # - get user
@@ -93,7 +94,7 @@ async def require_authentication(
 
         raise HTTPException(
             status_code = status.HTTP_401_UNAUTHORIZED,
-            detail = "User no longer exists",
+            detail = ResponsesEnum.AUTH_INVALID_CRED.value
         )
 
     # - update ttl
@@ -106,7 +107,7 @@ async def require_authentication(
 
         raise HTTPException(
             status_code = status.HTTP_401_UNAUTHORIZED,
-            detail = "Session expired",
+            detail = ResponsesEnum.AUTH_INVALID_SESSION.value
         )
 
     # update session
@@ -123,8 +124,6 @@ async def require_authentication(
     )
 
 
-
-
 async def require_csrf(
     auth      : Annotated[AuthContext, Depends(require_authentication)], 
     csrf_token: Annotated[str | None, Header(alias = "X-CSRF-Token")] = None
@@ -133,7 +132,7 @@ async def require_csrf(
     if csrf_token is None:
         raise HTTPException(
             status_code = status.HTTP_403_FORBIDDEN,
-            detail = "Missing CSRF token",
+            detail = ResponsesEnum.AUTH_INVALID_CRED.value
         )
 
     valid = verify_csrf_token(
@@ -144,7 +143,7 @@ async def require_csrf(
     if not valid:
         raise HTTPException(
             status_code = status.HTTP_403_FORBIDDEN,
-            detail = "Invalid CSRF token",
+            detail = ResponsesEnum.AUTH_INVALID_CRED.value
         )
 
     return auth

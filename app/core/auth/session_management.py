@@ -1,17 +1,19 @@
 
 # utils
-from helpers.config import get_settings
+from core.system_settings import get_system_settings as get_settings
 settings = get_settings()
 
 import hashlib
 import secrets
 from datetime import datetime, timezone, timedelta
-from security.csrf import create_csrf_token
+from core.auth.csrf import create_csrf_token
 from redis.asyncio import Redis, RedisError
 
-# models
 from models.db_schemas import User
+
+# models
 from models.db_schemas.redis_data import SessionData
+from models.enums import ResponsesEnum
 
 # fastapi
 from fastapi import Response, HTTPException, status
@@ -74,13 +76,13 @@ async def create_user_session(
     except RedisError:
         raise HTTPException(
             status_code = status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail = "Authentication service unavailable",
+            detail = ResponsesEnum.AUTH_NOT_AVAILABLE.value
         )
 
     if not session_created:
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Could not create session",
+            status_code = status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail = ResponsesEnum.AUTH_NOT_AVAILABLE.value
         )
 
     response.set_cookie(

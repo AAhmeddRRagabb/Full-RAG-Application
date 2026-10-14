@@ -7,19 +7,19 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-from app_core.dependecies.auth import require_authentication
-from app_core.dependecies.clients import get_db_client, get_embedding_client, get_redis, get_vector_db_client
-from app_core.dependecies.rate_limit import check_rate_limit
+from core.dependecies.auth import require_authentication
+from core.dependecies.clients import get_db_client, get_embedding_client, get_redis, get_vector_db_client
+from core.helpers import check_rate_limit
 from clients.llms.llm_clients import GoogleLLMClient, HuggingfaceLLMClient
 from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
 from controllers import DataController, UserController, VectorDBController
-from helpers import config as CFG
-from helpers.config import get_settings
-from helpers.functional import log_title, raise_internal_server_error
-from models.db_objects_models import AssetModel, ChunkModel
+import core.system_settings as CFG
+from core.system_settings import get_system_settings as get_settings
+from core.helpers import log_title, raise_internal_server_error
+from models.db_models import AssetModel, ChunkModel
 from models.db_schemas import Asset, DataChunk, User
 from models.enums import AssetTypesEnum, ResponsesEnum
-from models.system_schemas import AuthContext
+from models.db_schemas.redis_data import AuthContext
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -207,7 +207,7 @@ async def upload_file(
     )
 
     return {
-        "message": "File uploaded successfully and is being processed.",
+        "message": ResponsesEnum.FILE_UPLOAD_PROCESSING.value,
         "filename": asset.asset_name,
         "status": "processing",
     }
@@ -272,7 +272,7 @@ async def delete_user_file(
     if asset is None:
         raise HTTPException(
             status_code = status.HTTP_404_NOT_FOUND,
-            detail = "File not found",
+            detail = ResponsesEnum.FILE_NOT_FOUND.value,
         )
 
     chunk_ids = await chunk_model.get_asset_chunk_ids(
@@ -306,5 +306,5 @@ async def delete_user_file(
         os.remove(file_path)
 
     return {
-        "message": "File deleted successfully",
+        "message": ResponsesEnum.FILE_DELETED_SUCCESSFULLY.value,
     }

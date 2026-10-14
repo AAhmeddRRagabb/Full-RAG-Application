@@ -18,8 +18,8 @@ from clients.llms.llm_clients import (
     HuggingfaceLLMClient,
 )
 from clients.llms.prompt_templates import PromptTemplateParser
-from models.system_schemas import RetrievedChunk
-from models.system_schemas.agent_schemas import (
+from models.agent_models import RetrievedChunk
+from models.agent_models.schemas import (
     AgentState,
     AnswerCheckResult,
     Evidence,
@@ -29,10 +29,10 @@ from models.system_schemas.agent_schemas import (
     ReportCompatibilityResult,
 )
 
-from models.db_objects_models import AssetModel, ChunkModel
+from models.db_models import AssetModel, ChunkModel
 from .vector_db_controller import VectorDBController
 
-from helpers.chat import ChatCFG, get_file_id, emit, get_file_name
+from core.chat import ChatCFG, get_file_id, emit, get_file_name
 from models.db_schemas import User
 
 THINKING_MESSAGE = "Thinking..."

@@ -1,5 +1,5 @@
 from typing import Any
-from models.system_schemas import RetrievedChunk
+from models.agent_models import RetrievedChunk
 
 
 from .base_vectordb_client import BaseVectorClient
