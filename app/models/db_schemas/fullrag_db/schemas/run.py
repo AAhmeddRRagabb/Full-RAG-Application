@@ -38,6 +38,7 @@ class RunStep(SQLAlchemyBase):
 
     step_order = Column(Integer, nullable = False)
     step_name = Column(String, nullable = False)
+    step_reason = Column(String, nullable = True)
     step_input = Column(JSONB, nullable = True)
     step_output = Column(JSONB, nullable = True)
 

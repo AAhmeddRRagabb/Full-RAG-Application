@@ -310,11 +310,12 @@ class ChatController(BaseController):
 
 
 
-    async def get_next_action(self, workflow: list[WorkflowStep]) -> NextAction | None:
+    async def get_next_action(self, workflow: list[WorkflowStep], chat_messages : list[Message] | None = None) -> NextAction | None:
         next_action = await self.call_llm_json(
             task = AgentTasks.ORCHESTRATION.value,
+            previous_chat_messages = chat_messages,
             prompt_vars = {
-                "workflow": workflow,
+                "workflow": workflow
             }
         )
 
@@ -356,7 +357,6 @@ class ChatController(BaseController):
     async def generate_answer(
         self,
         query: str,
-        tone: str,
         search_results: list[Evidence] | None = None,
         query_metadata: dict | None = None
     ) -> FinalAnswer | None:
@@ -364,12 +364,11 @@ class ChatController(BaseController):
             task = AgentTasks.ANSWER.value,
             prompt_vars = {
                 "query": query,
-                "tone": tone,
                 "evidence": search_results or [],
                 **(query_metadata or {})
             },
             schema = FinalAnswer,
-            max_output_tokens = 5000,
+            max_output_tokens = 2056,
         )
 
     # ---------------------------------------- Final Driver Function ---------------------------------------- #
@@ -378,21 +377,26 @@ class ChatController(BaseController):
         name: str,
         step_output: Any,
         started_at: float,
+        reason: str | None = None,
         step_input: dict[str, Any] | None = None,
         run_step_logger: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
     ) -> None:
         step = {
             "name": name,
+            "reason": reason,
             "input": step_input,
             "output": step_output,
             "duration_s": round(time.time() - started_at, 4),
         }
 
-        self.logger.info(
-            "Action: %s\nResult: %s",
-            name,
-            json.dumps(step_output, ensure_ascii=False, default=str),
-        )
+        if name == "search":
+            result = f"{len(step_output['search_results'])} results"
+        elif name == "generate_answer":
+            result = f"{len(step_output['answer'])} chars"
+        else:
+            result = json.dumps(step_output, ensure_ascii=False, default=str)
+
+        self.logger.info("Action: %s | Reason: %s | Result: %s", name, reason, result)
 
         if run_step_logger is not None:
             await run_step_logger(step)
@@ -441,11 +445,12 @@ class ChatController(BaseController):
         self.update_workflow('user_query', user_query = user_query)
 
         while(True):
-            next_action = await self.get_next_action(workflow = self.workflow)
+            next_action = await self.get_next_action(workflow = self.workflow, chat_messages = chat_messages)
 
             if next_action.action == 'finish':
                 await self.record_step(
                     name = next_action.action,
+                    reason = next_action.reason,
                     started_at = time.time(),
                     step_output = None,
                     run_step_logger = run_step_logger,
@@ -462,6 +467,7 @@ class ChatController(BaseController):
                 
                 await self.record_step(
                     name = next_action.action,
+                    reason = next_action.reason,
                     started_at = start_time,
                     step_output = {
                         "current_date": current_date
@@ -487,6 +493,7 @@ class ChatController(BaseController):
                 
                 await self.record_step(
                     name = next_action.action,
+                    reason = next_action.reason,
                     started_at = start_time,
                     step_input = step_input,
                     step_output = {"result": result},
@@ -520,6 +527,7 @@ class ChatController(BaseController):
 
                 await self.record_step(
                     name = next_action.action,
+                    reason = next_action.reason,
                     started_at = start_time,
                     step_input = step_input,
                     step_output = {
@@ -540,7 +548,6 @@ class ChatController(BaseController):
                 step_input = {
                     "query": generation_query,
                     "search_results": [result.model_dump() for result in search_results],
-                    "chat_tone": chat_cfg.chat_tone,
                 }
 
                 query_metadata = {}
@@ -557,13 +564,13 @@ class ChatController(BaseController):
                 start_time = time.time()
                 final = await self.generate_answer(
                     query = generation_query,
-                    tone = chat_cfg.chat_tone,
                     search_results = search_results,
                     query_metadata = query_metadata if query_metadata else None
                 )
 
                 await self.record_step(
                     name = next_action.action,
+                    reason = next_action.reason,
                     started_at = start_time,
                     step_input = step_input,
                     step_output = final.model_dump(),
@@ -573,63 +580,18 @@ class ChatController(BaseController):
                 self.update_workflow(step_name = "tool_call", step_details = ToolCall(
                     tool_name = 'generate_answer',
                     tool_reason = next_action.reason,
-                    tool_result = final.answer
+                    tool_result = "Answer Generated" if final.answer else "Answer Invalid, retrey generating"
                 ))
 
                 answer = final.answer
                 resources = final.resources
 
-                
-
-            if next_action.action == 'validate_answer':
-                step_input = {"user_query": user_query, "answer": answer}
-                start_time = time.time()
-                valid = await self.call_llm_json(
-                    task = AgentTasks.ANSWER_VALIDATION.value,
-                    prompt_vars = step_input,
-                    key = "valid",
-                )
-
-                await self.record_step(
-                    name = next_action.action,
-                    started_at = start_time,
-                    step_input = step_input,
-                    step_output = {"valid": valid},
-                    run_step_logger = run_step_logger,
-                )
-
-                self.update_workflow(step_name = "tool_call", step_details = ToolCall(
-                    tool_name = next_action.action,
-                    tool_reason = next_action.reason,
-                    tool_result = str(valid),
-                ))
-
-            if next_action.action == 'validate_search_results':
-                step_input = {
-                    "user_query": user_query,
-                    "search_results": [result.model_dump() for result in search_results],
-                }
-                start_time = time.time()
-                valid = await self.call_llm_json(
-                    task = AgentTasks.SEARCH_RESULTS_VALIDATION.value,
-                    prompt_vars = step_input,
-                    key = "valid",
-                )
-
-                await self.record_step(
-                    name = next_action.action,
-                    started_at = start_time,
-                    step_input = step_input,
-                    step_output = {"valid": valid},
-                    run_step_logger = run_step_logger,
-                )
-
-                self.update_workflow(step_name = "tool_call", step_details = ToolCall(
-                    tool_name = next_action.action,
-                    tool_reason = next_action.reason,
-                    tool_result = str(valid),
-                ))
-
-
-            
-
+                if answer:
+                    await self.record_step(
+                        name = 'finish',
+                        reason = 'Answer generated',
+                        started_at = time.time(),
+                        step_output = None,
+                        run_step_logger = run_step_logger,
+                    )
+                    return {'answer': answer, 'resources': resources}

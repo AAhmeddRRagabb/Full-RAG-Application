@@ -21,22 +21,10 @@ class EvidenceResult(BaseModel):
     need_additional_info: bool = False
 
 
-# -- Report
-class AnswerCheckResult(BaseModel):
-    answer_found: bool = False
-    reason: str = ""
-    suggested_query: str | None = None
-
-
 class FinalAnswer(BaseModel):
     answer: str
     resources: list[str] = Field(default_factory = list)
 
-
-class ReportCompatibilityResult(BaseModel):
-    is_valid: bool = False
-    tone_probability: float = Field(..., ge = 0, le = 1)
-    reason: str = ""
 
 # -- Orchestrator
 class NextAction(BaseModel):
@@ -45,9 +33,7 @@ class NextAction(BaseModel):
         'get_current_date',
         'calculate',
         'search',
-        'validate_search_results',
         'generate_answer',
-        'validate_answer',
         'finish'
     ]
     arguments: dict[str, Any] = Field(default_factory = dict)

@@ -59,9 +59,7 @@ class LLMsEmbeddingModels(Enum):
 
 class AgentTasks(Enum):
     SEARCH = "search"
-    SEARCH_RESULTS_VALIDATION = "search_results_validation"
     ANSWER = "answer"
-    ANSWER_VALIDATION = "answer_validation"
     ORCHESTRATION = "orchestration"
 
 

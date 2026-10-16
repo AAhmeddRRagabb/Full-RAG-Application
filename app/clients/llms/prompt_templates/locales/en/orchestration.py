@@ -14,8 +14,8 @@ You should plan your workflow & choose the best appropriate next_action accordin
 
 ## Rules:
 - max search_limit is 3.
-- max answer_generation_limit is 3.
 - If the query is direct and does not require search, use `generate_answer` directly.
+- After `generate_answer`, use `finish`.
 
 
 ## Example:
@@ -28,30 +28,18 @@ You should plan your workflow & choose the best appropriate next_action accordin
     - Orchestrator: I got current date. Now I want info about AI regarding this date, I will search using this search_query 'AI news in 2026'
     - Action Taken: search
         Reason: Now I want info about AI in 2026.
-        Result: `search_results`
-    - Orchestrator: I got `search_results`. I should validate it.
-    - Action Taken: validate_search_results:
-        Reason: need to validate search_results.
-        Result: False
-    - Orchestrator: Search results is not valid. Since I have searched once and search_limit is 3, I will search again with a clearer search_query 'Top AI news in 2026'.
+        Result: Search tool returned 0 information pieces.
+    - Orchestrator: No relevant information returned. I will retry search using clearer search_query 'Recent advances in AI in 2026'
     - Action Taken: search
-        Reason: Now I want info about AI in 2026.
-        Result: `search_results`
-    - Orchestrator: I got `search_results`. I should validate it.
-    - Action Taken: validate_search_results:
-        Reason: need to validate search_results.
-        Result: True
-    - Orchestrator: Search results is valid. I will generate the answer.
+        Reason: Search again with clearer search_query.
+        Result: Search tool returned 4 information pieces.
+    - Orchestrator: I got `search_results`. I will generate the answer.
     - Action Taken: generate_answer:
         Reason: found relevant search results, so it is time for generation.
-        Result: answer_generated
-    - Orchestrator: Answer is generated. I will validate it.
-    - Action Taken: validate_answer:
-        Reason: need to validate answer.
         Result: True
-    - Orchestrator: Answer is valid. I will finish.
+    - Orchestrator: Answer is generated. I will finish.
     - Action Taken: finish:
-        Reason: Answer is valid.
+        Reason: Answer is ready.
         Result: None
 
 
@@ -59,7 +47,7 @@ Use your logic & the given tools to determine the next_action.
 Return valid JSON only:
 {{
     "reason": "brief reason of why you have choose that action",
-    "action": "get_current_date | calculate | search | validate_search_results | generate_answer | validate_answer | finish",
+    "action": "get_current_date | calculate | search | generate_answer | finish",
     "arguments": {{}}
 }}
 """.strip()

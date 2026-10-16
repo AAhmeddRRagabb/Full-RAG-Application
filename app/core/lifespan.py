@@ -108,16 +108,6 @@ async def lifespan(app: FastAPI):
         )
     )
 
-    # -- search results validation agent
-    app.state.llm_clients[AgentTasks.SEARCH_RESULTS_VALIDATION.value] = llm_clients_factory.create_agent(
-        provider = app.state.settings.CHAT_CONTEXT_BACKEND,
-        generation_model_id = app.state.settings.CHAT_CONTEXT_AGENT,
-        system_prompt = app.state.prompt_template_parser.get_prompt(
-            task = AgentTasks.SEARCH_RESULTS_VALIDATION.value,
-            key = PromptTypes.SYSTEM_PROMPT.value,
-        ),
-    )
-
     # -- answer agent
     app.state.llm_clients[AgentTasks.ANSWER.value] = llm_clients_factory.create_agent(
         provider            = app.state.settings.FILES_INFORMATION_EXTRACTION_BACKEND,
@@ -126,16 +116,6 @@ async def lifespan(app: FastAPI):
             task = AgentTasks.ANSWER.value,
             key  = PromptTypes.SYSTEM_PROMPT.value
         )
-    )
-
-    # -- answer validation agent
-    app.state.llm_clients[AgentTasks.ANSWER_VALIDATION.value] = llm_clients_factory.create_agent(
-        provider = app.state.settings.FILES_INFORMATION_EXTRACTION_BACKEND,
-        generation_model_id = app.state.settings.FILES_INFORMATION_EXTRACTION_AGENT,
-        system_prompt = app.state.prompt_template_parser.get_prompt(
-            task = AgentTasks.ANSWER_VALIDATION.value,
-            key = PromptTypes.SYSTEM_PROMPT.value,
-        ),
     )
 
     # -- orchestration agent
@@ -151,7 +131,7 @@ async def lifespan(app: FastAPI):
 
     if (
         not app.state.llm_clients
-        or len(app.state.llm_clients) < 5
+        or len(app.state.llm_clients) < 3
         or any(
             client is None
             for client in app.state.llm_clients.values()

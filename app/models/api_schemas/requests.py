@@ -19,10 +19,6 @@ class LoginRequest(BaseModel):
 class ChatRequest(BaseModel):
     query: str
     chat_id: int
-    tone: Literal[
-        "technical",
-        "creative"
-    ] = "technical"
     depth: Literal[
         "low",
         "moderate",
@@ -33,7 +29,6 @@ class ChatRequest(BaseModel):
 
 
 class ChatCFG(BaseModel):
-    chat_tone: str
     file_search_limit: int
     web_search_limit: int
     max_search_limit: int

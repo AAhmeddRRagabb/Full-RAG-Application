@@ -252,7 +252,6 @@ async def run_chat_request(
 
     query   = chat_request.query
     chat_id = chat_request.chat_id
-    tone    = chat_request.tone
     depth   = chat_request.depth
     files   = chat_request.files or []
 
@@ -302,7 +301,6 @@ async def run_chat_request(
         user_query = query,
         run_metadata = {
             "files": [get_file_name(file) for file in files],
-            "tone": tone,
             "depth": depth,
         },
     )
@@ -348,7 +346,6 @@ async def run_chat_request(
             user_query = query,
             files = files,
             chat_cfg = get_chat_cfg(
-                chat_tone = tone,
                 chat_depth = depth,
             ),
             chat_messages = previous_messages,

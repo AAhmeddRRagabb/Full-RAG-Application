@@ -90,11 +90,6 @@ function selectedFiles() {
 }
 
 
-function selectedTone() {
-    return document.querySelector("input[name='chatTone']:checked")?.value || "technical";
-}
-
-
 function selectedDepth() {
     return document.querySelector("input[name='answerDepth']:checked")?.value || "moderate";
 }
@@ -103,7 +98,6 @@ function selectedDepth() {
 function currentRequestOptions() {
     return {
         files: selectedFiles(),
-        tone : selectedTone(),
         depth: selectedDepth(),
     };
 }
@@ -549,7 +543,6 @@ async function sendQuery(event) {
                 query,
                 chat_id: targetChat.serverId,
                 files: options.files,
-                tone: options.tone,
                 depth: options.depth,
             },
             activeRun.signal,

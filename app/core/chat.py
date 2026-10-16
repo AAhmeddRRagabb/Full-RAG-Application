@@ -20,10 +20,9 @@ def calc_run_time_s(start_time: float) -> float:
 
 
 
-def get_chat_cfg(chat_tone: str, chat_depth: str) -> ChatCFG:
+def get_chat_cfg(chat_depth: str) -> ChatCFG:
     if chat_depth == 'low':
         return ChatCFG(
-            chat_tone = chat_tone,
             file_search_limit = 3,
             web_search_limit = 3,
             max_search_limit = 2,
@@ -31,7 +30,6 @@ def get_chat_cfg(chat_tone: str, chat_depth: str) -> ChatCFG:
 
     if chat_depth == 'moderate':
         return ChatCFG(
-            chat_tone = chat_tone,
             file_search_limit = 5,
             web_search_limit = 5,
             max_search_limit = 3,
@@ -39,7 +37,6 @@ def get_chat_cfg(chat_tone: str, chat_depth: str) -> ChatCFG:
 
     if chat_depth == 'high':
         return ChatCFG(
-            chat_tone = chat_tone,
             file_search_limit = 8,
             web_search_limit = 8,
             max_search_limit = 5,
@@ -77,6 +74,7 @@ async def log_run_step(run_model: RunModel, run, step: dict[str, Any], step_orde
             run_id = run.run_id,
             step_order = step_order,
             step_name = step.get("name", "unknown"),
+            step_reason = step.get("reason"),
             step_input = step.get("input"),
             step_output = step.get("output"),
             duration_s = step.get("duration_s"),
