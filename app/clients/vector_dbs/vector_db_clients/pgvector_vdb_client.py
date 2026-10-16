@@ -473,7 +473,8 @@ class PGVectorVDBClient(BaseVectorClient):
                     retrieved_chunks = [
                         RetrievedChunk(
                             text  = rec.text,
-                            score = rec.score
+                            score = rec.score,
+                            # resource =
                         )
 
                         for rec in records
@@ -484,6 +485,8 @@ class PGVectorVDBClient(BaseVectorClient):
         except Exception as e:
             self.logger.error(f"Error Retrieving: {e}")
             return None
+
+
 
     async def delete_by_chunk_ids(
         self,

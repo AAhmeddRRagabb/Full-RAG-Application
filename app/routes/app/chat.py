@@ -33,6 +33,7 @@ from core.chat import (
     get_chat_cfg,
     get_file_name,
     get_messages_content,
+    log_run_step
 )
 from core.helpers import build_public_chat, build_public_message, raise_internal_server_error
 from models.db_models import AssetModel, ChatModel, ChunkModel, RunModel
@@ -337,21 +338,10 @@ async def run_chat_request(
     # --------------------- Agentic Work ----------------------------- #
     step_order = 0
 
-    async def log_run_step(step: dict[str, Any]) -> None:
+    async def record_run_step(step: dict[str, Any]) -> None:
         nonlocal step_order
-
+        await log_run_step(run_model, run, step, step_order)
         step_order += 1
-        if not await run_model.insert_steps([
-            RunStep(
-                run_id = run.run_id,
-                step_order = step_order,
-                step_name = step.get("name", "unknown"),
-                step_input = step.get("input"),
-                step_output = step.get("output"),
-                duration_s = step.get("duration_s"),
-            )
-        ]):
-            raise RuntimeError("Could not save run step")
 
     try:
         agent_result = await chat_controller.answer_user_query(
@@ -361,10 +351,11 @@ async def run_chat_request(
                 chat_tone = tone,
                 chat_depth = depth,
             ),
-            chat_messages = get_messages_content(previous_messages),
+            chat_messages = previous_messages,
             queue = queue,
-            run_step_logger = log_run_step,
+            run_step_logger = record_run_step,
         )
+
 
     except Exception as e:
         await run_model.fail_run(
@@ -382,8 +373,8 @@ async def run_chat_request(
         )
         raise_internal_server_error()
 
-    report = agent_result.get("report")
-    resources = agent_result.get("llm_resources") or []
+    report = agent_result.get("answer")
+    resources = agent_result.get("resources") or []
 
     if not await chat_model.insert_message(
         Message(
@@ -489,4 +480,3 @@ async def stream_chat_will_llm(
         events(),
         media_type = "application/x-ndjson",
     )
-

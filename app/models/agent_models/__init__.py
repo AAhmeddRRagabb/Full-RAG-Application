@@ -1,9 +1,8 @@
 from .schemas import (
-    AgentState,
     AnswerCheckResult,
     Evidence,
     EvidenceResult,
-    FinalReportResult,
+    FinalAnswer,
     NextAction,
     ReportCompatibilityResult,
     RetrievedChunk,

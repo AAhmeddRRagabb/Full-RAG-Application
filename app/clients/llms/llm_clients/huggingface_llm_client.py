@@ -1,3 +1,4 @@
+from models.db_schemas import Message
 
 from clients.llms.config import (
     LLMsGeneralEmbeddingQueryTypes,
@@ -134,7 +135,8 @@ class HuggingfaceLLMClient(BaseLLMClient):
 
     def generate_text(
         self, 
-        user_prompt      : str, 
+        user_prompt      : str,
+        messages         : list[Message] | None = None, 
         max_output_tokens: int | None = None, 
         temperature      : float | None = None
     ) -> str | None:
@@ -142,7 +144,7 @@ class HuggingfaceLLMClient(BaseLLMClient):
         """
         Args:
             user_prompt  (str)
-            chat_history (list)
+            messages (list[Message])
             max_output_tokens (int)
             temperature (float)
 
@@ -150,22 +152,28 @@ class HuggingfaceLLMClient(BaseLLMClient):
             if success -> model response
             if failure -> None
         """
+        messages = [
+            self.create_prompt(
+                prompt = m.content,
+                role = m.role
+            ) for m in messages
+        ] if messages else []
 
         system_message = self.create_prompt(
             prompt = self.generation_system_prompt,
-            role = LLMsGenerationMessageTypes.HF_SYSTEM_MESSAGE.value,
+            role = LLMsGenerationMessageTypes.GROQ_SYSTEM_MESSAGE.value,
         )
         
         user_message = self.create_prompt(
             prompt = user_prompt,
-            role   = LLMsGenerationMessageTypes.HF_USER_MESSAGE.value
+            role   = LLMsGenerationMessageTypes.GROQ_USER_MESSAGE.value
         )
 
-        messages = [system_message, user_message]
+        final_messages = [system_message, *(messages or []), user_message]
 
         try:
             response = self.client.chat_completion(
-                messages    = messages,
+                messages    = final_messages,
                 model       = self.generation_model_id,
                 stream      = False,
                 temperature = temperature if temperature else self.default_temperature,

@@ -7,6 +7,8 @@ from typing import Any, Literal
 class RetrievedChunk(BaseModel):
     text: str
     score: float
+    resource: Any | None = None
+    publish_date: Any | None = None
 
 # -- Evidence
 class Evidence(BaseModel):
@@ -26,8 +28,8 @@ class AnswerCheckResult(BaseModel):
     suggested_query: str | None = None
 
 
-class FinalReportResult(BaseModel):
-    report: str
+class FinalAnswer(BaseModel):
+    answer: str
     resources: list[str] = Field(default_factory = list)
 
 
@@ -37,47 +39,15 @@ class ReportCompatibilityResult(BaseModel):
     reason: str = ""
 
 # -- Orchestrator
-class AgentState(BaseModel):
-    current_date: str | None = None
-    current_year: int | None = None
-    has_current_date: bool = False
-
-    calculator_result: str | None = None
-    has_calculator_result: bool = False
-
-    chat_context: list[str] | None = None
-    references: list[dict] | None = None
-    has_chat_context: bool = False
-    has_references: bool = False
-
-    search_results : list[Evidence] = Field(default_factory = list)
-    has_search_results: bool = False
-    max_search_limit: int
-    search_attempts: int = 0
-
-    answer_found: bool | None = None
-    answer_reason: str | None = None
-
-    final_report : str | None = None
-    llm_resources: list[str] = Field(default_factory = list)
-    has_final_report: bool = False
-    has_llm_resources: bool = False
-    report_query: str | None = None
-    report_compatible: bool | None = None
-    report_tone_probability: float | None = None
-    report_check_reason: str | None = None
- 
-
 class NextAction(BaseModel):
     reason: str
     action: Literal[
-        'get_chat_context',
         'get_current_date',
-        'calculator',
+        'calculate',
         'search',
-        'check_answer',
-        'generate_final_report',
-        'check_report_compatability',
+        'validate_search_results',
+        'generate_answer',
+        'validate_answer',
         'finish'
     ]
     arguments: dict[str, Any] = Field(default_factory = dict)

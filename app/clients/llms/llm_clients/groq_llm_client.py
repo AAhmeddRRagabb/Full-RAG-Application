@@ -1,4 +1,6 @@
+from models.db_schemas import Message
 from clients.llms.config import LLMsGenerationMessageTypes
+
 
 from .base_llm_client import BaseLLMClient
 from groq import Groq
@@ -72,7 +74,8 @@ class GroqLLMClient(BaseLLMClient):
 
     def generate_text(
         self, 
-        user_prompt      : str, 
+        user_prompt      : str,
+        messages         : list[Message] | None = None,  
         max_output_tokens: int | None = None, 
         temperature      : float | None = None
     ) -> str | None:
@@ -80,7 +83,7 @@ class GroqLLMClient(BaseLLMClient):
         """
         Args:
             user_prompt  (str)
-            chat_history (list)
+            messages (list[Message])
             max_output_tokens (int)
             temperature (float)
 
@@ -88,6 +91,14 @@ class GroqLLMClient(BaseLLMClient):
             if success -> model response
             if failure -> None
         """
+        from pprint import pprint
+
+        messages = [
+            self.create_prompt(
+                prompt = m.content,
+                role = m.role
+            ) for m in messages
+        ] if messages else []
 
         system_message = self.create_prompt(
             prompt = self.generation_system_prompt,
@@ -99,13 +110,15 @@ class GroqLLMClient(BaseLLMClient):
             role   = LLMsGenerationMessageTypes.GROQ_USER_MESSAGE.value
         )
 
-        messages = [system_message, user_message]
+        final_messages = [system_message, *(messages or []), user_message]
+
+        
 
         response: ChatCompletion = None
         
         try:
             response = self.client.chat.completions.create(
-                messages    = messages,
+                messages    = final_messages,
                 model       = self.generation_model_id,
                 stream      = False,
                 temperature = temperature if temperature else self.default_temperature,

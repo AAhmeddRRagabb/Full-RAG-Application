@@ -98,72 +98,60 @@ async def lifespan(app: FastAPI):
     app.state.llm_clients_factory = llm_clients_factory
     app.state.llm_clients = {}
 
-    app.state.llm_clients[AgentTasks.CC.value] = llm_clients_factory.create_agent(
+    # -- search agent
+    app.state.llm_clients[AgentTasks.SEARCH.value] = llm_clients_factory.create_agent(
         provider = app.state.settings.CHAT_CONTEXT_BACKEND,
         generation_model_id = app.state.settings.CHAT_CONTEXT_AGENT,
         system_prompt       = app.state.prompt_template_parser.get_prompt(
-            task = AgentTasks.CC.value,
+            task = AgentTasks.SEARCH.value,
             key  = PromptTypes.SYSTEM_PROMPT.value
         )
     )
 
-    app.state.llm_clients[AgentTasks.FI.value] = llm_clients_factory.create_agent(
+    # -- search results validation agent
+    app.state.llm_clients[AgentTasks.SEARCH_RESULTS_VALIDATION.value] = llm_clients_factory.create_agent(
+        provider = app.state.settings.CHAT_CONTEXT_BACKEND,
+        generation_model_id = app.state.settings.CHAT_CONTEXT_AGENT,
+        system_prompt = app.state.prompt_template_parser.get_prompt(
+            task = AgentTasks.SEARCH_RESULTS_VALIDATION.value,
+            key = PromptTypes.SYSTEM_PROMPT.value,
+        ),
+    )
+
+    # -- answer agent
+    app.state.llm_clients[AgentTasks.ANSWER.value] = llm_clients_factory.create_agent(
         provider            = app.state.settings.FILES_INFORMATION_EXTRACTION_BACKEND,
         generation_model_id = app.state.settings.FILES_INFORMATION_EXTRACTION_AGENT,
         system_prompt       = app.state.prompt_template_parser.get_prompt(
-            task = AgentTasks.FI.value,
+            task = AgentTasks.ANSWER.value,
             key  = PromptTypes.SYSTEM_PROMPT.value
         )
     )
 
-    app.state.llm_clients[AgentTasks.SI.value] = llm_clients_factory.create_agent(
+    # -- answer validation agent
+    app.state.llm_clients[AgentTasks.ANSWER_VALIDATION.value] = llm_clients_factory.create_agent(
+        provider = app.state.settings.FILES_INFORMATION_EXTRACTION_BACKEND,
+        generation_model_id = app.state.settings.FILES_INFORMATION_EXTRACTION_AGENT,
+        system_prompt = app.state.prompt_template_parser.get_prompt(
+            task = AgentTasks.ANSWER_VALIDATION.value,
+            key = PromptTypes.SYSTEM_PROMPT.value,
+        ),
+    )
+
+    # -- orchestration agent
+    app.state.llm_clients[AgentTasks.ORCHESTRATION.value] = llm_clients_factory.create_agent(
         provider            = app.state.settings.SEARCH_INFORMATION_EXTRACTION_BACKEND,
         generation_model_id = app.state.settings.SEARCH_INFORMATION_EXTRACTION_AGENT,
         system_prompt       = app.state.prompt_template_parser.get_prompt(
-            task = AgentTasks.SI.value,
+            task = AgentTasks.ORCHESTRATION.value,
             key  = PromptTypes.SYSTEM_PROMPT.value
         )
     )
 
-    app.state.llm_clients[AgentTasks.AC.value] = llm_clients_factory.create_agent(
-        provider = app.state.settings.ORCHESTRATION_BACKEND,
-        generation_model_id = app.state.settings.ORCHESTRATION_AGENT,
-        system_prompt = app.state.prompt_template_parser.get_prompt(
-            task = AgentTasks.AC.value,
-            key = PromptTypes.SYSTEM_PROMPT.value
-        )
-    )
-
-    app.state.llm_clients[AgentTasks.RG.value] = llm_clients_factory.create_agent(
-        provider            = app.state.settings.FINAL_REPORT_GENERATION_BACKEND,
-        generation_model_id = app.state.settings.FINAL_REPORT_GENERATION_AGENT,
-        system_prompt       = app.state.prompt_template_parser.get_prompt(
-            task = AgentTasks.RG.value,
-            key  = PromptTypes.SYSTEM_PROMPT.value
-        )
-    )
-
-    app.state.llm_clients[AgentTasks.RC.value] = llm_clients_factory.create_agent(
-        provider = app.state.settings.ORCHESTRATION_BACKEND,
-        generation_model_id = app.state.settings.ORCHESTRATION_AGENT,
-        system_prompt = app.state.prompt_template_parser.get_prompt(
-            task = AgentTasks.RC.value,
-            key = PromptTypes.SYSTEM_PROMPT.value
-        )
-    )
-
-    app.state.llm_clients[AgentTasks.OR.value] = llm_clients_factory.create_agent(
-        provider = app.state.settings.ORCHESTRATION_BACKEND,
-        generation_model_id = app.state.settings.ORCHESTRATION_AGENT,
-        system_prompt       = app.state.prompt_template_parser.get_prompt(
-            task = AgentTasks.OR.value,
-            key  = PromptTypes.SYSTEM_PROMPT.value
-        )
-    )
 
     if (
         not app.state.llm_clients
-        or len(app.state.llm_clients) < 7
+        or len(app.state.llm_clients) < 5
         or any(
             client is None
             for client in app.state.llm_clients.values()

@@ -3,8 +3,11 @@ from models.agent_models import RetrievedChunk
 def system_prompt(*args):
     return """
 You are a helpful assistant.
-You receive a user query and text chunks from an uploaded file.
-Extract only evidence that helps answer the user query.
+You receive the following:
+- `query`.
+- `documents` contain information.
+
+Your role is to only extract the most relevant information from the `documents` to the `query`.
 
 ## Rules:
 - You should use that information as your only knowledge base.
@@ -28,7 +31,7 @@ Return valid JSON only:
 
 
 # documents summarization
-def task_prompt(query: str, documents: list[RetrievedChunk], resource: str = "uploaded file") -> str:
+def task_prompt(query: str, documents: list[RetrievedChunk]) -> str:
     """Documents Summarization Task"""
 
     documents = sorted(
@@ -37,14 +40,16 @@ def task_prompt(query: str, documents: list[RetrievedChunk], resource: str = "up
         reverse = True
     )
 
-    documents_prompt = "## Documents:\n\n"
+    documents_prompt = "## Search Results:\n\n"
     for idx, doc in enumerate(documents, start = 1):
-        documents_prompt += f"### Chunk #{idx} - score {doc.score}: {doc.text}\n\n"
-
+        documents_prompt += f"### Document No #{idx}\n"
+        documents_prompt += f"\t Relevance Score: {doc.score}\n"
+        documents_prompt += f"\t Resource: {doc.resource}\n"
+        documents_prompt += f"\t Publish Date: {doc.publish_date}\n" if doc.publish_date else ""
+        documents_prompt += f"\t Document Content: {doc.text}"
 
     footer_prompt = f"""
 ## Query: {query}
-## Resource: {resource}
 
 Return the JSON now:
 """.strip()

@@ -4,7 +4,7 @@ import json
 import operator
 import time
 from datetime import datetime
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Literal
 
 from pydantic import BaseModel, ValidationError
 from tavily import TavilyClient
@@ -20,20 +20,20 @@ from clients.llms.llm_clients import (
 from clients.llms.prompt_templates import PromptTemplateParser
 from models.agent_models import RetrievedChunk
 from models.agent_models.schemas import (
-    AgentState,
-    AnswerCheckResult,
     Evidence,
     EvidenceResult,
-    FinalReportResult,
+    FinalAnswer,
     NextAction,
-    ReportCompatibilityResult,
+
 )
 
 from models.db_models import AssetModel, ChunkModel
+from models.db_schemas import Message
 from .vector_db_controller import VectorDBController
 
 from core.chat import ChatCFG, get_file_id, emit, get_file_name
 from models.db_schemas import User
+from models.agent_models.tools import WorkflowStep, ToolCall
 
 THINKING_MESSAGE = "Thinking..."
 GENERATING_RESPONSE_MESSAGE = "Generating Final Response..."
@@ -76,8 +76,10 @@ class ChatController(BaseController):
         self.chunk_model = chunk_model
         self.vector_db_controller = vector_db_controller
 
+        self.workflow: list[WorkflowStep] = []
+
     # ---------------------------------------- Utils ---------------------------------------- #
-    def get_tavily_search_results(self, query: str, max_results: int = 5) -> list[dict] | None:
+    def get_tavily_search_results(self, query: str, max_results: int = 5) -> list[RetrievedChunk] | None:
         if self.tavily_client is None:
             self.logger.error("Missing Tavily Client")
             return None
@@ -95,14 +97,16 @@ class ChatController(BaseController):
             return None
 
         return [
-            {
-                "content"       : res.get("content"),
-                "score"         : res.get("score"),
-                "url"           : res.get("url"),
-                "published_date": res.get("published_date"),
-            }
+            RetrievedChunk(
+                text = res.get('content'),
+                score = res.get('score'),
+                resource = res.get("url"),
+                publish_date = res.get("published_date"),
+            )
+
             for res in response.get("results", [])
         ]
+
 
     async def search_file(self, query: str, file_id: int, retrieve_limit: int = 5) -> list[RetrievedChunk] | None:
         asset = await self.asset_model.get_user_asset(
@@ -132,8 +136,15 @@ class ChatController(BaseController):
         )
         
 
-    async def call_llm_json( self, task: str, prompt_vars: dict, key: str | None = None) -> Any | None:
-        
+    async def call_llm_json(
+        self, 
+        task: str, 
+        prompt_vars: dict,
+        previous_chat_messages: list[Message] | None = None, 
+        key: str | None = None,
+        max_output_tokens: int | None = None,
+    ) -> Any | None:
+
         llm_client = self.llm_clients.get(task, None)
 
         if llm_client is None:
@@ -153,11 +164,14 @@ class ChatController(BaseController):
         response = await asyncio.to_thread(
             llm_client.generate_text,
             user_prompt = task_prompt,
+            messages = previous_chat_messages if task == AgentTasks.ORCHESTRATION.value else None,
+            max_output_tokens = max_output_tokens,
         )
 
         if not response:
             self.logger.error("Invalid LLM Response")
             return None
+
 
         try:
             data = json.loads(response)
@@ -166,17 +180,20 @@ class ChatController(BaseController):
             self.logger.error(f"Model Returned Invalid JSON: {response}")
             return None
 
+
         return data if key is None else data.get(key)
 
 
-    async def call_llm_schema(self, task: str, prompt_vars: dict, schema: type[BaseModel]) -> BaseModel | None:
+    async def call_llm_schema(
+        self, task: str, prompt_vars: dict, schema: type[BaseModel], max_output_tokens: int | None = None
+    ) -> BaseModel | None:
         """
         Call the LLM & validate its response against a schema.
         """
-
         llm_response = await self.call_llm_json(
             task = task,
-            prompt_vars = prompt_vars
+            prompt_vars = prompt_vars,
+            max_output_tokens = max_output_tokens,
         )
 
         if llm_response is None:
@@ -199,15 +216,17 @@ class ChatController(BaseController):
             retrieve_limit = file_search_limit
         )
 
+        for doc in documents:
+            doc.resource = get_file_name(file = file)
+
         if not documents:
             return []
 
         result: EvidenceResult = await self.call_llm_schema(
-            task = AgentTasks.FI.value,
+            task = AgentTasks.SEARCH.value,
             prompt_vars = {
                 "query": query,
                 "documents": documents,
-                "resource": get_file_name(file = file),
             },
             schema = EvidenceResult,
         )
@@ -248,16 +267,15 @@ class ChatController(BaseController):
             return []
 
         result: EvidenceResult = await self.call_llm_schema(
-            task = AgentTasks.SI.value,
+            task = AgentTasks.SEARCH.value,
             prompt_vars = {
                 "query": query,
-                "websearch_results": websearch_results,
+                "documents": websearch_results,
             },
             schema = EvidenceResult,
         )
 
         if result is None or result.need_additional_info:
-            self.logger.error(f"Error Extracting Web Evidence. Search Results: {result}")
             return []
 
         return result.evidence
@@ -265,10 +283,7 @@ class ChatController(BaseController):
     # ---------------------------------------- Agentic Work ---------------------------------------- #
     def get_current_date(self) -> dict[str, Any]:
         now = datetime.now()
-        return {
-            "current_date": now.date().isoformat(),
-            "current_year": now.year,
-        }
+        return now.date().isoformat()
 
 
     def calculate(self, expression: str) -> str:
@@ -294,48 +309,13 @@ class ChatController(BaseController):
         return str(eval_node(parsed))
 
 
-    def get_orchestration_state(self, agent_state: AgentState) -> dict[str, Any]:
-        return {
-            "has_current_date": agent_state.has_current_date,
-            "current_date": agent_state.current_date,
-            "current_year": agent_state.current_year,
-            "has_calculator_result": agent_state.has_calculator_result,
-            "calculator_result": agent_state.calculator_result,
-            "has_chat_context": agent_state.has_chat_context,
-            "references": agent_state.references,
-            "has_references": agent_state.has_references,
-            "has_search_results": agent_state.has_search_results,
-            "max_search_limit": agent_state.max_search_limit,
-            "search_attempts": agent_state.search_attempts,
-            "answer_found": agent_state.answer_found,
-            "answer_reason": agent_state.answer_reason,
-            "report_query": agent_state.report_query,
-            "has_final_report": agent_state.has_final_report,
-            "has_llm_resources": agent_state.has_llm_resources,
-            "report_compatible": agent_state.report_compatible,
-            "report_tone_probability": agent_state.report_tone_probability,
-            "report_check_reason": agent_state.report_check_reason,
-        }
 
-
-    async def get_next_step(self, user_query: str, current_state: dict[str, Any]):
-        return await self.call_llm_json(
-            task = AgentTasks.OR.value,
+    async def get_next_action(self, workflow: list[WorkflowStep]) -> NextAction | None:
+        next_action = await self.call_llm_json(
+            task = AgentTasks.ORCHESTRATION.value,
             prompt_vars = {
-                "user_query": user_query,
-                "state"     : current_state,
+                "workflow": workflow,
             }
-        )
-
-
-    def parse_action(self, action: NextAction) -> tuple[str, dict]:
-        return action.action.lower(), action.arguments
-
-
-    async def get_next_action(self, user_query: str, agent_state: AgentState) -> NextAction | None:
-        next_action = await self.get_next_step(
-            user_query = user_query,
-            current_state = self.get_orchestration_state(agent_state)
         )
 
         try:
@@ -347,37 +327,6 @@ class ChatController(BaseController):
             return None
 
     # ---------------------------------------- Individual LLMs Work ---------------------------------------- #
-    async def get_chat_context(self, user_query: str, chat_messages: list[str]) -> tuple[list[str], list[dict]]:
-        response = await self.call_llm_json(
-            task = AgentTasks.CC.value,
-            prompt_vars = {
-                'user_query': user_query,
-                'messages'  : chat_messages
-            }
-        )
-
-        if response is None:
-            return [], []
-
-        chat_context = response.get('chat_context') or []
-        references = response.get('references') or []
-
-        return chat_context, references
-
-
-    async def check_answer(self, user_query: str, agent_state: AgentState) -> AnswerCheckResult | None:
-        return await self.call_llm_schema(
-            task = AgentTasks.AC.value,
-            prompt_vars = {
-                "user_query": user_query,
-                "chat_context": agent_state.chat_context or [],
-                "search_results": [
-                    evidence.model_dump()
-                    for evidence in agent_state.search_results
-                ],
-            },
-            schema = AnswerCheckResult,
-        )
 
     async def search(
         self,
@@ -387,7 +336,7 @@ class ChatController(BaseController):
         web_search_limit: int,
     ) -> list[Evidence]:
 
-        file_evidence, web_evidence = await asyncio.gather(
+        files_evidence, web_evidence = await asyncio.gather(
             self.extract_files_evidence(
                 query = query,
                 files = files,
@@ -399,56 +348,70 @@ class ChatController(BaseController):
             ),
         )
 
-        return [
-            *file_evidence,
-            *web_evidence,
-        ]
+        evidence = [*files_evidence, *web_evidence]
+
+        return evidence
 
 
-    async def generate_final_report(
+    async def generate_answer(
         self,
         query: str,
-        search_results: list[dict],
-        chat_tone: str,
-        current_date: str | None = None,
-        current_year: int | None = None,
-        calculator_result: str | None = None,
-    ) -> FinalReportResult | None:
-
+        tone: str,
+        search_results: list[Evidence] | None = None,
+        query_metadata: dict | None = None
+    ) -> FinalAnswer | None:
         return await self.call_llm_schema(
-            task = AgentTasks.RG.value,
+            task = AgentTasks.ANSWER.value,
             prompt_vars = {
                 "query": query,
-                "user_requirements": [],
+                "tone": tone,
                 "evidence": search_results or [],
-                "answer_mode": "grounded" if search_results else "direct",
-                "final_tone": chat_tone,
-                "current_date": current_date,
-                "current_year": current_year,
-                "calculator_result": calculator_result,
+                **(query_metadata or {})
             },
-            schema = FinalReportResult,
-        )
-
-
-    async def check_report_compatability(
-        self,
-        query: str,
-        chat_tone: str,
-        report: str,
-    ) -> ReportCompatibilityResult | None:
-
-        return await self.call_llm_schema(
-            task = AgentTasks.RC.value,
-            prompt_vars = {
-                "query": query,
-                "chat_tone": chat_tone,
-                "report": report,
-            },
-            schema = ReportCompatibilityResult,
+            schema = FinalAnswer,
+            max_output_tokens = 5000,
         )
 
     # ---------------------------------------- Final Driver Function ---------------------------------------- #
+    async def record_step(
+        self,
+        name: str,
+        step_output: Any,
+        started_at: float,
+        step_input: dict[str, Any] | None = None,
+        run_step_logger: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
+    ) -> None:
+        step = {
+            "name": name,
+            "input": step_input,
+            "output": step_output,
+            "duration_s": round(time.time() - started_at, 4),
+        }
+
+        self.logger.info(
+            "Action: %s\nResult: %s",
+            name,
+            json.dumps(step_output, ensure_ascii=False, default=str),
+        )
+
+        if run_step_logger is not None:
+            await run_step_logger(step)
+
+
+    def update_workflow(self, 
+        step_name: Literal['user_query', 'tool_call'], 
+        user_query: str | None = None,
+        step_details: ToolCall | None = None
+    ):
+        self.workflow.append(
+            WorkflowStep(
+                step_name = step_name,
+                user_query = user_query,
+                step_details = step_details
+            )
+        )
+
+
     async def answer_user_query(
         self,
         user_query: str,
@@ -456,264 +419,217 @@ class ChatController(BaseController):
         queue: asyncio.Queue,
 
         files         : list[str] | None = None,
-        chat_messages : list[str] | None = None,
+        chat_messages : list[Message] | None = None,
         run_step_logger: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
-
     ) -> dict | None:
 
         files = files or []
         chat_messages = chat_messages or []
-        agent_state = AgentState(max_search_limit = chat_cfg.max_search_limit)
-        run_steps: list[dict[str, Any]] = []
-        orchestration_order = 0
+        self.workflow = []
 
-        async def record_step(
-            name: str,
-            step_input: dict[str, Any] | None,
-            step_output: Any,
-            started_at: float,
-        ) -> None:
-            step = {
-                "name": name,
-                "input": step_input,
-                "output": step_output,
-                "duration_s": round(time.perf_counter() - started_at, 4),
-            }
-            run_steps.append(step)
-            if run_step_logger is not None:
-                await run_step_logger(step)
 
+        # - metadata
+        current_date = None
+        calculations: list[dict] = []
+        search_results: list[Evidence] = []
+        answer: str = None
+        resources: dict = {}
+
+
+        # -------------------- Start ------------------------- #
         await emit(queue = queue, message = THINKING_MESSAGE)
-        for _ in range(chat_cfg.max_search_limit + 6):
-            orchestration_order += 1
-            orchestration_started_at = time.perf_counter()
-            orchestration_input = self.get_orchestration_state(agent_state)
-            next_action_output = await self.get_next_step(
-                user_query = user_query,
-                current_state = orchestration_input,
-            )
+        self.update_workflow('user_query', user_query = user_query)
 
-            await record_step(
-                name = f"orchestration-{orchestration_order}",
-                step_input = orchestration_input,
-                step_output = next_action_output,
-                started_at = orchestration_started_at,
-            )
+        while(True):
+            next_action = await self.get_next_action(workflow = self.workflow)
 
-            if next_action_output is None:
-                return None
+            if next_action.action == 'finish':
+                await self.record_step(
+                    name = next_action.action,
+                    started_at = time.time(),
+                    step_output = None,
+                    run_step_logger = run_step_logger,
+                )
+                return {
+                    'answer': answer,
+                    'resources': resources
+                }
 
-            try:
-                next_action = NextAction.model_validate(next_action_output)
+            if next_action.action == 'get_current_date':
+                start_time = time.time()
 
-            except ValidationError as e:
-                self.logger.error(f"Error Validating Planner Output: {e}")
-                self.logger.error(f"Planner Output: {next_action_output}")
-                return None
-
-            action, arguments = self.parse_action(next_action)
-            if agent_state.final_report and agent_state.report_compatible is None and action == 'generate_final_report':
-                action = 'check_report_compatability'
-                arguments = {}
-
-            started_at = time.perf_counter()
-            step_input: dict[str, Any] | None = None
-            step_output: dict[str, Any] | bool | None = None
-
-            try:
-                if action == 'get_current_date':
-                    date_info = self.get_current_date()
-                    agent_state.current_date = date_info["current_date"]
-                    agent_state.current_year = date_info["current_year"]
-                    agent_state.has_current_date = True
-                    step_output = date_info
-
-                elif action == 'calculator':
-                    expression = arguments.get("expression") or ""
-                    step_input = {"expression": expression}
-                    result = self.calculate(expression)
-                    agent_state.calculator_result = result
-                    agent_state.has_calculator_result = True
-                    step_output = {"result": result}
-
-                elif action == 'get_chat_context':
-                    step_input = {"query": user_query}
-
-                    chat_context, references = await self.get_chat_context(
-                        user_query = user_query,
-                        chat_messages = chat_messages,
-                    )
-
-                    agent_state.chat_context = chat_context
-                    agent_state.references = references
-                    agent_state.has_chat_context = bool(chat_context)
-                    agent_state.has_references = bool(references)
+                current_date = self.get_current_date()
+                
+                await self.record_step(
+                    name = next_action.action,
+                    started_at = start_time,
                     step_output = {
-                        "chat_context": chat_context,
-                        "references": references,
-                    }
-                    
-                elif action == 'search':
-                    search_query = arguments.get("query") or user_query
-                    step_input = {"query": search_query}
+                        "current_date": current_date
+                    },
+                    run_step_logger = run_step_logger
+                )
 
-                    if agent_state.search_attempts >= agent_state.max_search_limit:
-                        await record_step(action, step_input, {"error": "search limit reached"}, started_at)
-                        continue
+                self.update_workflow('tool_call', step_details = ToolCall(
+                    tool_name = next_action.action,
+                    tool_reason = next_action.reason,
+                    tool_result = f"Current Date: {str(current_date)}"
+                ))
 
-                    search_results = await self.search(
-                        query = search_query,
-                        file_search_limit = chat_cfg.file_search_limit,
-                        files = files,
-                        web_search_limit = chat_cfg.web_search_limit,
-                    )
+                
+                
+            if next_action.action == 'calculate':
+                expression = next_action.arguments.get("expression") or ""
+                nl_expression = next_action.arguments.get('natural_language_expression') or ""
+                step_input = {"expression": expression}
+                start_time = time.time()
 
-                    agent_state.search_results.extend(search_results)
-                    agent_state.search_attempts += 1
-                    agent_state.has_search_results = bool(agent_state.search_results)
+                result = self.calculate(expression)
+                
+                await self.record_step(
+                    name = next_action.action,
+                    started_at = start_time,
+                    step_input = step_input,
+                    step_output = {"result": result},
+                    run_step_logger = run_step_logger
+                )
+   
+
+                calculations.append({
+                    str(expression): result
+                })
+
+                self.update_workflow(step_name = "tool_call", step_details = ToolCall(
+                    tool_name = "calculate",
+                    tool_reason = next_action.reason,
+                    tool_result = f"{str(nl_expression)} Evaluated to: {str(result)}"
+                ))
+
+
+            if next_action.action == "search":
+                search_query = next_action.arguments.get("search_query", "query") or user_query
+                step_input = {"query": search_query}
+                start_time = time.time()
+
+                search_results = await self.search(
+                    query = search_query,
+                    file_search_limit = chat_cfg.file_search_limit,
+                    files = files,
+                    web_search_limit = chat_cfg.web_search_limit,
+                )
+
+
+                await self.record_step(
+                    name = next_action.action,
+                    started_at = start_time,
+                    step_input = step_input,
                     step_output = {
-                        "search_results": [
-                            evidence.model_dump()
-                            for evidence in search_results
-                        ],
-                    }
+                        "search_results": [e.model_dump() for e in search_results]
+                    },
+                    run_step_logger = run_step_logger
+                )
 
-                elif action == 'check_answer':
-                    search_results = [
-                        evidence.model_dump()
-                        for evidence in agent_state.search_results
-                    ]
-                    step_input = {
-                        "user_query": user_query,
-                        "chat_context": agent_state.chat_context,
-                        "search_results": search_results,
-                    }
+                self.update_workflow(step_name = "tool_call", step_details = ToolCall(
+                    tool_name = "search",
+                    tool_reason = next_action.reason,
+                    tool_result = f"Search tool returned {len(search_results)} information pieces."
+                ))
 
-                    answer_check = await self.check_answer(
-                        user_query = user_query,
-                        agent_state = agent_state,
-                    )
-                    if answer_check is None:
-                        await record_step(action, step_input, {"error": "check_answer failed"}, started_at)
-                        return None
 
-                    agent_state.answer_found = answer_check.answer_found
-                    agent_state.answer_reason = answer_check.reason
-                    step_output = answer_check.answer_found
+            if next_action.action == "generate_answer":
+                generation_query = next_action.arguments.get('generation_query', 'query') or user_query
+                step_input = {
+                    "query": generation_query,
+                    "search_results": [result.model_dump() for result in search_results],
+                    "chat_tone": chat_cfg.chat_tone,
+                }
 
-                elif action == 'generate_final_report':
-                    search_results = [
-                        evidence.model_dump()
-                        for evidence in agent_state.search_results
-                    ]
+                query_metadata = {}
 
-                    report_query = arguments.get("query") or user_query
+                if current_date: query_metadata['current_date'] = current_date
+                if calculations: query_metadata['current_date'] = calculations
 
-                    step_input = {
-                        "query": report_query,
-                        "search_results": search_results,
-                        "chat_tone": chat_cfg.chat_tone,
-                    }
+                if query_metadata:
+                    step_input['query_metadata'] = query_metadata
 
-                    await emit(queue = queue, message = GENERATING_RESPONSE_MESSAGE)
-                    final_report = await self.generate_final_report(
-                        query = report_query,
-                        search_results = search_results,
-                        chat_tone = chat_cfg.chat_tone,
-                        current_date = agent_state.current_date,
-                        current_year = agent_state.current_year,
-                        calculator_result = agent_state.calculator_result,
-                    )
-                    if final_report is None:
-                        await record_step(action, step_input, {"error": "generate_final_report failed"}, started_at)
-                        return None
 
-                    agent_state.report_query = report_query
-                    agent_state.final_report = final_report.report
-                    agent_state.llm_resources = final_report.resources
-                    agent_state.has_final_report = bool(agent_state.final_report)
-                    agent_state.has_llm_resources = bool(agent_state.llm_resources)
-                    agent_state.report_compatible = None
-                    agent_state.report_tone_probability = None
-                    agent_state.report_check_reason = None
-                    step_output = {
-                        "report": final_report.report,
-                        "resources": final_report.resources,
-                    }
-                    await record_step(action, step_input, step_output, started_at)
-                    action = 'check_report_compatability'
-                    arguments = {}
-                    started_at = time.perf_counter()
+                await emit(queue = queue, message = GENERATING_RESPONSE_MESSAGE)
 
-                if action == 'check_report_compatability':
-                    if not agent_state.final_report:
-                        await record_step(action, None, {"error": "No report to check"}, started_at)
-                        return None
+                start_time = time.time()
+                final = await self.generate_answer(
+                    query = generation_query,
+                    tone = chat_cfg.chat_tone,
+                    search_results = search_results,
+                    query_metadata = query_metadata if query_metadata else None
+                )
 
-                    step_input = {
-                        "query": agent_state.report_query or user_query,
-                        "chat_tone": chat_cfg.chat_tone,
-                        "report": agent_state.final_report,
-                    }
-                    report_check = await self.check_report_compatability(
-                        query = agent_state.report_query or user_query,
-                        chat_tone = chat_cfg.chat_tone,
-                        report = agent_state.final_report,
-                    )
-                    if report_check is None:
-                        await record_step(action, step_input, {"error": "check_report_compatability failed"}, started_at)
-                        return None
+                await self.record_step(
+                    name = next_action.action,
+                    started_at = start_time,
+                    step_input = step_input,
+                    step_output = final.model_dump(),
+                    run_step_logger = run_step_logger
+                )
 
-                    agent_state.report_compatible = report_check.is_valid and report_check.tone_probability >= 0.5
-                    agent_state.report_tone_probability = report_check.tone_probability
-                    agent_state.report_check_reason = report_check.reason
-                    step_output = {
-                        "is_valid": agent_state.report_compatible,
-                        "tone_probability": report_check.tone_probability,
-                        "reason": report_check.reason,
-                    }
-                    await record_step(action, step_input, step_output, started_at)
+                self.update_workflow(step_name = "tool_call", step_details = ToolCall(
+                    tool_name = 'generate_answer',
+                    tool_reason = next_action.reason,
+                    tool_result = final.answer
+                ))
 
-                    if agent_state.report_compatible:
-                        finish_started_at = time.perf_counter()
-                        await record_step('finish', None, None, finish_started_at)
-                        break
+                answer = final.answer
+                resources = final.resources
 
-                    continue
+                
 
-                if action == 'finish':
-                    if not agent_state.report_compatible:
-                        await record_step(action, None, {"error": "Report is not compatible yet"}, started_at)
-                        continue
+            if next_action.action == 'validate_answer':
+                step_input = {"user_query": user_query, "answer": answer}
+                start_time = time.time()
+                valid = await self.call_llm_json(
+                    task = AgentTasks.ANSWER_VALIDATION.value,
+                    prompt_vars = step_input,
+                    key = "valid",
+                )
 
-                    await record_step(action, None, None, started_at)
-                    break
+                await self.record_step(
+                    name = next_action.action,
+                    started_at = start_time,
+                    step_input = step_input,
+                    step_output = {"valid": valid},
+                    run_step_logger = run_step_logger,
+                )
 
-                if action not in {
-                    'get_current_date',
-                    'calculator',
-                    'get_chat_context',
-                    'search',
-                    'check_answer',
-                    'generate_final_report',
-                    'check_report_compatability',
-                }:
-                    await record_step(action, None, {"error": f"Invalid Agent Action: {action}"}, started_at)
-                    self.logger.error(f"Invalid Agent Action: {action}")
-                    return None
+                self.update_workflow(step_name = "tool_call", step_details = ToolCall(
+                    tool_name = next_action.action,
+                    tool_reason = next_action.reason,
+                    tool_result = str(valid),
+                ))
 
-            except Exception as e:
-                await record_step(action, step_input, {"error": str(e)}, started_at)
-                raise
+            if next_action.action == 'validate_search_results':
+                step_input = {
+                    "user_query": user_query,
+                    "search_results": [result.model_dump() for result in search_results],
+                }
+                start_time = time.time()
+                valid = await self.call_llm_json(
+                    task = AgentTasks.SEARCH_RESULTS_VALIDATION.value,
+                    prompt_vars = step_input,
+                    key = "valid",
+                )
 
-            await record_step(action, step_input, step_output, started_at)
+                await self.record_step(
+                    name = next_action.action,
+                    started_at = start_time,
+                    step_input = step_input,
+                    step_output = {"valid": valid},
+                    run_step_logger = run_step_logger,
+                )
 
-        if not agent_state.final_report:
-            return None
+                self.update_workflow(step_name = "tool_call", step_details = ToolCall(
+                    tool_name = next_action.action,
+                    tool_reason = next_action.reason,
+                    tool_result = str(valid),
+                ))
 
-        return {
-            "report": agent_state.final_report,
-            "llm_resources": agent_state.llm_resources,
-            "state": agent_state.model_dump(),
-            "steps": run_steps,
-        }
+
+            
+

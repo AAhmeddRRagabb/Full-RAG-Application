@@ -65,3 +65,23 @@ async def emit(queue: Queue, message: str) -> None:
         "message": message,
     })
 
+from models.db_models import RunModel
+from models.db_schemas import RunStep
+from typing import Any
+
+async def log_run_step(run_model: RunModel, run, step: dict[str, Any], step_order: int) -> None:
+    step_order += 1
+
+    if not await run_model.insert_steps([
+        RunStep(
+            run_id = run.run_id,
+            step_order = step_order,
+            step_name = step.get("name", "unknown"),
+            step_input = step.get("input"),
+            step_output = step.get("output"),
+            duration_s = step.get("duration_s"),
+        )
+    ]):
+        raise RuntimeError("Could not save run step")
+
+    return step_order

@@ -1,3 +1,4 @@
+from models.db_schemas import Message
 
 
 from .base_llm_client import BaseLLMClient
@@ -188,7 +189,8 @@ class GoogleLLMClient(BaseLLMClient):
     
     def generate_text(
         self, 
-        user_prompt      : str, 
+        user_prompt      : str,
+        messages         : list[Message] | None = None,
         max_output_tokens: int | None = None, 
         temperature      : float | None = None
     ) -> str | None:
@@ -196,7 +198,7 @@ class GoogleLLMClient(BaseLLMClient):
         """
         Args:
             user_prompt  (str)
-            chat_history (list)
+            messages (list[Message])
             max_output_tokens (int)
             temperature (float)
 
@@ -204,19 +206,20 @@ class GoogleLLMClient(BaseLLMClient):
             if success -> model response
             if failure -> None
         """
-
-        contents = self.create_prompt(
-            # prompt = self.pre_process_input_prompt(user_prompt),
-            prompt = user_prompt,
-            role   = LLMsGenerationMessageTypes.GOOGLE_USER_MESSAGE
-        )
+        messages = [
+            self.create_prompt(
+                prompt = m.content,
+                role = m.role
+            ) for m in messages
+        ] if messages else []
+ 
+        messages.append(user_prompt)
         
-
         response: GenerateContentResponse
         try:
             response = self.client.models.generate_content(
                 model    = self.generation_model_id,
-                contents = contents,
+                contents = messages,
                 config   = GenerateContentConfig(
                     temperature       = temperature if temperature else self.default_temperature,
                     max_output_tokens = max_output_tokens if max_output_tokens else self.default_max_output_tokens,
