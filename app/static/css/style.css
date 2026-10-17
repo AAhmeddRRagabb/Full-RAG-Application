@@ -451,11 +451,55 @@ span.message-llm-resource {
     margin-top: 0.8rem;
 }
 
+.message-content :is(ul, ol) {
+    margin: 0.55rem 0;
+    padding-left: 1.5rem;
+}
+
+.message-content ul {
+    list-style: disc outside;
+}
+
+.message-content ol {
+    list-style: decimal outside;
+}
+
+.message-content li {
+    padding-left: 0.15rem;
+}
+
+.message-content li + li {
+    margin-top: 0.45rem;
+}
+
+.message-content li::marker {
+    color: var(--primary);
+}
+
 .message-content code {
     padding: 0.1rem 0.3rem;
     border-radius: 4px;
     color: #d9f99d;
     background: rgba(255, 255, 255, 0.08);
+}
+
+.message-content a:link,
+.message-content a:visited {
+    color: var(--primary-hover);
+    text-decoration-color: rgba(212, 175, 55, 0.5);
+    text-underline-offset: 0.15em;
+    overflow-wrap: anywhere;
+}
+
+.message-content a:hover,
+.message-content a:focus-visible {
+    color: var(--accent);
+    text-decoration-color: currentColor;
+}
+
+.message-content a i {
+    margin-left: 0.3rem;
+    font-size: 0.75em;
 }
 
 .user-message {

@@ -1,46 +1,41 @@
-# --------------------------------------- APP CFGs ---------------------------------- #
+# Application
 APP_NAME="Full-RAG-APP"
 APP_VERSION="0.1"
-
-# ------------------------------------- LLM Configs ----------------------------------------- #
-GENERATION_BACKEND="groq"
-EMBEDDING_BACKEND="hugging_face"
-
-# Models
-GENERATION_MODEL_ID="llama-3.3-70b-versatile"
-EMBEDDING_MODEL_ID="sentence-transformers/all-MiniLM-L6-v2"
-
-# cfg
-EMBEDDING_SIZE=384
-INPUT_DAFAULT_MAX_CHARACTERS=1024
-GENERATION_DAFAULT_MAX_TOKENS=200
-GENERATION_DAFAULT_TEMPERATURE=0.1
-
+FRONTEND_ORIGIN="http://localhost"
 PRIMARY_LANGUAGE="en"
 DEFAULT_LANGUAGE="en"
 
-# ------------------------------------- DBs Config ----------------------------------------- #
-VECTOR_DB_BACKEND_LITERAL=["qdrant", "pgvector"]
+# Agent models
+QUERY_ANALYZER_BACKEND="groq"
+QUERY_ANALYZER_AGENT="openai/gpt-oss-120b"
+SEARCH_BACKEND="groq"
+SEARCH_AGENT="openai/gpt-oss-120b"
+ANSWER_BACKEND="groq"
+ANSWER_AGENT="openai/gpt-oss-120b"
+EMBEDDING_BACKEND="hugging_face"
+EMBEDDING_MODEL_ID="sentence-transformers/all-MiniLM-L6-v2"
+EMBEDDING_SIZE=384
 
-VECTOR_DB_BACKEND="pgvector"
-VECTOR_DB_NAME="pgvector_db"
-
-PGVECTOR_INDEXING_THRESHOLD = 100
-VECTOR_DB_DISTANCE_METHOD="cosine_similarity"
-
-# ------------------------------------- Secrets ----------------------------------------- #
-POSTGRES_USERNAME=
-POSTGRES_PASSWORD=
-POSTGRES_HOST=
-POSTGRES_PORT=
-POSTGRES_MAIN_DB_NAME=
-
-
+# Providers
 GROQ_API_KEY=""
 GOOGLE_API_KEY=""
 HF_TOKEN=""
+TAVILY_API_KEY=""
 
-OPEN_AI_KEY=""
-OPEN_AI_URL=""
+# Database and vectors
+DATABASE_URL="postgresql+asyncpg://fullrag:change-me@pgvector:5432/fullrag"
+POSTGRES_USERNAME="fullrag"
+POSTGRES_PASSWORD="change-me"
+POSTGRES_HOST="pgvector"
+POSTGRES_PORT=5432
+POSTGRES_MAIN_DB_NAME="fullrag"
+VECTOR_DB_BACKEND="pgvector"
+PGVECTOR_INDEXING_THRESHOLD=100
+VECTOR_DB_DISTANCE_METHOD="cosine_similarity"
 
-METRICS_ENDPOINT=""
+# Sessions and monitoring
+REDIS_URL="redis://redis:6379/0"
+SESSION_ABSOLUTE_DAYS=7
+SESSION_IDLE_MINUTES=60
+CSRF_SECRET="replace-with-a-long-random-secret"
+METRICS_ENDPOINT="my_app_metrics_v1234554321_scmeirtpapmyym"

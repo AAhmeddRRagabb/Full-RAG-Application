@@ -1,0 +1,14 @@
+.git
+.vscode
+**/__pycache__/
+**/*.pyc
+**/.env
+**/.env.*
+!app/.env.example
+!docker/env/.env.example.*
+docker/data/
+app/assets/files/
+app/assets/vector_databases/
+docker/app/alembic.ini
+docker/config/nginx/default.conf
+docker/config/prometheus/prometheus.yml

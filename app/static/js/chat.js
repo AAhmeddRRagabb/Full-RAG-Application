@@ -277,14 +277,33 @@ function messageNode(message) {
     bodyWrap.className = "message-body";
     body.className = "message-content";
     avatar.textContent = isUser ? "You" : "AI";
-    body.innerHTML = DOMPurify.sanitize(marked.parse(message.content || ""));
+    const inlineResources = [];
+    const content = isUser ? (message.content || "") : (message.content || "").replace(/【([^】]+)】/g, (_, resource) => {
+        inlineResources.push(resource.trim());
+        return "";
+    });
+    body.innerHTML = DOMPurify.sanitize(marked.parse(content));
+    if (!isUser) body.querySelectorAll("a[href]").forEach((link) => {
+        if (!/^https?:\/\//i.test(link.href)) return;
+        if (link.textContent.trim() === link.href) {
+            link.textContent = new URL(link.href).hostname.includes("youtube.com")
+                ? "Watch on YouTube"
+                : `Open ${websiteName(link.href)}`;
+            const icon = document.createElement("i");
+            icon.className = "fa-solid fa-arrow-up-right-from-square";
+            icon.setAttribute("aria-hidden", "true");
+            link.append(icon);
+        }
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+    });
 
     if (message.message_id) article.dataset.messageId = String(message.message_id);
 
     bodyWrap.append(body);
 
     if (!isUser) {
-        const resources = normalizeResources(message.llm_resources).slice(0, 3);
+        const resources = [...new Set([...normalizeResources(message.llm_resources), ...inlineResources])].slice(0, 3);
         if (resources.length) {
             const list = document.createElement("div");
             list.className = "message-llm-resources";

@@ -31,4 +31,3 @@ class ChatRequest(BaseModel):
 class ChatCFG(BaseModel):
     file_search_limit: int
     web_search_limit: int
-    max_search_limit: int

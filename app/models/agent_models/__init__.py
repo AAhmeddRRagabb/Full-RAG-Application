@@ -1,7 +1,7 @@
 from .schemas import (
     Evidence,
-    EvidenceResult,
     FinalAnswer,
-    NextAction,
+    QueryAnalysis,
+    SearchQuery,
     RetrievedChunk,
 )

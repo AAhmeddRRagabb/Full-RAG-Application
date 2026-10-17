@@ -19,6 +19,7 @@ from google.genai.types import (
     EmbedContentConfig, 
     Part
 )
+from core.helpers import log_llm_error
 
 
 class GoogleLLMClient(BaseLLMClient):
@@ -209,30 +210,33 @@ class GoogleLLMClient(BaseLLMClient):
         messages = [
             self.create_prompt(
                 prompt = m.content,
-                role = m.role
-            ) for m in messages
+                role = "model" if m.role == "assistant" else m.role
+            )[0] for m in messages
         ] if messages else []
  
-        messages.append(user_prompt)
+        messages.extend(self.create_prompt(prompt=user_prompt, role="user"))
         
-        response: GenerateContentResponse
+        config = {
+            "temperature": temperature if temperature is not None else self.default_temperature,
+            "max_output_tokens": max_output_tokens or self.default_max_output_tokens,
+            "system_instruction": self.generation_system_prompt,
+        }
         try:
             response = self.client.models.generate_content(
-                model    = self.generation_model_id,
-                contents = messages,
-                config   = GenerateContentConfig(
-                    temperature       = temperature if temperature else self.default_temperature,
-                    max_output_tokens = max_output_tokens if max_output_tokens else self.default_max_output_tokens,
-                    system_instruction = self.generation_system_prompt
-                )
+                model=self.generation_model_id, contents=messages, config=GenerateContentConfig(**config)
             )
-
         except Exception as e:
-            self.logger.error(f"Error While Generating Response: {e}")
+            log_llm_error(e, provider="google", model=self.generation_model_id)
+            return None
+
+        candidate = response.candidates[0] if response and response.candidates else None
+        finish_reason = getattr(candidate, "finish_reason", None)
+        if finish_reason and str(finish_reason).split(".")[-1] == "MAX_TOKENS":
+            log_llm_error(ValueError(f"Generation stopped: {finish_reason}; max_output_tokens={config['max_output_tokens']}"), provider="google", model=self.generation_model_id)
             return None
 
         if not self.validate_generation_response(response):
-            self.logger.error("Invalid Generation Response")
+            log_llm_error(ValueError("Empty model content"), provider="google", model=self.generation_model_id)
             return None
 
         return response.text

@@ -1,10 +1,11 @@
 
 import time
 from asyncio import Queue
-
-from models.db_schemas import Message
+from typing import Any
 
 from models.api_schemas.requests import ChatCFG
+from models.db_models import RunModel
+from models.db_schemas import RunStep
 
 
 def get_file_name(file: str) -> str:
@@ -25,32 +26,20 @@ def get_chat_cfg(chat_depth: str) -> ChatCFG:
         return ChatCFG(
             file_search_limit = 3,
             web_search_limit = 3,
-            max_search_limit = 2,
         )
 
     if chat_depth == 'moderate':
         return ChatCFG(
             file_search_limit = 5,
             web_search_limit = 5,
-            max_search_limit = 3,
         )
 
     if chat_depth == 'high':
         return ChatCFG(
             file_search_limit = 8,
             web_search_limit = 8,
-            max_search_limit = 5,
         )
 
-
-
-def get_messages_content(messages: list[Message], chat_context_limit: int = 5) -> list[str] | None:
-    sorted_messages = sorted(messages, key = lambda m: m.created_at, reverse = True)
-
-    return [
-        m.content
-        for m in reversed(sorted_messages[:chat_context_limit])
-    ] # get latest => then re-order
 
 
 async def emit(queue: Queue, message: str) -> None:
@@ -61,10 +50,6 @@ async def emit(queue: Queue, message: str) -> None:
         "type": "stage",
         "message": message,
     })
-
-from models.db_models import RunModel
-from models.db_schemas import RunStep
-from typing import Any
 
 async def log_run_step(run_model: RunModel, run, step: dict[str, Any], step_order: int) -> None:
     step_order += 1
@@ -81,5 +66,3 @@ async def log_run_step(run_model: RunModel, run, step: dict[str, Any], step_orde
         )
     ]):
         raise RuntimeError("Could not save run step")
-
-    return step_order

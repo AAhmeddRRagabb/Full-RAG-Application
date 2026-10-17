@@ -15,9 +15,7 @@ class PromptTemplateParser:
 
 
     def set_language(self, language: str):
-        if not language:
-            self.language = self.default_language
-
+        language = language or self.default_language
         language_path = os.path.join(self.current_path, "locales", language)
         if not os.path.exists(language_path):
             self.language = self.default_language
@@ -29,7 +27,7 @@ class PromptTemplateParser:
         self,
         task: str,
         key  : str,
-        vars : dict = {}
+        vars : dict | None = None
     ) -> str | None:
         """
         Retrieve the required prompt
@@ -73,7 +71,7 @@ class PromptTemplateParser:
 
         try:
             key_attribute = getattr(module_to_use, key)
-            return key_attribute(**vars)
+            return key_attribute(**(vars or {}))
         
         except Exception as e:
             self.logger.error(f"Error Formatting Prompt: {e}")

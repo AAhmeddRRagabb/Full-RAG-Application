@@ -100,8 +100,9 @@ async def lifespan(app: FastAPI):
 
     # -- search agent
     app.state.llm_clients[AgentTasks.SEARCH.value] = llm_clients_factory.create_agent(
-        provider = app.state.settings.CHAT_CONTEXT_BACKEND,
-        generation_model_id = app.state.settings.CHAT_CONTEXT_AGENT,
+        reasoning_effort = "low",
+        provider = app.state.settings.SEARCH_BACKEND,
+        generation_model_id = app.state.settings.SEARCH_AGENT,
         system_prompt       = app.state.prompt_template_parser.get_prompt(
             task = AgentTasks.SEARCH.value,
             key  = PromptTypes.SYSTEM_PROMPT.value
@@ -110,20 +111,22 @@ async def lifespan(app: FastAPI):
 
     # -- answer agent
     app.state.llm_clients[AgentTasks.ANSWER.value] = llm_clients_factory.create_agent(
-        provider            = app.state.settings.FILES_INFORMATION_EXTRACTION_BACKEND,
-        generation_model_id = app.state.settings.FILES_INFORMATION_EXTRACTION_AGENT,
+        reasoning_effort = "medium",
+        provider            = app.state.settings.ANSWER_BACKEND,
+        generation_model_id = app.state.settings.ANSWER_AGENT,
         system_prompt       = app.state.prompt_template_parser.get_prompt(
             task = AgentTasks.ANSWER.value,
             key  = PromptTypes.SYSTEM_PROMPT.value
         )
     )
 
-    # -- orchestration agent
-    app.state.llm_clients[AgentTasks.ORCHESTRATION.value] = llm_clients_factory.create_agent(
-        provider            = app.state.settings.SEARCH_INFORMATION_EXTRACTION_BACKEND,
-        generation_model_id = app.state.settings.SEARCH_INFORMATION_EXTRACTION_AGENT,
+    # -- query analyzer
+    app.state.llm_clients[AgentTasks.QUERY_ANALYZER.value] = llm_clients_factory.create_agent(
+        reasoning_effort = "medium",
+        provider            = app.state.settings.QUERY_ANALYZER_BACKEND,
+        generation_model_id = app.state.settings.QUERY_ANALYZER_AGENT,
         system_prompt       = app.state.prompt_template_parser.get_prompt(
-            task = AgentTasks.ORCHESTRATION.value,
+            task = AgentTasks.QUERY_ANALYZER.value,
             key  = PromptTypes.SYSTEM_PROMPT.value
         )
     )

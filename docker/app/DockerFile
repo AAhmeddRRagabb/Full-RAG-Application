@@ -2,12 +2,6 @@
 
 FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim
 
-RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*
-
 # Initiate the In-container APP
 WORKDIR /app
 
@@ -20,7 +14,7 @@ COPY app/ .
 
 # Alembic CFG
 RUN mkdir -p /app/models/db_schemas/fullrag_db/
-COPY docker/app/alembic.ini /app/models/db_schemas/fullrag_db/alembic.ini
+COPY docker/app/alembic.example.ini /app/models/db_schemas/fullrag_db/alembic.ini
 COPY docker/app/entrypoint.sh /entrypoint.sh
 RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 

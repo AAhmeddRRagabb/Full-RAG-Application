@@ -27,6 +27,23 @@ services:
     depends_on:
       pgvector:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ----------------------------- Redis Sessions ---------------------------
+
+  redis:
+    image: redis:8.2-alpine
+    volumes:
+      - ./data/redis_data:/data
+    networks:
+      - full-rag-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # ----------------------------- Nginx Service ---------------------------
 

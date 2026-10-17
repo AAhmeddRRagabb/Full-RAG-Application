@@ -1,597 +1,293 @@
 import asyncio
-import ast
 import json
-import operator
 import time
 from datetime import datetime
-from typing import Any, Awaitable, Callable, Literal
+from typing import Any, Awaitable, Callable
 
+from fastapi import HTTPException
 from pydantic import BaseModel, ValidationError
 from tavily import TavilyClient
 
-from .base_controller import BaseController
-
 from clients.llms.config import AgentTasks, PromptTypes
-from clients.llms.llm_clients import (
-    GoogleLLMClient,
-    GroqLLMClient,
-    HuggingfaceLLMClient,
-)
 from clients.llms.prompt_templates import PromptTemplateParser
-from models.agent_models import RetrievedChunk
-from models.agent_models.schemas import (
-    Evidence,
-    EvidenceResult,
-    FinalAnswer,
-    NextAction,
-
-)
-
+from core.chat import ChatCFG, emit, get_file_id
+from core.helpers import log_llm_error
+from models.agent_models import Evidence, RetrievedChunk
+from models.agent_models.schemas import FinalAnswer, QueryAnalysis, SearchQuery
 from models.db_models import AssetModel, ChunkModel
-from models.db_schemas import Message
+from models.db_schemas import Message, User
+from models.enums import ResponsesEnum
+
+from .base_controller import BaseController
 from .vector_db_controller import VectorDBController
 
-from core.chat import ChatCFG, get_file_id, emit, get_file_name
-from models.db_schemas import User
-from models.agent_models.tools import WorkflowStep, ToolCall
-
-THINKING_MESSAGE = "Thinking..."
-GENERATING_RESPONSE_MESSAGE = "Generating Final Response..."
-
-CALCULATOR_OPERATORS = {
-    ast.Add: operator.add,
-    ast.Sub: operator.sub,
-    ast.Mult: operator.mul,
-    ast.Div: operator.truediv,
-    ast.FloorDiv: operator.floordiv,
-    ast.Mod: operator.mod,
-    ast.Pow: operator.pow,
-    ast.USub: operator.neg,
-    ast.UAdd: operator.pos,
-}
 
 class ChatController(BaseController):
-    """
-    Controller RAG generation workflows.
-    """
-
     def __init__(
         self,
-        llm_clients           : dict[str, HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient | list[HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient]],
+        llm_clients: dict,
         prompt_template_parser: PromptTemplateParser | None = None,
-        tavily_client         : TavilyClient | None = None,
-        user                  : User | None = None,
+        tavily_client: TavilyClient | None = None,
+        user: User | None = None,
         asset_model: AssetModel | None = None,
         chunk_model: ChunkModel | None = None,
         vector_db_controller: VectorDBController | None = None,
     ):
         super().__init__()
-
-        self.prompt_template_parser = prompt_template_parser
         self.llm_clients = llm_clients
+        self.prompt_template_parser = prompt_template_parser
         self.tavily_client = tavily_client
         self.user = user
-
         self.asset_model = asset_model
         self.chunk_model = chunk_model
         self.vector_db_controller = vector_db_controller
 
-        self.workflow: list[WorkflowStep] = []
+    async def call_llm(self, task: str, prompt_vars: dict, schema: type[BaseModel], max_output_tokens: int) -> BaseModel:
+        client = self.llm_clients[task]
+        prompt = self.prompt_template_parser.get_prompt(task=task, key=PromptTypes.TASK_PROMPT.value, vars=prompt_vars)
+        if not prompt:
+            raise RuntimeError(f"Missing prompt for {task}")
 
-    # ---------------------------------------- Utils ---------------------------------------- #
-    def get_tavily_search_results(self, query: str, max_results: int = 5) -> list[RetrievedChunk] | None:
-        if self.tavily_client is None:
-            self.logger.error("Missing Tavily Client")
-            return None
-
-        try:
-            response = self.tavily_client.search(
-                query = query,
-                search_depth = "basic",
-                chunks_per_source = 1,
-                max_results = max_results,
+        for _ in range(3):
+            response = await asyncio.to_thread(
+                client.generate_text,
+                user_prompt=prompt,
+                max_output_tokens=max_output_tokens,
+                temperature=0.4 if task == AgentTasks.ANSWER.value else 0.1,
             )
+            if response is None:
+                continue
+            try:
+                return schema.model_validate(json.loads(response))
+            except (ValueError, ValidationError) as error:
+                log_llm_error(error, provider=type(client).__name__, model=client.generation_model_id)
 
-        except Exception as e:
-            self.logger.error(f"Error Searching for Web Results: {e}")
-            return None
+        raise HTTPException(status_code=503, detail=ResponsesEnum.INTERNAL_SERVER_ERROR.value)
 
+    def get_tavily_search_results(self, query: str, max_results: int) -> list[RetrievedChunk]:
+        if self.tavily_client is None:
+            raise RuntimeError("Missing Tavily client")
+        response = self.tavily_client.search(
+            query=query, search_depth="basic", chunks_per_source=1, max_results=max_results,
+        )
         return [
             RetrievedChunk(
-                text = res.get('content'),
-                score = res.get('score'),
-                resource = res.get("url"),
-                publish_date = res.get("published_date"),
+                text=result.get("content") or "",
+                score=result.get("score") or 0.0,
+                resource=result.get("url"),
+                publish_date=result.get("published_date"),
             )
-
-            for res in response.get("results", [])
+            for result in response.get("results", [])
         ]
 
-
-    async def search_file(self, query: str, file_id: int, retrieve_limit: int = 5) -> list[RetrievedChunk] | None:
-        asset = await self.asset_model.get_user_asset(
-            user_id = int(self.user.user_id), 
-            asset_id = int(file_id)
-        )
-
+    async def search_file(self, query: str, file_id: int, retrieve_limit: int) -> list[RetrievedChunk]:
+        asset = await self.asset_model.get_user_asset(user_id=int(self.user.user_id), asset_id=int(file_id))
         if asset is None:
-            return None
-
-        chunks = await self.chunk_model.get_user_chunks(
-            user_id = self.user.user_id,
-            asset_ids = [file_id],
-        )
-
-        if chunks is None or not len(chunks):
-            return None
-
+            return []
+        chunks = await self.chunk_model.get_user_chunks(user_id=self.user.user_id, asset_ids=[file_id])
+        if not chunks:
+            return []
         return await self.vector_db_controller.search_vector_db_collection(
-            user_key = self.user.user_uuid,
-            text = query,
-            limit = retrieve_limit,
-            chunk_ids = [
-                chunk.chunk_id
-                for chunk in chunks
-            ],
+            user_key=self.user.user_uuid,
+            text=query,
+            limit=retrieve_limit,
+            chunk_ids=[chunk.chunk_id for chunk in chunks],
+        ) or []
+
+    async def search(self, query: str, files: list[str], chat_cfg: ChatCFG) -> list[Evidence]:
+        file_results, web_results = await asyncio.gather(
+            asyncio.gather(*[
+                self.search_file(query, get_file_id(file), chat_cfg.file_search_limit)
+                for file in files
+            ]),
+            asyncio.to_thread(self.get_tavily_search_results, query, chat_cfg.web_search_limit),
         )
-        
-
-    async def call_llm_json(
-        self, 
-        task: str, 
-        prompt_vars: dict,
-        previous_chat_messages: list[Message] | None = None, 
-        key: str | None = None,
-        max_output_tokens: int | None = None,
-    ) -> Any | None:
-
-        llm_client = self.llm_clients.get(task, None)
-
-        if llm_client is None:
-            self.logger.error(f"Missing LLM Client for Task: {task}")
-            return None
-
-        task_prompt = self.prompt_template_parser.get_prompt(
-            task = task,
-            key = PromptTypes.TASK_PROMPT.value,
-            vars = prompt_vars,
-        )
-
-        if not task_prompt:
-            self.logger.error(f"Error Acquiring Task Prompt. Task Prompt: {task_prompt}")
-            return None
-
-        response = await asyncio.to_thread(
-            llm_client.generate_text,
-            user_prompt = task_prompt,
-            messages = previous_chat_messages if task == AgentTasks.ORCHESTRATION.value else None,
-            max_output_tokens = max_output_tokens,
-        )
-
-        if not response:
-            self.logger.error("Invalid LLM Response")
-            return None
-
-
-        try:
-            data = json.loads(response)
-
-        except json.JSONDecodeError:
-            self.logger.error(f"Model Returned Invalid JSON: {response}")
-            return None
-
-
-        return data if key is None else data.get(key)
-
-
-    async def call_llm_schema(
-        self, task: str, prompt_vars: dict, schema: type[BaseModel], max_output_tokens: int | None = None
-    ) -> BaseModel | None:
-        """
-        Call the LLM & validate its response against a schema.
-        """
-        llm_response = await self.call_llm_json(
-            task = task,
-            prompt_vars = prompt_vars,
-            max_output_tokens = max_output_tokens,
-        )
-
-        if llm_response is None:
-            return None
-
-        try:
-            return schema.model_validate(llm_response)
-
-        except ValidationError as e:
-            self.logger.error(f"Error Validating LLM Output: {e}")
-            self.logger.error(f"LLM Output: {llm_response}")
-            return None
-
-
-    # ---------------------------------------- Search Utils ---------------------------------------- #
-    async def extract_file_evidence(self, query: str, file: str, file_search_limit: int) -> list[Evidence]:
-        documents = await self.search_file(
-            query = query, 
-            file_id = get_file_id(file),
-            retrieve_limit = file_search_limit
-        )
-
-        for doc in documents:
-            doc.resource = get_file_name(file = file)
-
-        if not documents:
-            return []
-
-        result: EvidenceResult = await self.call_llm_schema(
-            task = AgentTasks.SEARCH.value,
-            prompt_vars = {
-                "query": query,
-                "documents": documents,
-            },
-            schema = EvidenceResult,
-        )
-
-        if result is None or result.need_additional_info:
-            return []
-
-        return result.evidence
-    
-    async def extract_files_evidence(self, query: str, files: list[str], file_search_limit: int) -> list[Evidence]:
-        if not files:
-            return []
-
-        file_results = await asyncio.gather(*[
-            self.extract_file_evidence(
-                query = query,
-                file = file,
-                file_search_limit = file_search_limit,
-            )
-            for file in files
-        ])
-
+        documents = [
+            (chunk, file)
+            for file, chunks in zip(files, file_results)
+            for chunk in chunks
+        ] + [(chunk, chunk.resource) for chunk in web_results]
         return [
-            evidence
-            for file_evidence in file_results
-            for evidence in file_evidence
+            Evidence(
+                content=chunk.text,
+                relevance_score=max(0.0, min(1.0, chunk.score)),
+                resource=str(resource),
+            )
+            for chunk, resource in documents
+            if chunk.text and resource
         ]
 
+    def get_current_date(self) -> str:
+        return datetime.now().date().isoformat()
 
-    async def extract_web_evidence(self, query: str, web_search_limit: int) -> list[Evidence]:
-        websearch_results = self.get_tavily_search_results(
-            query = query,
-            max_results = web_search_limit,
-        )
-
-        if not websearch_results:
-            self.logger.error(f"Error Searching the Web. Search Results: {websearch_results}")
-            return []
-
-        result: EvidenceResult = await self.call_llm_schema(
-            task = AgentTasks.SEARCH.value,
-            prompt_vars = {
-                "query": query,
-                "documents": websearch_results,
-            },
-            schema = EvidenceResult,
-        )
-
-        if result is None or result.need_additional_info:
-            return []
-
-        return result.evidence
-    
-    # ---------------------------------------- Agentic Work ---------------------------------------- #
-    def get_current_date(self) -> dict[str, Any]:
-        now = datetime.now()
-        return now.date().isoformat()
-
-
-    def calculate(self, expression: str) -> str:
-        def eval_node(node):
-            if isinstance(node, ast.Expression):
-                return eval_node(node.body)
-
-            if isinstance(node, ast.Constant) and isinstance(node.value, int | float):
-                return node.value
-
-            if isinstance(node, ast.BinOp) and type(node.op) in CALCULATOR_OPERATORS:
-                return CALCULATOR_OPERATORS[type(node.op)](
-                    eval_node(node.left),
-                    eval_node(node.right),
-                )
-
-            if isinstance(node, ast.UnaryOp) and type(node.op) in CALCULATOR_OPERATORS:
-                return CALCULATOR_OPERATORS[type(node.op)](eval_node(node.operand))
-
-            raise ValueError("Unsupported arithmetic expression")
-
-        parsed = ast.parse(expression, mode = "eval")
-        return str(eval_node(parsed))
-
-
-
-    async def get_next_action(self, workflow: list[WorkflowStep], chat_messages : list[Message] | None = None) -> NextAction | None:
-        next_action = await self.call_llm_json(
-            task = AgentTasks.ORCHESTRATION.value,
-            previous_chat_messages = chat_messages,
-            prompt_vars = {
-                "workflow": workflow
-            }
-        )
-
-        try:
-            return NextAction.model_validate(next_action)
-
-        except ValidationError as e:
-            self.logger.error(f"Error Validating Planner Output: {e}")
-            self.logger.error(f"Planner Output: {next_action}")
-            return None
-
-    # ---------------------------------------- Individual LLMs Work ---------------------------------------- #
-
-    async def search(
-        self,
-        query          : str,
-        files          : list[str],
-        file_search_limit: int,
-        web_search_limit: int,
-    ) -> list[Evidence]:
-
-        files_evidence, web_evidence = await asyncio.gather(
-            self.extract_files_evidence(
-                query = query,
-                files = files,
-                file_search_limit = file_search_limit,
-            ),
-            self.extract_web_evidence(
-                query = query,
-                web_search_limit = web_search_limit,
-            ),
-        )
-
-        evidence = [*files_evidence, *web_evidence]
-
-        return evidence
-
-
-    async def generate_answer(
-        self,
-        query: str,
-        search_results: list[Evidence] | None = None,
-        query_metadata: dict | None = None
-    ) -> FinalAnswer | None:
-        return await self.call_llm_schema(
-            task = AgentTasks.ANSWER.value,
-            prompt_vars = {
-                "query": query,
-                "evidence": search_results or [],
-                **(query_metadata or {})
-            },
-            schema = FinalAnswer,
-            max_output_tokens = 2056,
-        )
-
-    # ---------------------------------------- Final Driver Function ---------------------------------------- #
     async def record_step(
         self,
         name: str,
         step_output: Any,
         started_at: float,
-        reason: str | None = None,
         step_input: dict[str, Any] | None = None,
         run_step_logger: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
     ) -> None:
         step = {
             "name": name,
-            "reason": reason,
+            "reason": None,
             "input": step_input,
             "output": step_output,
             "duration_s": round(time.time() - started_at, 4),
         }
-
-        if name == "search":
+        if isinstance(step_output, dict) and "error" in step_output:
+            result = "failed"
+        elif name == "search":
             result = f"{len(step_output['search_results'])} results"
         elif name == "generate_answer":
             result = f"{len(step_output['answer'])} chars"
         else:
             result = json.dumps(step_output, ensure_ascii=False, default=str)
-
-        self.logger.info("Action: %s | Reason: %s | Result: %s", name, reason, result)
-
+        self.logger.info("Action: %s | Result: %s", name, result)
         if run_step_logger is not None:
             await run_step_logger(step)
-
-
-    def update_workflow(self, 
-        step_name: Literal['user_query', 'tool_call'], 
-        user_query: str | None = None,
-        step_details: ToolCall | None = None
-    ):
-        self.workflow.append(
-            WorkflowStep(
-                step_name = step_name,
-                user_query = user_query,
-                step_details = step_details
-            )
-        )
-
 
     async def answer_user_query(
         self,
         user_query: str,
-        chat_cfg : ChatCFG,
+        chat_cfg: ChatCFG,
         queue: asyncio.Queue,
-
-        files         : list[str] | None = None,
-        chat_messages : list[Message] | None = None,
+        files: list[str] | None = None,
+        chat_messages: list[Message] | None = None,
         run_step_logger: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
-    ) -> dict | None:
+    ) -> dict:
+        await emit(queue=queue, message="Thinking...")
 
-        files = files or []
-        chat_messages = chat_messages or []
-        self.workflow = []
+        history = [
+            {"role": message.role, "content": (message.content or "")[-1000:]}
+            for message in (chat_messages or [])[-6:]
+        ]
+        analysis_input = {"query": user_query, "history": history}
+        started_at = time.time()
+        try:
+            analysis: QueryAnalysis = await self.call_llm(
+                AgentTasks.QUERY_ANALYZER.value,
+                analysis_input,
+                QueryAnalysis,
+                1024,
+            )
+        except Exception as error:
+            await self.record_step(
+                "query_analyzer",
+                {"error": str(error)},
+                started_at,
+                analysis_input,
+                run_step_logger,
+            )
+            raise
+        await self.record_step(
+            "query_analyzer",
+            analysis.model_dump(),
+            started_at,
+            analysis_input,
+            run_step_logger,
+        )
 
-
-        # - metadata
         current_date = None
-        calculations: list[dict] = []
-        search_results: list[Evidence] = []
-        answer: str = None
-        resources: dict = {}
+        if analysis.need_current_info:
+            started_at = time.time()
+            current_date = self.get_current_date()
+            await self.record_step(
+                "get_current_date",
+                {"current_date": current_date},
+                started_at,
+                run_step_logger=run_step_logger,
+            )
 
-
-        # -------------------- Start ------------------------- #
-        await emit(queue = queue, message = THINKING_MESSAGE)
-        self.update_workflow('user_query', user_query = user_query)
-
-        while(True):
-            next_action = await self.get_next_action(workflow = self.workflow, chat_messages = chat_messages)
-
-            if next_action.action == 'finish':
+        evidence: list[Evidence] = []
+        if analysis.need_search:
+            started_at = time.time()
+            query_input = {
+                "query": analysis.resolved_query,
+                "history": history,
+                "current_date": current_date,
+            }
+            try:
+                search_query: SearchQuery = await self.call_llm(
+                    AgentTasks.SEARCH.value,
+                    query_input,
+                    SearchQuery,
+                    1024,
+                )
+            except Exception as error:
                 await self.record_step(
-                    name = next_action.action,
-                    reason = next_action.reason,
-                    started_at = time.time(),
-                    step_output = None,
-                    run_step_logger = run_step_logger,
+                    "build_search_query",
+                    {"error": str(error)},
+                    started_at,
+                    query_input,
+                    run_step_logger,
                 )
-                return {
-                    'answer': answer,
-                    'resources': resources
-                }
+                raise
+            if current_date and current_date[:4] not in search_query.query:
+                search_query.query = f"{search_query.query} {current_date[:4]}"
+            await self.record_step(
+                "build_search_query",
+                search_query.model_dump(),
+                started_at,
+                query_input,
+                run_step_logger,
+            )
 
-            if next_action.action == 'get_current_date':
-                start_time = time.time()
-
-                current_date = self.get_current_date()
-                
+            started_at = time.time()
+            try:
+                evidence = await self.search(search_query.query, files or [], chat_cfg)
+            except Exception as error:
                 await self.record_step(
-                    name = next_action.action,
-                    reason = next_action.reason,
-                    started_at = start_time,
-                    step_output = {
-                        "current_date": current_date
-                    },
-                    run_step_logger = run_step_logger
+                    "search",
+                    {"error": str(error)},
+                    started_at,
+                    {"query": search_query.query},
+                    run_step_logger,
                 )
+                raise
+            await self.record_step(
+                "search",
+                {"search_results": [item.model_dump() for item in evidence]},
+                started_at,
+                {"query": search_query.query},
+                run_step_logger,
+            )
 
-                self.update_workflow('tool_call', step_details = ToolCall(
-                    tool_name = next_action.action,
-                    tool_reason = next_action.reason,
-                    tool_result = f"Current Date: {str(current_date)}"
-                ))
-
-                
-                
-            if next_action.action == 'calculate':
-                expression = next_action.arguments.get("expression") or ""
-                nl_expression = next_action.arguments.get('natural_language_expression') or ""
-                step_input = {"expression": expression}
-                start_time = time.time()
-
-                result = self.calculate(expression)
-                
-                await self.record_step(
-                    name = next_action.action,
-                    reason = next_action.reason,
-                    started_at = start_time,
-                    step_input = step_input,
-                    step_output = {"result": result},
-                    run_step_logger = run_step_logger
-                )
-   
-
-                calculations.append({
-                    str(expression): result
-                })
-
-                self.update_workflow(step_name = "tool_call", step_details = ToolCall(
-                    tool_name = "calculate",
-                    tool_reason = next_action.reason,
-                    tool_result = f"{str(nl_expression)} Evaluated to: {str(result)}"
-                ))
-
-
-            if next_action.action == "search":
-                search_query = next_action.arguments.get("search_query", "query") or user_query
-                step_input = {"query": search_query}
-                start_time = time.time()
-
-                search_results = await self.search(
-                    query = search_query,
-                    file_search_limit = chat_cfg.file_search_limit,
-                    files = files,
-                    web_search_limit = chat_cfg.web_search_limit,
-                )
-
-
-                await self.record_step(
-                    name = next_action.action,
-                    reason = next_action.reason,
-                    started_at = start_time,
-                    step_input = step_input,
-                    step_output = {
-                        "search_results": [e.model_dump() for e in search_results]
-                    },
-                    run_step_logger = run_step_logger
-                )
-
-                self.update_workflow(step_name = "tool_call", step_details = ToolCall(
-                    tool_name = "search",
-                    tool_reason = next_action.reason,
-                    tool_result = f"Search tool returned {len(search_results)} information pieces."
-                ))
-
-
-            if next_action.action == "generate_answer":
-                generation_query = next_action.arguments.get('generation_query', 'query') or user_query
-                step_input = {
-                    "query": generation_query,
-                    "search_results": [result.model_dump() for result in search_results],
-                }
-
-                query_metadata = {}
-
-                if current_date: query_metadata['current_date'] = current_date
-                if calculations: query_metadata['current_date'] = calculations
-
-                if query_metadata:
-                    step_input['query_metadata'] = query_metadata
-
-
-                await emit(queue = queue, message = GENERATING_RESPONSE_MESSAGE)
-
-                start_time = time.time()
-                final = await self.generate_answer(
-                    query = generation_query,
-                    search_results = search_results,
-                    query_metadata = query_metadata if query_metadata else None
-                )
-
-                await self.record_step(
-                    name = next_action.action,
-                    reason = next_action.reason,
-                    started_at = start_time,
-                    step_input = step_input,
-                    step_output = final.model_dump(),
-                    run_step_logger = run_step_logger
-                )
-
-                self.update_workflow(step_name = "tool_call", step_details = ToolCall(
-                    tool_name = 'generate_answer',
-                    tool_reason = next_action.reason,
-                    tool_result = "Answer Generated" if final.answer else "Answer Invalid, retrey generating"
-                ))
-
-                answer = final.answer
-                resources = final.resources
-
-                if answer:
-                    await self.record_step(
-                        name = 'finish',
-                        reason = 'Answer generated',
-                        started_at = time.time(),
-                        step_output = None,
-                        run_step_logger = run_step_logger,
-                    )
-                    return {'answer': answer, 'resources': resources}
+        await emit(queue=queue, message="Generating Final Response...")
+        answer_input = {
+            "query": analysis.resolved_query,
+            "history": history,
+            "search_results": [item.model_dump() for item in evidence],
+            "current_date": current_date,
+        }
+        started_at = time.time()
+        try:
+            answer: FinalAnswer = await self.call_llm(
+                AgentTasks.ANSWER.value,
+                {
+                    "query": analysis.resolved_query,
+                    "history": history,
+                    "evidence": evidence,
+                    "current_date": current_date,
+                },
+                FinalAnswer,
+                2048,
+            )
+        except Exception as error:
+            await self.record_step(
+                "generate_answer",
+                {"error": str(error)},
+                started_at,
+                answer_input,
+                run_step_logger,
+            )
+            raise
+        await self.record_step(
+            "generate_answer",
+            answer.model_dump(),
+            started_at,
+            answer_input,
+            run_step_logger,
+        )
+        await self.record_step("finish", None, time.time(), run_step_logger=run_step_logger)
+        return answer.model_dump()

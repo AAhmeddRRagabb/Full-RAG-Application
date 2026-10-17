@@ -10,6 +10,7 @@ import numpy as np
 from .base_llm_client import BaseLLMClient
 from groq.types.chat import ChatCompletion
 from huggingface_hub import InferenceClient
+from core.helpers import log_llm_error
 
 
 class HuggingfaceLLMClient(BaseLLMClient):
@@ -169,23 +170,23 @@ class HuggingfaceLLMClient(BaseLLMClient):
             role   = LLMsGenerationMessageTypes.GROQ_USER_MESSAGE.value
         )
 
-        final_messages = [system_message, *(messages or []), user_message]
+        final_messages = ([system_message] if self.generation_system_prompt else []) + messages + [user_message]
 
+        options = {
+            "messages": final_messages,
+            "model": self.generation_model_id,
+            "stream": False,
+            "temperature": temperature if temperature is not None else self.default_temperature,
+            "max_tokens": max_output_tokens or self.default_max_output_tokens,
+        }
         try:
-            response = self.client.chat_completion(
-                messages    = final_messages,
-                model       = self.generation_model_id,
-                stream      = False,
-                temperature = temperature if temperature else self.default_temperature,
-                max_tokens  = max_output_tokens if max_output_tokens else self.default_max_output_tokens
-            )
-
+            response = self.client.chat_completion(**options)
         except Exception as e:
-            self.logger.error(f"Error While Generating Response: {e}")
+            log_llm_error(e, provider="huggingface", model=self.generation_model_id)
             return None
         
         if not self.validate_generation_response(response):
-            self.logger.error("Invalid Generation Response")
+            log_llm_error(ValueError("Empty model content"), provider="huggingface", model=self.generation_model_id)
             return None
     
         return response.choices[0].message.content

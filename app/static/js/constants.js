@@ -1,6 +1,6 @@
 
 
-const APP_ROUTES_ROOT_PATH = "http://localhost:8000/api/v1";
+const APP_ROUTES_ROOT_PATH = "/api/v1";
 
 export const AUTH_ROUTES_PATH = `${APP_ROUTES_ROOT_PATH}/auth`;
 export const DATA_ROUTES_PATH = `${APP_ROUTES_ROOT_PATH}/data`;

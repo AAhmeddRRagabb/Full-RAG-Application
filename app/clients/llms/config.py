@@ -5,7 +5,6 @@ class LLMsProviders(Enum):
     GROQ_PROVIDER   = "groq"
     GOOGLE_PROVIDER = "google_genai"
     HUGGING_FACE    = "hugging_face"
-    OPEN_AI         = "openai"
 
 
 
@@ -25,17 +24,8 @@ class LLMsHuggingfaceEmbeddingQueryTypes(Enum):
     QUERY = "query"
     DOCUMENT = "document"
 
-class LLMsOpenAIEmbeddingQueryTypes(Enum):
-    QUERY = "query"
-    DOCUMENT = "document"
-
 # Generation Message Types
 class LLMsGenerationMessageTypes(Enum):
-    OPENAI_SYSTEM_MESSAGE    = "system"
-    OPENAI_USER_MESSAGE      = "user"
-    OPENAI_ASSISTANT_MESSAGE = "assistant"
-
-
     GROQ_SYSTEM_MESSAGE    = "system"
     GROQ_USER_MESSAGE      = "user"
     GROQ_ASSISTANT_MESSAGE = "assistant"
@@ -60,7 +50,7 @@ class LLMsEmbeddingModels(Enum):
 class AgentTasks(Enum):
     SEARCH = "search"
     ANSWER = "answer"
-    ORCHESTRATION = "orchestration"
+    QUERY_ANALYZER = "query_analyzer"
 
 
 class PromptTypes(Enum):

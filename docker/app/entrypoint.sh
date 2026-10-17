@@ -5,8 +5,8 @@ echo "----------------------------------------------------------"
 echo "Running database migrations..."
 cd /app/models/db_schemas/fullrag_db/
 
-DATABASE_URL="postgresql+psycopg2://${POSTGRES_USERNAME}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_MAIN_DB_NAME}"
-sed -i "s|^sqlalchemy.url =.*|sqlalchemy.url = ${DATABASE_URL}|" alembic.ini
+MIGRATION_DATABASE_URL="${DATABASE_URL/postgresql+asyncpg/postgresql+psycopg2}"
+sed -i "s|^sqlalchemy.url =.*|sqlalchemy.url = ${MIGRATION_DATABASE_URL}|" alembic.ini
 
 alembic upgrade head
 cd /app

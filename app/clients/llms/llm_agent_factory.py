@@ -19,6 +19,7 @@ class LLMAgentFactory:
         self, 
         provider: str, 
         system_prompt: str | None = None,
+        reasoning_effort: str | None = None,
         generation_model_id: str | None = None,
         embedding_model_id: str | None = None,
     ) -> GoogleLLMClient | GroqLLMClient | HuggingfaceLLMClient | None:
@@ -41,7 +42,8 @@ class LLMAgentFactory:
                 embedding_model_id       = None,
                 embedding_size           = None,
 
-                generation_system_prompt = system_prompt
+                generation_system_prompt = system_prompt,
+                reasoning_effort         = reasoning_effort,
             )
                 
 
@@ -54,7 +56,7 @@ class LLMAgentFactory:
                 embedding_model_id       = embedding_model_id if embedding_model_id else self.config.EMBEDDING_MODEL_ID,
                 embedding_size           = self.config.EMBEDDING_SIZE,
 
-                generation_system_prompt = system_prompt
+                generation_system_prompt = system_prompt,
             )
                 
 
@@ -66,7 +68,7 @@ class LLMAgentFactory:
                 embedding_model_id       = embedding_model_id if embedding_model_id else self.config.EMBEDDING_MODEL_ID,
                 embedding_size           = self.config.EMBEDDING_SIZE,
                 
-                generation_system_prompt = system_prompt
+                generation_system_prompt = system_prompt,
             )
 
     

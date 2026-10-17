@@ -13,7 +13,7 @@ The project also has two release lines:
 - Store users, assets, and chunks in PostgreSQL.
 - Split uploaded files into chunks.
 - Embed chunks with a configured embedding provider.
-- Store/search vectors with PGVector or Qdrant client support.
+- Store and search vectors with pgvector.
 - Retrieve relevant chunks for a query.
 - Generate final answers with Groq, Google, or Hugging Face clients.
 - Expose Prometheus metrics and a Docker monitoring stack.
@@ -23,7 +23,7 @@ The project also has two release lines:
 - API: FastAPI, Uvicorn
 - Database: PostgreSQL with pgvector
 - Migrations: Alembic
-- Vector clients: PGVector and Qdrant client implementations
+- Vector store: pgvector
 - LLM providers: Groq, Google GenAI, Hugging Face
 - Observability: Prometheus, Grafana, Node Exporter, Postgres Exporter
 - Container runtime: Docker Compose
@@ -34,7 +34,7 @@ The project also has two release lines:
 app/
   clients/              LLM and vector database clients
   controllers/          Data, process, NLP, and user workflow logic
-  app_core/         Lifespan and metrics setup
+  core/                 Lifespan and application settings
   models/               Request schemas, DB schemas, enums, object models
   routes/               FastAPI route modules
   main.py               App entrypoint
@@ -43,7 +43,7 @@ docker/
   config/               Nginx and Prometheus config examples
   env/                  Safe env examples
   docker-compose.yml    Full deployment stack
-run.sh                  Local helper script
+run.sh                  Docker stack launcher
 ```
 
 ## Configuration
@@ -58,7 +58,6 @@ cp docker/env/.env.example.postgres-exporter docker/env/.env.postgres-exporter
 cp docker/env/.env.example.grafana docker/env/.env.grafana
 cp docker/config/nginx/default.example.conf docker/config/nginx/default.conf
 cp docker/config/prometheus/prometheus.yml.example docker/config/prometheus/prometheus.yml
-cp docker/app/alembic.example.ini docker/app/alembic.ini
 ```
 
 Never commit live `.env` files, uploaded documents, database volumes, generated Alembic config, or monitoring runtime data. The `.gitignore` files are configured to keep those out of Git.
@@ -93,6 +92,7 @@ SSL: disable
 ```
 
 Inside Docker, services connect to PostgreSQL with host `pgvector` and port `5432`.
+Redis runs as the `redis` service. Set the same database credentials in `docker/env/.env.app` and `docker/env/.env.postgres`; the app env also needs Groq, Google, Tavily, and a private CSRF secret. The image uses the tracked Alembic template, so no local `alembic.ini` is needed for Docker.
 
 ## API Workflow
 

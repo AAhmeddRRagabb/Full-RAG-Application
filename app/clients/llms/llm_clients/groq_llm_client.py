@@ -5,6 +5,7 @@ from clients.llms.config import LLMsGenerationMessageTypes
 from .base_llm_client import BaseLLMClient
 from groq import Groq
 from groq.types.chat import ChatCompletion
+from core.helpers import log_llm_error
 
 class GroqLLMClient(BaseLLMClient):
     def __init__(
@@ -14,6 +15,7 @@ class GroqLLMClient(BaseLLMClient):
         embedding_model_id       : str,
         embedding_size           : int,
         generation_system_prompt : str | None = None,
+        reasoning_effort        : str | None = None,
         api_url                  : str | None = None,
         max_input_tokens         : int = 1000,
         default_max_output_tokens: int = 1000,
@@ -31,6 +33,7 @@ class GroqLLMClient(BaseLLMClient):
             default_temperature       = default_temperature,
             api_url                   = api_url
         )
+        self.reasoning_effort = reasoning_effort
 
     
     def connect(self, api_key: str) -> Groq:
@@ -91,8 +94,6 @@ class GroqLLMClient(BaseLLMClient):
             if success -> model response
             if failure -> None
         """
-        from pprint import pprint
-
         messages = [
             self.create_prompt(
                 prompt = m.content,
@@ -110,27 +111,47 @@ class GroqLLMClient(BaseLLMClient):
             role   = LLMsGenerationMessageTypes.GROQ_USER_MESSAGE.value
         )
 
-        final_messages = [system_message, *(messages or []), user_message]
+        final_messages = ([system_message] if self.generation_system_prompt else []) + messages + [user_message]
 
         
 
         response: ChatCompletion = None
         
         try:
-            response = self.client.chat.completions.create(
+            request = dict(
                 messages    = final_messages,
                 model       = self.generation_model_id,
                 stream      = False,
-                temperature = temperature if temperature else self.default_temperature,
-                max_tokens  = max_output_tokens if max_output_tokens else self.default_max_output_tokens
+                temperature = temperature if temperature is not None else self.default_temperature,
+                max_tokens  = max_output_tokens if max_output_tokens else self.default_max_output_tokens,
             )
+            if self.reasoning_effort and self.generation_model_id in {"openai/gpt-oss-20b", "openai/gpt-oss-120b"}:
+                request["reasoning_effort"] = self.reasoning_effort
+            response = self.client.chat.completions.create(**request)
 
         except Exception as e:
-            self.logger.error(f"Error While Generating Response: {e}")
+            if "request" in locals():
+                self.logger.error(
+                    "Groq request settings | model=%s max_tokens=%s reasoning_effort=%s messages=%s",
+                    request["model"], request["max_tokens"],
+                    request.get("reasoning_effort", "provider default"), len(request["messages"]),
+                )
+            log_llm_error(e, provider="groq", model=self.generation_model_id)
             return None
                 
         if not self.validate_generation_response(response):
-            self.logger.error("Invalid Generation Response")
+            choice = response.choices[0] if response and response.choices else None
+            message = choice.message if choice else None
+            usage = getattr(response, "usage", None)
+            self.logger.error(
+                "Groq empty response | model=%s finish_reason=%s completion_tokens=%s reasoning_tokens=%s reasoning_chars=%s max_tokens=%s",
+                self.generation_model_id,
+                getattr(choice, "finish_reason", None),
+                getattr(usage, "completion_tokens", None),
+                getattr(getattr(usage, "completion_tokens_details", None), "reasoning_tokens", None),
+                len(getattr(message, "reasoning", None) or ""),
+                request["max_tokens"],
+            )
             return None
     
         return response.choices[0].message.content

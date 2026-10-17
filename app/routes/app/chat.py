@@ -32,12 +32,11 @@ from core.chat import (
     emit,
     get_chat_cfg,
     get_file_name,
-    get_messages_content,
     log_run_step
 )
 from core.helpers import build_public_chat, build_public_message, raise_internal_server_error
 from models.db_models import AssetModel, ChatModel, ChunkModel, RunModel
-from models.db_schemas import Chat, Message, Run, RunStep, User
+from models.db_schemas import Chat, Message, Run, User
 from models.enums import ResponsesEnum
 from models.api_schemas import ChatRequest
 from models.db_schemas.redis_data import AuthContext
@@ -288,12 +287,6 @@ async def run_chat_request(
     if active_chat is None:
         raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail = ResponsesEnum.CHAT_NOT_FOUND.value)
 
-    previous_messages = await chat_model.get_chat_messages(
-        user_id = user.user_id,
-        chat_id = active_chat.chat_id,
-    )
-
-
     # - start the Run
     run = Run(
         user_id = user.user_id,
@@ -308,12 +301,15 @@ async def run_chat_request(
     if not await run_model.insert_run(run):
         raise_internal_server_error()
 
-
+    previous_messages = await chat_model.get_chat_messages(
+        user_id = user.user_id,
+        chat_id = active_chat.chat_id,
+    )
     if previous_messages is None:
         await run_model.fail_run(
-            run_id = run.run_id, 
-            error = "Could not load chat messages", 
-            time_taken = calc_run_time_s(started_at)
+            run_id = run.run_id,
+            error = "Could not load chat messages",
+            time_taken = calc_run_time_s(started_at),
         )
         raise_internal_server_error()
 
@@ -345,21 +341,25 @@ async def run_chat_request(
         agent_result = await chat_controller.answer_user_query(
             user_query = query,
             files = files,
+            chat_messages = previous_messages,
             chat_cfg = get_chat_cfg(
                 chat_depth = depth,
             ),
-            chat_messages = previous_messages,
             queue = queue,
             run_step_logger = record_run_step,
         )
 
 
     except Exception as e:
+        if not isinstance(e, HTTPException):
+            logger.exception("Chat run failed")
         await run_model.fail_run(
             run_id = run.run_id,
             error = str(e),
             time_taken = calc_run_time_s(started_at),
         )
+        if isinstance(e, HTTPException):
+            raise
         raise_internal_server_error()
 
     if agent_result is None:
@@ -389,12 +389,13 @@ async def run_chat_request(
         )
         raise_internal_server_error()
 
-    await run_model.finish_run(
+    if not await run_model.finish_run(
         run_id = run.run_id,
         status = "success",
         response = report,
         duration_s = calc_run_time_s(started_at),
-    )
+    ):
+        raise_internal_server_error()
     
     return {
         "report"              : report,

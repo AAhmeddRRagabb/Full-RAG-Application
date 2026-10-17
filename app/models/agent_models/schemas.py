@@ -1,6 +1,6 @@
 
 from pydantic import BaseModel, Field
-from typing import Any, Literal
+from typing import Any
 
 
 # -- Retrieved Chunk
@@ -16,24 +16,16 @@ class Evidence(BaseModel):
     relevance_score: float = Field(..., ge = 0, le = 1, description = "Relevance score between the evidence and the user query.")
     resource: str = Field(..., description = "File name or website URL where the evidence came from.")
 
-class EvidenceResult(BaseModel):
-    evidence: list[Evidence] = Field(default_factory = list)
-    need_additional_info: bool = False
-
-
 class FinalAnswer(BaseModel):
-    answer: str
+    answer: str = Field(min_length=1)
     resources: list[str] = Field(default_factory = list)
 
 
-# -- Orchestrator
-class NextAction(BaseModel):
-    reason: str
-    action: Literal[
-        'get_current_date',
-        'calculate',
-        'search',
-        'generate_answer',
-        'finish'
-    ]
-    arguments: dict[str, Any] = Field(default_factory = dict)
+class QueryAnalysis(BaseModel):
+    need_search: bool
+    need_current_info: bool
+    resolved_query: str = Field(min_length=1)
+
+
+class SearchQuery(BaseModel):
+    query: str = Field(min_length=1)

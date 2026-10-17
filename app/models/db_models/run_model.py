@@ -78,7 +78,7 @@ class RunModel(BaseObjModel):
 
     async def fail_run(self, run_id: int, error: str, time_taken: float, response: str | None = None) -> bool:
         try:
-            await self.finish_run(
+            return await self.finish_run(
                 run_id = run_id,
                 status = "failed",
                 response = response,
@@ -88,5 +88,3 @@ class RunModel(BaseObjModel):
         except Exception:
             self.logger.error("Error Failing Run")
             return False
-
-        return True
