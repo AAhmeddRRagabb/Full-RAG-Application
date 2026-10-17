@@ -37,10 +37,8 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['chat_id'], ['chats.chat_id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('message_id')
     )
-    op.drop_index(op.f('pgvector_collection_ahmed_384_vector_idx'), table_name='collection_ahmed_384', postgresql_ops={'vector': 'vector_cosine_ops'}, postgresql_using='hnsw')
-    op.drop_table('collection_ahmed_384')
-    op.drop_index(op.f('pgvector_collection_mohammed_384_vector_idx'), table_name='collection_mohammed_384', postgresql_ops={'vector': 'vector_cosine_ops'}, postgresql_using='hnsw')
-    op.drop_table('collection_mohammed_384')
+    op.execute('DROP TABLE IF EXISTS collection_ahmed_384')
+    op.execute('DROP TABLE IF EXISTS collection_mohammed_384')
     # ### end Alembic commands ###
 
 

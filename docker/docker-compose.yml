@@ -162,7 +162,7 @@ services:
     container_name: grafana
 
     ports:
-      - "3300:3000"
+      - "3500:3000"
 
     volumes:
       - ./data/grafana_data:/var/lib/grafana
