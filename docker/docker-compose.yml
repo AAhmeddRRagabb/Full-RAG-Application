@@ -71,7 +71,6 @@ services:
 
   pgvector:
     image: pgvector/pgvector:0.8.6-pg18-trixie
-
     container_name: pgvector
 
     ports:

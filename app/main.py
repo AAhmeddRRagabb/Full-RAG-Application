@@ -13,6 +13,7 @@ from core.lifespan import lifespan
 from core.system_settings import get_system_settings as get_settings
 from routes.app import auth_router, chat_router, data_router
 
+from core.metrics import setup_metrics
 
 app = FastAPI(lifespan = lifespan)
 
@@ -26,6 +27,7 @@ app.mount(
     name = "static",
 )
 
+setup_metrics(app=app)
 
 def render_app(request: Request, page_title: str | None = None):
     return templates.TemplateResponse(

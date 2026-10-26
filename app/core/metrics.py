@@ -19,15 +19,15 @@ settings = get_settings()
 
 # Metrics
 REQUEST_COUNT = Counter(
-    name = "http_total_requests",
-    documentation = "Total HTTP Requests",
-    labelnames = ['method', 'endpoint', 'status']
+    name="http_requests_total",
+    documentation="Total HTTP requests",
+    labelnames=["method", "endpoint", "status"],
 )
 
 REQUEST_LATENCY = Histogram(
-    name = 'http_request_duration_s',
-    documentation = "HTTP Request Durations in Seconds",
-    labelnames = ['method', 'endpoint']
+    name="http_request_duration_seconds",
+    documentation="HTTP request duration in seconds",
+    labelnames=["method", "endpoint"],
 )
 
 

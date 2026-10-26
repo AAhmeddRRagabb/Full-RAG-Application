@@ -1,5 +1,5 @@
+# ---------------------- Building the Image ---------------------------- #
 # UV Layer
-
 FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim
 
 # Initiate the In-container APP
@@ -17,6 +17,9 @@ RUN mkdir -p /app/models/db_schemas/fullrag_db/
 COPY docker/app/alembic.example.ini /app/models/db_schemas/fullrag_db/alembic.ini
 COPY docker/app/entrypoint.sh /entrypoint.sh
 RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
+
+
+# ----------------------- Running -------------------------- #
 
 ENTRYPOINT ["/entrypoint.sh"]
 
