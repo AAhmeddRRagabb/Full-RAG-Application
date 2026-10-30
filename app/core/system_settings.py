@@ -9,10 +9,10 @@ from pydantic import SecretStr
 APP_ROUTES_ROOT_PATH = "/api/v1"
 AUTH_ROUTES_PATH     = f"{APP_ROUTES_ROOT_PATH}/auth"
 DATA_ROUTES_PATH     = f"{APP_ROUTES_ROOT_PATH}/data"
-CHAT_ROUTER_PATH      = f"{APP_ROUTES_ROOT_PATH}/chat"
+QA_ROUTER_PATH       = f"{APP_ROUTES_ROOT_PATH}/qa"
 
 
-FILE_ALLOWED_EXTENSIONS = ['.pdf', '.txt']
+FILE_ALLOWED_EXTENSIONS = ['.pdf']
 FILE_CHUNK_SIZE_B = 512 * 1024
 FILE_MAX_SIZE_MB = 10
 
@@ -37,8 +37,6 @@ class SystemSettings(BaseSettings):
 
     METRICS_ENDPOINT: str
 
-    TAVILY_API_KEY: str
-
     DATABASE_URL: str
     # -------------------------- LLMs Config ----------------------------- #
     EMBEDDING_MODEL_ID: str
@@ -52,14 +50,10 @@ class SystemSettings(BaseSettings):
     DEFAULT_LANGUAGE: str
 
 
-    SEARCH_BACKEND: str
     ANSWER_BACKEND: str
-    QUERY_ANALYZER_BACKEND: str
     EMBEDDING_BACKEND: str
 
-    SEARCH_AGENT: str
     ANSWER_AGENT: str
-    QUERY_ANALYZER_AGENT: str
 
     # -------------------------- DBs Config ----------------------------- #
     VECTOR_DB_BACKEND: str

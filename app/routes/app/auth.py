@@ -12,10 +12,9 @@ settings = get_settings()
 
 
 # fastapi
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from core.dependecies.auth import require_authentication, require_csrf
 from core.dependecies.clients import get_redis, get_db_client
-from core.helpers import check_rate_limit
 
 
 # databases
@@ -23,7 +22,7 @@ from redis.asyncio import Redis, RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # models
-from models.db_schemas import Chat, User
+from models.db_schemas import User
 from models.enums import ResponsesEnum
 from models.api_schemas import (
     CsrfResponse,
@@ -36,7 +35,7 @@ from models.api_schemas import (
 
 from models.db_schemas.redis_data import AuthContext
 
-from models.db_models import ChatModel, UserModel
+from models.db_models import UserModel
 
 # security
 from core.auth.csrf import create_csrf_token
@@ -54,24 +53,15 @@ auth_router = APIRouter(
 )
 
 
-
 @auth_router.post("/register")
 async def register_user(
-    request         : Request,
     register_request: RegisterRequest,
     db_client       : Annotated[AsyncSession, Depends(get_db_client)],
     redis           : Annotated[Redis, Depends(get_redis)],
     response        : Response,
 ) -> RegisterResponse:
-    
-    client_host = request.client.host if request.client else "unknown"
-    email_key = register_request.email.strip().lower()
 
-    await check_rate_limit(redis, f"register:ip:{client_host}", limit = 8, window_seconds = 3600)
-    await check_rate_limit(redis, f"register:email:{email_key}", limit = 5, window_seconds = 3600)
-    
     user_model = UserModel(db_client = db_client)
-    chat_model = ChatModel(db_client = db_client)
 
     # - if already exists
     if await user_model.get_user_by_email(register_request.email):
@@ -94,14 +84,6 @@ async def register_user(
     if not await user_model.insert_user(user):
         raise_internal_server_error()
 
-    if not await chat_model.insert_chat(
-        Chat(
-            user_id = user.user_id,
-            chat_name = "chat #1",
-        )
-    ):
-        raise_internal_server_error()
-
     # - create session
     csrf_token = await create_user_session(response = response, redis = redis, user = user)
 
@@ -112,22 +94,13 @@ async def register_user(
     )
 
 
-
-
 @auth_router.post("/login")
 async def login_user(
-    request      : Request,
     login_request: LoginRequest,
     db_client    : Annotated[AsyncSession, Depends(get_db_client)],
     redis        : Annotated[Redis, Depends(get_redis)],
     response     : Response,
 ) -> LoginResponse:
-    
-    client_host = request.client.host if request.client else "unknown"
-    email_key = login_request.email.strip().lower()
-
-    await check_rate_limit(redis, f"login:ip:{client_host}", limit = 20, window_seconds = 900)
-    await check_rate_limit(redis, f"login:email:{email_key}", limit = 10, window_seconds = 900)
     
     user_model = UserModel(db_client = db_client)
     user = await user_model.get_user_by_email(login_request.email)

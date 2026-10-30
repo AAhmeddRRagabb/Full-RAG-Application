@@ -7,7 +7,6 @@ from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from tavily import TavilyClient
 
 from clients.llms import LLMAgentFactory
 from clients.llms.config import AgentTasks, PromptTypes
@@ -98,17 +97,6 @@ async def lifespan(app: FastAPI):
     app.state.llm_clients_factory = llm_clients_factory
     app.state.llm_clients = {}
 
-    # -- search agent
-    app.state.llm_clients[AgentTasks.SEARCH.value] = llm_clients_factory.create_agent(
-        reasoning_effort = "low",
-        provider = app.state.settings.SEARCH_BACKEND,
-        generation_model_id = app.state.settings.SEARCH_AGENT,
-        system_prompt       = app.state.prompt_template_parser.get_prompt(
-            task = AgentTasks.SEARCH.value,
-            key  = PromptTypes.SYSTEM_PROMPT.value
-        )
-    )
-
     # -- answer agent
     app.state.llm_clients[AgentTasks.ANSWER.value] = llm_clients_factory.create_agent(
         reasoning_effort = "medium",
@@ -120,26 +108,7 @@ async def lifespan(app: FastAPI):
         )
     )
 
-    # -- query analyzer
-    app.state.llm_clients[AgentTasks.QUERY_ANALYZER.value] = llm_clients_factory.create_agent(
-        reasoning_effort = "medium",
-        provider            = app.state.settings.QUERY_ANALYZER_BACKEND,
-        generation_model_id = app.state.settings.QUERY_ANALYZER_AGENT,
-        system_prompt       = app.state.prompt_template_parser.get_prompt(
-            task = AgentTasks.QUERY_ANALYZER.value,
-            key  = PromptTypes.SYSTEM_PROMPT.value
-        )
-    )
-
-
-    if (
-        not app.state.llm_clients
-        or len(app.state.llm_clients) < 3
-        or any(
-            client is None
-            for client in app.state.llm_clients.values()
-        )
-    ):
+    if any(client is None for client in app.state.llm_clients.values()):
         logger.error(f"Error While Initiating LLMs Agents: {app.state.llm_clients}")
         exit()
 
@@ -154,19 +123,6 @@ async def lifespan(app: FastAPI):
         exit()
 
     print_success_message(f"Initiated Embedding Agent Successfully")
-    print()
-
-
-    print(f"- Connecting to Tavily Client...")
-    app.state.tavily_client = TavilyClient(
-        api_key = app.state.settings.TAVILY_API_KEY
-    )
-
-    if not app.state.tavily_client:
-        logger.error(f"Error While Connecting to Tavily Client: {app.state.tavily_client}")
-        exit()
-
-    print_success_message(f"Connected to Tavily Client Successfully")
     print()
 
 

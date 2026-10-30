@@ -3,7 +3,6 @@ import {
     APP_SHELL,
     BAD_REQUEST_ERROR,
     INTERNAL_SERVER_ERROR,
-    LOGIN_BUTTON,
     LOGIN_FORM,
     LOGOUT_BUTTON,
     REGISTER_FORM,
@@ -14,25 +13,6 @@ import {
 let alertTimeoutId;
 let activeShellUser = null;
 let csrfToken = null;
-
-
-/*
-    auth backdrop state
-*/
-function setAuthBackdrop(isActive) {
-    document.body.classList.toggle("auth-form-active", isActive);
-
-    if (isActive) {
-        document.querySelectorAll(".app-modal.active, .rail-button.active, .header-icon-button.active")
-            .forEach((element) => {
-                element.classList.remove("active");
-
-                if (element.matches("button")) {
-                    element.setAttribute("aria-expanded", "false");
-                }
-            });
-    }
-}
 
 
 function notifyAppShellReady(user = null) {
@@ -156,10 +136,6 @@ export function setUserProfile(user = null) {
 
     showMessage(WELCOME_MESSAGE_CONTAINER, `Welcome ${userName}`, SUCCESS_MESSAGE);
 
-    if (LOGIN_BUTTON) {
-        LOGIN_BUTTON.hidden = Boolean(user);
-    }
-
     if (LOGOUT_BUTTON) {
         LOGOUT_BUTTON.hidden = !user;
     }
@@ -167,7 +143,6 @@ export function setUserProfile(user = null) {
 
 
 export function activateAppShell(user = null) {
-    setAuthBackdrop(false);
     REGISTER_FORM.classList.remove("active");
     LOGIN_FORM.classList.remove("active");
 
@@ -179,7 +154,6 @@ export function activateAppShell(user = null) {
 
 
 export function activateLoginForm() {
-    setAuthBackdrop(true);
     REGISTER_FORM.classList.remove("active");
     APP_SHELL?.classList.remove("active");
     LOGIN_FORM.classList.add("active");
@@ -189,7 +163,6 @@ export function activateLoginForm() {
 
 
 export function activateRegisterForm() {
-    setAuthBackdrop(true);
     LOGIN_FORM.classList.remove("active");
     APP_SHELL?.classList.remove("active");
     REGISTER_FORM.classList.add("active");

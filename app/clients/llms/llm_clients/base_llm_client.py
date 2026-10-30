@@ -1,6 +1,5 @@
 from abc import abstractmethod
 import logging
-from models.db_schemas import Message
 
 
 
@@ -104,7 +103,6 @@ class BaseLLMClient:
     def generate_text(
         self, 
         user_prompt: str,
-        messages: list[Message] | None = None, 
         max_output_tokens: int | None = None, 
         temperature: float | None = None
     ) -> str | None:

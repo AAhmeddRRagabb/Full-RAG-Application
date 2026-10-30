@@ -10,16 +10,28 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from core.lifespan import lifespan
-from core.system_settings import get_system_settings as get_settings
-from routes.app import auth_router, chat_router, data_router
+from routes.app import auth_router, data_router, qa_router
 
 from core.metrics import setup_metrics
 
 app = FastAPI(lifespan = lifespan)
 
 BASE_DIR = Path(__file__).resolve().parent
-settings = get_settings()
 templates = Jinja2Templates(directory = BASE_DIR / "templates")
+
+
+
+
+def render_app(request: Request):
+    return templates.TemplateResponse(
+        request = request,
+        name = "index.html",
+        context = {
+            "page_title": "Document Q&A",
+        },
+    )
+
+
 
 app.mount(
     "/static",
@@ -29,18 +41,6 @@ app.mount(
 
 setup_metrics(app=app)
 
-def render_app(request: Request, page_title: str | None = None):
-    return templates.TemplateResponse(
-        request = request,
-        name = "index.html",
-        context = {
-            "page_title": page_title or settings.APP_NAME,
-            "app_name"  : "Ahmed Bot",
-            "user_name" : "Ahmed",
-        },
-    )
-
-
 @app.get("/")
 def home(request: Request):
     return render_app(request = request)
@@ -48,12 +48,4 @@ def home(request: Request):
 
 app.include_router(router = auth_router)
 app.include_router(router = data_router)
-app.include_router(router = chat_router)
-
-
-@app.get("/{user_slug}/{chat_slug}")
-def chat_page(request: Request, user_slug: str, chat_slug: str):
-    return render_app(
-        request = request,
-        page_title = chat_slug.replace("-", " ").title(),
-    )
+app.include_router(router = qa_router)

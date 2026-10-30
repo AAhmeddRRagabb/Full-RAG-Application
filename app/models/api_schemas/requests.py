@@ -1,5 +1,4 @@
 
-from typing import Literal
 from pydantic import BaseModel, EmailStr
 from pydantic import SecretStr
 
@@ -15,19 +14,7 @@ class LoginRequest(BaseModel):
     password: SecretStr
 
 
-# -- chat
-class ChatRequest(BaseModel):
+# -- question
+class QuestionRequest(BaseModel):
     query: str
-    chat_id: int
-    depth: Literal[
-        "low",
-        "moderate",
-        "high"
-    ] = "moderate"
-
-    files: list[str] | None = None
-
-
-class ChatCFG(BaseModel):
-    file_search_limit: int
-    web_search_limit: int
+    files: list[int]

@@ -1,251 +1,101 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
-
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>{{ page_title }}</title>
-
-        <!-- css links -->
-        <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}?v=2">
-        <link rel="stylesheet" href="{{ url_for('static', path='css/all.min.css') }}">
-    </head>
-
-    <body>
-
-        <!-- app layout -->
-        <div class="page">
-
-            <!-- app rail -->
-            <aside class="app-rail" aria-label="Application controls">
-                <button type="button" class="rail-button user-profile-toggle" data-tooltip="Open account panel" aria-label="Open profile" aria-expanded="false">
-                    <i class="fa-solid fa-user"></i>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ page_title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}?v=6">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/all.min.css') }}">
+</head>
+<body>
+    <!-- Document Q&A workspace -->
+    <div class="page">
+        <!-- Uploaded PDFs -->
+        <aside class="files-panel" aria-label="Your PDFs">
+            <div class="panel-heading">
+                <h2>Your files</h2>
+                <button type="button" id="uploadButton" class="icon-button" aria-label="Upload PDF">
+                    <i class="fa-solid fa-plus" aria-hidden="true"></i>
                 </button>
+                <input id="fileInput" type="file" accept=".pdf" hidden>
+            </div>
+            <p class="panel-hint">Select files for your question.</p>
+            <div id="filesList" class="files-list" aria-live="polite"></div>
+        </aside>
 
-                <button type="button" class="rail-button chats-toggle" data-tooltip="Open chat library" aria-label="Open chats" aria-expanded="false">
-                    <i class="fa-solid fa-comment"></i>
-                </button>
-            </aside>
+        <!-- Main area -->
+        <div class="workspace">
+            <header class="app-header">
+                <div class="brand">
+                    <span class="brand-mark"><i class="fa-solid fa-file-lines" aria-hidden="true"></i></span>
+                    <span>Document Q&A</span>
+                </div>
+                <div class="account">
+                    <span class="welcome-message"></span>
+                    <button type="button" id="logout" class="text-button" hidden>Log out</button>
+                </div>
+            </header>
 
-            <!-- main area -->
-            <main class="main-area">
+            <!-- Question and answer -->
+            <main class="qa-panel" aria-labelledby="qaTitle">
+                <div class="intro">
+                    <h1 id="qaTitle">Q&A</h1>
+                    <p>Ask a question about your selected PDFs.</p>
+                </div>
 
-                <!-- main header -->
-                <header class="header">
-                    <div class="container">
-                        <h1 class="header-title">New Chat</h1>
-
-                        <button type="button" class="header-icon-button chat-settings-toggle" data-tooltip="Open chat settings" aria-label="Open chat settings" aria-expanded="false">
-                            <i class="fa-solid fa-sliders"></i>
-                        </button>
+                <form id="questionForm" class="question-form">
+                    <label for="questionInput">Question</label>
+                    <div class="question-input-wrap">
+                        <textarea id="questionInput" rows="3" placeholder="Ask about your files..." required></textarea>
+                        <div class="composer-bar">
+                            <span class="composer-hint">Press Ctrl/⌘ + Enter to send</span>
+                            <button id="askButton" type="submit">Ask</button>
+                        </div>
                     </div>
-                </header>
+                </form>
 
-                <!-- chat area -->
-                <section class="chat-area">
-                    <div class="container">
-                        <div class="messages" id="messages" aria-live="polite"></div>
-
-                        <!-- query form -->
-                        <form class="query-form" id="queryForm">
-                            <p class="run-status" aria-live="polite"></p>
-
-                            <textarea
-                                id="queryArea"
-                                name="query"
-                                rows="1"
-                                placeholder="Ask a question..."
-                                required
-                            ></textarea>
-
-                            <button type="button" class="query-cancel-btn" aria-label="Stop waiting for response" hidden>
-                                <i class="fa-solid fa-stop"></i>
-                            </button>
-
-                            <button type="submit" class="query-form_submit-btn" aria-label="Send message">
-                                <i class="fa-solid fa-arrow-up-long"></i>
-                            </button>
-                        </form>
-                    </div>
+                <section class="answer-card" aria-label="Answer" aria-live="polite">
+                    <h2 class="answer-heading">Answer</h2>
+                    <div id="answerContent" class="answer-content empty">Select a PDF, then ask a question.</div>
+                    <ul id="answerSources" class="answer-sources" hidden></ul>
                 </section>
-
             </main>
-
         </div>
+    </div>
 
-        <!-- user profile modal -->
-        <section class="user-profile-modal app-modal" aria-label="User profile">
-            <div class="modal-header">
-                <div>
-                    <p class="modal-eyebrow">Profile</p>
-                    <h2>Account</h2>
-                </div>
+    <!-- Registration -->
+    <div class="register-form auth-card">
+        <div class="auth-heading"><h2>Create your account</h2><p>Start asking questions about your PDFs.</p></div>
+        <form>
+            <label for="registerUserName">Name<input type="text" name="user_name" id="registerUserName" autocomplete="name" required></label>
+            <label for="registerUserEmail">Email<input type="email" name="user_email" id="registerUserEmail" autocomplete="email" required></label>
+            <label for="registerUserPassword">Password<input type="password" name="user_password" id="registerUserPassword" autocomplete="new-password" required></label>
+            <label for="confirmPassword">Confirm password<input type="password" name="confirm_password" id="confirmPassword" autocomplete="new-password" required></label>
+            <p class="form-message" aria-live="polite"></p>
+            <button type="submit" id="registerSubmitBtn" class="auth-submit">Create account</button>
+        </form>
+        <p class="auth-switch">Already have an account? <button type="button" class="have-email">Log in</button></p>
+    </div>
 
-                <button type="button" class="modal-close" aria-label="Close profile">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
+    <!-- Login -->
+    <div class="login-form auth-card">
+        <div class="auth-heading"><h2>Welcome back</h2><p>Sign in to access your PDFs.</p></div>
+        <form>
+            <label for="loginUserEmail">Email<input type="email" name="user_email" id="loginUserEmail" autocomplete="email" required></label>
+            <label for="loginUserPassword">Password<input type="password" name="user_password" id="loginUserPassword" autocomplete="current-password" required></label>
+            <p class="form-message" aria-live="polite"></p>
+            <button type="submit" id="loginSubmitBtn" class="auth-submit">Log in</button>
+        </form>
+        <p class="auth-switch">New here? <button type="button" class="have-no-email">Create an account</button></p>
+    </div>
 
-            <p class="welcome-message" aria-live="polite">Welcome User</p>
+    <!-- Alerts -->
+    <div class="alerts" aria-live="polite"></div>
 
-            <div class="profile-actions">
-                <button type="button" class="login" id="login">Log In</button>
-                <button type="button" class="logout" id="logout" hidden>Log Out</button>
-            </div>
-        </section>
-
-        <!-- register modal -->
-        <div class="register-form">
-            <form action="">
-                <label for="registerUserName">
-                    User Name
-                    <input type="text" name="user_name" id="registerUserName" required>
-                </label>
-
-                <label for="registerUserEmail">
-                    Email
-                    <input type="email" name="user_email" id="registerUserEmail" required>
-                </label>
-
-                <label for="registerUserPassword">
-                    Password
-                    <input type="password" name="user_password" id="registerUserPassword" required>
-                </label>
-
-                <label for="confirmPassword">
-                    Confirm Password
-                    <input type="password" name="confirm_password" id="confirmPassword" required>
-                </label>
-
-                <p class="form-message" aria-live="polite"></p>
-                <input type="submit" value="Register" id="registerSubmitBtn">
-            </form>
-
-            <button type="button" class="close-form" aria-label="Close register form">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-            <button type="button" class="have-email">Login</button>
-        </div>
-
-        <!-- login modal -->
-        <div class="login-form">
-            <form action="">
-                <label for="loginUserEmail">
-                    Email
-                    <input type="email" name="user_email" id="loginUserEmail" required>
-                </label>
-
-                <label for="loginUserPassword">
-                    Password
-                    <input type="password" name="user_password" id="loginUserPassword" required>
-                </label>
-
-                <p class="form-message" aria-live="polite"></p>
-                <input type="submit" value="Login" id="loginSubmitBtn">
-            </form>
-
-            <button type="button" class="close-form" aria-label="Close login form">
-                <i class="fa-solid fa-xmark"></i>
-            </button>
-            <button type="button" class="have-no-email">Create account</button>
-        </div>
-
-
-        <!-- chats modal -->
-        <section class="chats-modal app-modal" aria-label="Your chats">
-
-            <!-- chats modal header -->
-            <div class="modal-header">
-                <div>
-                    <p class="modal-eyebrow">Workspace</p>
-                    <h2>Chats</h2>
-                </div>
-
-                <button type="button" class="modal-close" aria-label="Close chats">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-
-            <!-- chats list -->
-            <div class="chats-list" aria-label="Saved chats"></div>
-
-            <!-- add chat action -->
-            <button type="button" class="add-new-chat-btn">
-                <i class="fa-solid fa-plus"></i>
-                <span>New chat</span>
-            </button>
-        </section>
-
-        <!-- chat settings modal -->
-        <section class="chat-settings-modal app-modal" aria-label="Chat settings">
-
-            <!-- settings modal header -->
-            <div class="modal-header">
-                <div>
-                    <p class="modal-eyebrow">Current chat</p>
-                    <h2>Settings</h2>
-                </div>
-
-                <button type="button" class="modal-close" aria-label="Close settings">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-
-            <!-- resources settings -->
-            <div class="chat-resources">
-
-                <div class="settings-card files-control">
-                    <div>
-                        <h4>Files</h4>
-                        <p>Selected files are used by default.</p>
-                    </div>
-
-                    <button type="button" class="icon-button add-new-file-btn" aria-label="Upload PDF">
-                        <i class="fa-solid fa-plus"></i>
-                    </button>
-
-                    <input type="file" id="fileInput" accept=".pdf" hidden>
-                    <form class="file-list" aria-label="Uploaded files"></form>
-                </div>
-
-                <!-- depth settings -->
-                <div class="settings-card option-control">
-                    <div>
-                        <h4>Depth</h4>
-                        <p>Set how much detail to include.</p>
-                    </div>
-
-                    <div class="settings-options three-options" role="radiogroup" aria-label="Answer depth">
-                        <label>
-                            <input type="radio" name="answerDepth" value="low">
-                            <span>Low</span>
-                        </label>
-
-                        <label>
-                            <input type="radio" name="answerDepth" value="moderate" checked>
-                            <span>Moderate</span>
-                        </label>
-
-                        <label>
-                            <input type="radio" name="answerDepth" value="high">
-                            <span>High</span>
-                        </label>
-                    </div>
-                </div>
-
-            </div>
-
-        </section>
-
-        <!-- alerts -->
-        <div class="alerts" aria-live="polite"></div>
-
-        <!-- scripts -->
-        <script type="module" src="{{ url_for('static', path = 'js/auth.js') }}"></script>
-        <script type="module" src="{{ url_for('static', path = 'js/data.js') }}"></script>
-        <script type="module" src="{{ url_for('static', path = 'js/chat.js') }}?v=2"></script>
-        <script type="module" src="{{ url_for('static', path = 'js/ui.js') }}"></script>
-        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
-    </body>
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+    <script type="module" src="{{ url_for('static', path='js/auth.js') }}"></script>
+    <script type="module" src="{{ url_for('static', path='js/qa.js') }}?v=4"></script>
+</body>
 </html>

@@ -9,7 +9,7 @@
 set -e
 
 echo "===================================="
-echo " Starting FullRAG Project"
+echo " Starting Document Q&A"
 echo "===================================="
 
 # project dir
@@ -39,4 +39,4 @@ cd "$DOCKER_DIR"
 
 docker compose -f "$DOCKER_COMPOSE_FILE" up -d --build
 
-echo "- FullRAG is available at http://localhost"
+echo "- Document Q&A is available at http://localhost"

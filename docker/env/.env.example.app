@@ -1,15 +1,11 @@
 # Application
-APP_NAME="Full-RAG-APP"
+APP_NAME="Document Q&A"
 APP_VERSION="0.1"
 FRONTEND_ORIGIN="http://localhost"
 PRIMARY_LANGUAGE="en"
 DEFAULT_LANGUAGE="en"
 
 # Agent models
-QUERY_ANALYZER_BACKEND="groq"
-QUERY_ANALYZER_AGENT="openai/gpt-oss-120b"
-SEARCH_BACKEND="groq"
-SEARCH_AGENT="openai/gpt-oss-120b"
 ANSWER_BACKEND="groq"
 ANSWER_AGENT="openai/gpt-oss-120b"
 EMBEDDING_BACKEND="hugging_face"
@@ -20,7 +16,6 @@ EMBEDDING_SIZE=384
 GROQ_API_KEY=""
 GOOGLE_API_KEY=""
 HF_TOKEN=""
-TAVILY_API_KEY=""
 
 # Database and vectors
 DATABASE_URL="postgresql+asyncpg://fullrag:change-me@pgvector:5432/fullrag"

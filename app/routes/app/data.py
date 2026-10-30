@@ -1,310 +1,152 @@
+﻿import asyncio
 import logging
 import os
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
-from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependecies.auth import require_authentication
-from core.dependecies.clients import get_db_client, get_embedding_client, get_redis, get_vector_db_client
-from core.helpers import check_rate_limit
 from clients.llms.llm_clients import GoogleLLMClient, HuggingfaceLLMClient
 from clients.vector_dbs.vector_db_clients import PGVectorVDBClient
 from controllers import DataController, UserController, VectorDBController
-import core.system_settings as CFG
-from core.system_settings import get_system_settings as get_settings
-from core.helpers import log_title, raise_internal_server_error
+from core.dependecies.auth import require_authentication, require_csrf
+from core.dependecies.clients import get_db_client, get_embedding_client, get_vector_db_client
+from core.helpers import raise_internal_server_error
+from core.system_settings import DATA_ROUTES_PATH
 from models.db_models import AssetModel, ChunkModel
-from models.db_schemas import Asset, DataChunk, User
-from models.enums import AssetTypesEnum, ResponsesEnum
+from models.db_schemas import Asset, DataChunk
 from models.db_schemas.redis_data import AuthContext
+from models.enums import AssetTypesEnum, ResponsesEnum
 
 
 logger = logging.getLogger("uvicorn.error")
-
-engine = create_async_engine(get_settings().DATABASE_URL)
-local_db_client = sessionmaker(
-    bind = engine,
-    class_ = AsyncSession,
-    expire_on_commit = False,
-)
-
-data_router = APIRouter(
-    prefix = CFG.DATA_ROUTES_PATH,
-    tags = ["data"]
-) 
-
-
-
-async def process_uploaded_file(
-    *,
-    user_id  : int,
-    user_name: str,
-    user_uuid: str,
-    asset_id : int,
-    cleaned_filename: str,
-    vector_db_client: PGVectorVDBClient,
-    embedding_client: HuggingfaceLLMClient | GoogleLLMClient,
-) -> None:
-    """
-    Runs after the upload response has already been sent.
-    """
-
-    try:
-        log_title(f"Background File Processing: {cleaned_filename}")
-
-        data_controller = DataController(user_key = user_uuid)
-
-        vector_db_controller = VectorDBController(
-            vector_db_client = vector_db_client,
-            embedding_client = embedding_client,
-        )
-
-        chunk_model = ChunkModel(db_client = local_db_client)
-
-        # - Chunking File
-        file_content = data_controller.get_file_content(cleaned_filename)
-
-        if file_content is None:
-            logger.error(f"Error while loading file: {cleaned_filename}. File Content: {file_content}")
-            return
-
-            
-        chunks = data_controller.get_chunks(file_content = file_content)
-
-        if not chunks:
-            logger.error(f"Error while chunking file: {cleaned_filename}. Chunks: {chunks}")
-            return
-
-        chunk_objects = [
-            DataChunk(
-                chunk_text = chunk.page_content,
-                user_id = user_id,
-                chunk_metadata = chunk.metadata,
-                asset_id = asset_id,
-            )
-            for chunk in chunks
-        ]
-
-        
-        if not await chunk_model.insert_many_chunks(chunk_objects):
-            logger.error(f"Could not save chunks: {cleaned_filename}")
-            return
-
-        logger.info(
-            f">> File Chunked Successfully. "
-            f"User: {user_name}. No.Chunks: {len(chunk_objects)}"
-        )
-
-        # - embed & save the file in V-DB
-        if not await vector_db_controller.create_collection(user_key = user_uuid):
-            logger.error(f"Could not create vector collection for: {user_name}")
-            return
-
-        chunk_ids = [chunk.chunk_id for chunk in chunk_objects]
-
-        if not await vector_db_controller.insert_chunks_into_vector_db(
-            user_key = user_uuid,
-            chunks = chunk_objects,
-            chunks_ids = chunk_ids,
-        ):
-            logger.error(f"Could not insert vectors for file: {cleaned_filename}")
-            return
-
-        logger.info(
-            f">> File Embedded Successfully. "
-            f"User: {user_name}. "
-            f"Collection: {vector_db_controller.get_collection_name(user_name)}"
-        )
-
-    except Exception:
-        logger.exception(f"Background processing failed for file: {cleaned_filename}")
+data_router = APIRouter(prefix=DATA_ROUTES_PATH, tags=["files"])
 
 
 @data_router.post("/upload")
 async def upload_file(
-    background_tasks: BackgroundTasks,
-    auth            : Annotated[AuthContext, Depends(require_authentication)],
-    db_client       : Annotated[AsyncSession, Depends(get_db_client)],
+    auth: Annotated[AuthContext, Depends(require_csrf)],
+    db_client: Annotated[AsyncSession, Depends(get_db_client)],
     vector_db_client: Annotated[PGVectorVDBClient, Depends(get_vector_db_client)],
     embedding_client: Annotated[HuggingfaceLLMClient | GoogleLLMClient, Depends(get_embedding_client)],
-    redis           : Annotated[Redis, Depends(get_redis)],
-    file            : UploadFile = File(...),
-) -> dict:
-    """
-    Upload a file and prepare its chunks for retrieval.
-        - validate the uploaded file
-        - clean & standardize its name
-        - save it within the system environment.
-        - save the file as an asset in the assets collection.
-        - save the user data in the users collection.
-        - chunk the file & saving its chunks. 
-    """
-    await check_rate_limit(redis, f"upload_file:file:{file.filename}", limit = 3, window_seconds = 900)
+    file: UploadFile = File(...),
+):
+    user = auth.user
+    data = DataController(user_key=user.user_uuid)
+    assets = AssetModel(db_client)
+    chunks = ChunkModel(db_client)
+    vectors = VectorDBController(vector_db_client, embedding_client)
 
-    log_title("Uploading File")
-    user: User = auth.user
+    validation = data.validate_uploaded_file(file)
+    if not validation["valid"]:
+        raise HTTPException(400, validation["message"])
 
-    # - setup
-    data_controller = DataController(user_key = user.user_uuid)
-    user_controller = UserController()
-    
-    asset_model = AssetModel(db_client = db_client)
-    user_path = user_controller.get_user_path(user_key = user.user_uuid)
+    name = data.clean_filename(file.filename)
+    existing = await assets.get_asset(user.user_id, name)
+    if existing:
+        return {"file_id": existing.asset_id, "filename": name, "message": "PDF already uploaded."}
 
-
-    # - process file [validate - clean]
-    file_validation = data_controller.validate_uploaded_file(file = file)
-    if not file_validation["valid"]:
-        raise HTTPException(
-            status_code = status.HTTP_400_BAD_REQUEST,
-            detail = file_validation['message']
-        )
-    
-
-    cleaned_filename = data_controller.clean_filename(filename = file.filename)
-    file_path = os.path.join(user_path, cleaned_filename)
-
-
-    # - check if asset already uploaded
-    asset = await asset_model.get_asset(user_id = user.user_id, asset_name = cleaned_filename)
-    if asset:
-        return {
-            "success": True,
-            "message": ResponsesEnum.FILE_UPLOADING_SUCCESS.value
-        }
-        
-
-    # - save Asset
-    saved = await data_controller.save_file(file = file, file_path = file_path)
-    if not saved:
+    path = os.path.join(UserController().get_user_path(user.user_uuid), name)
+    if not await data.save_file(file, path):
+        if os.path.exists(path):
+            os.remove(path)
         raise_internal_server_error()
-
 
     asset = Asset(
-        user_id = user.user_id,
-        asset_type = AssetTypesEnum.ASSET_FILE.value,
-        asset_name = cleaned_filename,
-        asset_metadata = {
-            "size": os.path.getsize(file_path),
-        },
+        user_id=user.user_id,
+        asset_name=name,
+        asset_type=AssetTypesEnum.ASSET_FILE.value,
+        asset_status="processing",
+        asset_metadata={"size": os.path.getsize(path)},
     )
-
-    if not await asset_model.insert_asset(asset):
+    if not await assets.insert_asset(asset):
+        os.remove(path)
         raise_internal_server_error()
 
-    background_tasks.add_task(
-        process_uploaded_file,
-        user_name = user.user_name,
-        user_id = user.user_id,
-        user_uuid = user.user_uuid,
-        asset_id = asset.asset_id,
-        cleaned_filename = cleaned_filename,
-        vector_db_client = vector_db_client,
-        embedding_client = embedding_client,
-    )
+    chunk_ids = []
+    try:
+        pages = await asyncio.to_thread(data.get_file_content, name)
+        parts = await asyncio.to_thread(data.get_chunks, pages) if pages else None
+        if not parts:
+            raise RuntimeError("PDF contains no readable text")
 
-    return {
-        "message": ResponsesEnum.FILE_UPLOAD_PROCESSING.value,
-        "filename": asset.asset_name,
-        "status": "processing",
-    }
+        records = [
+            DataChunk(
+                user_id=user.user_id,
+                asset_id=asset.asset_id,
+                chunk_text=part.page_content,
+                chunk_metadata=part.metadata,
+            )
+            for part in parts
+        ]
+        if not await chunks.insert_many_chunks(records):
+            raise RuntimeError("Could not save PDF chunks")
+        chunk_ids = [record.chunk_id for record in records]
+        if not await vectors.create_collection(user.user_uuid):
+            raise RuntimeError("Could not create vector collection")
+        if not await vectors.insert_chunks_into_vector_db(user.user_uuid, records, chunk_ids):
+            raise RuntimeError("Could not index PDF")
+        if not await assets.update_asset_status(user.user_id, asset.asset_id, "ready"):
+            raise RuntimeError("Could not finish PDF upload")
+    except Exception as error:
+        logger.exception("PDF upload failed")
+        if chunk_ids:
+            await vectors.delete_chunks_from_vector_db(user.user_uuid, chunk_ids)
+        await chunks.delete_asset_chunks(user.user_id, asset.asset_id)
+        await assets.delete_asset(user.user_id, asset.asset_id)
+        if os.path.exists(path):
+            os.remove(path)
+        if str(error) == "PDF contains no readable text":
+            raise HTTPException(400, "This PDF has no readable text. Upload a text-based PDF.")
+        raise_internal_server_error()
 
+    return {"file_id": asset.asset_id, "filename": name, "message": "PDF ready to use."}
 
 
 @data_router.get("/get_user_files")
 async def get_user_files(
+    auth: Annotated[AuthContext, Depends(require_authentication)],
     db_client: Annotated[AsyncSession, Depends(get_db_client)],
-    auth     : Annotated[AuthContext, Depends(require_authentication)]
 ):
-    user: User = auth.user
-    asset_model = AssetModel(db_client = db_client)
-
-    user_files = await asset_model.get_user_assets(
-        user_id = user.user_id,
-        asset_type = AssetTypesEnum.ASSET_FILE.value
-    )
-
-    if not user_files:
-        return {
-            "user_files": []
-        }
-
-    user_files = [
-        {
-            "file_id" : file.asset_id,
-            "filename": file.asset_name
-        } for file in user_files
-    ]
-
-
+    files = await AssetModel(db_client).get_user_assets(auth.user.user_id, AssetTypesEnum.ASSET_FILE.value)
+    if files is None:
+        raise_internal_server_error()
     return {
-        "user_files": user_files
+        "user_files": [
+            {"file_id": file.asset_id, "filename": file.asset_name}
+            for file in files
+            if file.asset_name.lower().endswith(".pdf")
+        ]
     }
-
 
 
 @data_router.delete("/files/{asset_id}")
 async def delete_user_file(
-    asset_id        : int,
-    auth            : Annotated[AuthContext, Depends(require_authentication)],
-    db_client       : Annotated[AsyncSession, Depends(get_db_client)],
+    asset_id: int,
+    auth: Annotated[AuthContext, Depends(require_csrf)],
+    db_client: Annotated[AsyncSession, Depends(get_db_client)],
     vector_db_client: Annotated[PGVectorVDBClient, Depends(get_vector_db_client)],
     embedding_client: Annotated[HuggingfaceLLMClient | GoogleLLMClient, Depends(get_embedding_client)],
 ):
-    user: User = auth.user
-    user_key = user.user_uuid
-
-    asset_model = AssetModel(db_client = db_client)
-    chunk_model = ChunkModel(db_client = db_client)
-    vector_db_controller = VectorDBController(
-        vector_db_client = vector_db_client,
-        embedding_client = embedding_client,
-    )
-
-    asset = await asset_model.get_user_asset(
-        user_id = user.user_id,
-        asset_id = asset_id,
-    )
-
+    user = auth.user
+    assets = AssetModel(db_client)
+    chunks = ChunkModel(db_client)
+    vectors = VectorDBController(vector_db_client, embedding_client)
+    asset = await assets.get_user_asset(user.user_id, asset_id)
     if asset is None:
-        raise HTTPException(
-            status_code = status.HTTP_404_NOT_FOUND,
-            detail = ResponsesEnum.FILE_NOT_FOUND.value,
-        )
+        raise HTTPException(404, ResponsesEnum.FILE_NOT_FOUND.value)
 
-    chunk_ids = await chunk_model.get_asset_chunk_ids(
-        user_id = user.user_id,
-        asset_id = asset.asset_id,
-    )
-
+    chunk_ids = await chunks.get_asset_chunk_ids(user.user_id, asset_id)
     if chunk_ids is None:
         raise_internal_server_error()
-
-    if chunk_ids and not await vector_db_controller.delete_chunks_from_vector_db(
-        user_key = user_key,
-        chunk_ids = chunk_ids,
-    ):
+    if chunk_ids and not await vectors.delete_chunks_from_vector_db(user.user_uuid, chunk_ids):
+        raise_internal_server_error()
+    if not await chunks.delete_asset_chunks(user.user_id, asset_id):
+        raise_internal_server_error()
+    if not await assets.delete_asset(user.user_id, asset_id):
         raise_internal_server_error()
 
-    if not await chunk_model.delete_asset_chunks(
-        user_id = user.user_id,
-        asset_id = asset.asset_id,
-    ):
-        raise_internal_server_error()
-
-    if not await asset_model.delete_asset(
-        user_id = user.user_id,
-        asset_id = asset.asset_id,
-    ):
-        raise_internal_server_error()
-
-    file_path = os.path.join(UserController().get_user_path(user_key = user_key), asset.asset_name)
-    if os.path.exists(file_path):
-        os.remove(file_path)
-
-    return {
-        "message": ResponsesEnum.FILE_DELETED_SUCCESSFULLY.value,
-    }
+    path = os.path.join(UserController().get_user_path(user.user_uuid), asset.asset_name)
+    if os.path.exists(path):
+        os.remove(path)
+    return {"message": ResponsesEnum.FILE_DELETED_SUCCESSFULLY.value}

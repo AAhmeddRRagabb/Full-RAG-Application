@@ -1,3 +1,4 @@
+import asyncio
 import re
 from .base_controller import BaseController
 
@@ -103,7 +104,8 @@ class VectorDBController(BaseController):
 
         # embed documents
         self.logger.info("Embedding Chunks...")
-        embeddings  = self.embedding_client.embed_text(
+        embeddings = await asyncio.to_thread(
+            self.embedding_client.embed_text,
             text = texts, 
             prompt_type = LLMsGeneralEmbeddingQueryTypes.DOCUMENT.value,
         )
@@ -146,7 +148,8 @@ class VectorDBController(BaseController):
         collection_name = self.get_collection_name(user_key = user_key)
 
         # embed query
-        embeddings = self.embedding_client.embed_text(
+        embeddings = await asyncio.to_thread(
+            self.embedding_client.embed_text,
             text = text,
             prompt_type = LLMsGeneralEmbeddingQueryTypes.SEARCH_QUERY.value,
         )

@@ -19,5 +19,4 @@ PyMuPDF==1.28.0
 python-multipart==0.0.32
 redis==8.1.0
 SQLAlchemy==2.0.51
-tavily-python==0.8.4
 uvicorn[standard]==0.50.0

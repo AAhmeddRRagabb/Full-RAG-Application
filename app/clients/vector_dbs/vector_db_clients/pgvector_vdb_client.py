@@ -459,6 +459,7 @@ class PGVectorVDBClient(BaseVectorClient):
                 async with session.begin():
                     search_stmt = sql_text(
                         'SELECT '
+                        f'{VectorDBPGVectorTableColumns.CHUNK_ID.value} AS chunk_id, '
                         f'{VectorDBPGVectorTableColumns.TEXT.value} AS text, '
                         f'1 - ({VectorDBPGVectorTableColumns.VECTOR.value} <=> :vector) AS score '
                         f'FROM {collection_name} '
@@ -472,9 +473,9 @@ class PGVectorVDBClient(BaseVectorClient):
                     records = search_stmt_exe.fetchall()
                     retrieved_chunks = [
                         RetrievedChunk(
+                            chunk_id = rec.chunk_id,
                             text  = rec.text,
                             score = rec.score,
-                            # resource =
                         )
 
                         for rec in records
@@ -572,9 +573,14 @@ class PGVectorVDBClient(BaseVectorClient):
                     num_records_stmt = sql_text(f"SELECT COUNT(*) FROM {collection_name}")
                     num_records_stmt_exe = await session.execute(num_records_stmt)
                     num_records = num_records_stmt_exe.scalar_one()
+                    self.logger.info(
+                        "Collection %s: %s total vectors; index threshold: %s",
+                        collection_name,
+                        num_records,
+                        self.index_threshold,
+                    )
 
                     if num_records < self.index_threshold:
-                        self.logger.info(f"Num of records is less than the index threshold")
                         return True
 
 

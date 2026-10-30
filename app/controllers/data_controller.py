@@ -10,7 +10,7 @@ from core.system_settings import FILE_ALLOWED_EXTENSIONS, FILE_MAX_SIZE_MB, FILE
 from models.enums import FileExtensionsEnum
 
 from fastapi import UploadFile
-from langchain_community.document_loaders import TextLoader, PyMuPDFLoader
+from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter 
 
 
@@ -50,7 +50,7 @@ class DataController(BaseController):
                 "message": ResponsesEnum.FILE_TYPE_NOT_SUPPORTED.value
             }
         
-        if file.size > FILE_MAX_SIZE_MB * self.mb_2_b:
+        if file.size is not None and file.size > FILE_MAX_SIZE_MB * self.mb_2_b:
             return {
                 "valid": False,
                 "message": ResponsesEnum.FILE_MAX_SIZE_EXCEEDED.value
@@ -104,15 +104,12 @@ class DataController(BaseController):
         if not os.path.exists(file_path):
             return None
 
-        if file_ext == FileExtensionsEnum.FILE_TXT.value:
-            return TextLoader(file_path, encoding = 'utf-8')
-        
         if file_ext == FileExtensionsEnum.FILE_PDF.value:
             return PyMuPDFLoader(file_path)
         
         return None
 
-    def get_file_content(self, file_id: str) -> str | None:
+    def get_file_content(self, file_id: str) -> list | None:
         loader = self.get_file_loader(file_id = file_id)
 
         if loader:
@@ -142,6 +139,9 @@ class DataController(BaseController):
             contents,
             metadatas = metadata
         )
+
+        for chunk in chunks:
+            chunk.metadata["page_number"] = int(chunk.metadata.get("page", 0)) + 1
 
         if chunks: 
             return chunks

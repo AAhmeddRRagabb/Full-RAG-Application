@@ -1,4 +1,3 @@
-from models.db_schemas import Message
 from clients.llms.config import LLMsGenerationMessageTypes
 
 
@@ -78,7 +77,6 @@ class GroqLLMClient(BaseLLMClient):
     def generate_text(
         self, 
         user_prompt      : str,
-        messages         : list[Message] | None = None,  
         max_output_tokens: int | None = None, 
         temperature      : float | None = None
     ) -> str | None:
@@ -86,7 +84,6 @@ class GroqLLMClient(BaseLLMClient):
         """
         Args:
             user_prompt  (str)
-            messages (list[Message])
             max_output_tokens (int)
             temperature (float)
 
@@ -94,13 +91,6 @@ class GroqLLMClient(BaseLLMClient):
             if success -> model response
             if failure -> None
         """
-        messages = [
-            self.create_prompt(
-                prompt = m.content,
-                role = m.role
-            ) for m in messages
-        ] if messages else []
-
         system_message = self.create_prompt(
             prompt = self.generation_system_prompt,
             role = LLMsGenerationMessageTypes.GROQ_SYSTEM_MESSAGE.value,
@@ -111,7 +101,7 @@ class GroqLLMClient(BaseLLMClient):
             role   = LLMsGenerationMessageTypes.GROQ_USER_MESSAGE.value
         )
 
-        final_messages = ([system_message] if self.generation_system_prompt else []) + messages + [user_message]
+        final_messages = ([system_message] if self.generation_system_prompt else []) + [user_message]
 
         
 

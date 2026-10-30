@@ -1,60 +1,42 @@
-# Full RAG App
+﻿# Document Q&A
 
-A web chat application that answers questions using uploaded documents, web search, and conversation history. A query analyzer decides when current information or retrieval is needed; the answer model uses the available evidence to respond.
+A small web app for asking questions about your uploaded PDFs. It retrieves relevant PDF passages and generates one answer with page sources.
 
-## Project Features
+## Features
 
-- Account registration and login with session authentication.
-- Multiple chats per user: create, rename, delete, and revisit saved messages.
-- Upload PDF or text files to a user account. Processing and vector indexing continue in the background after upload.
-- Choose which uploaded files to use for each request and set answer depth to low, moderate, or high.
-- Search selected files and the web when needed, then show source links alongside answers.
-- Stream chat progress and the completed response; persist chat runs and their steps.
-- CSRF checks on chat writes and logout, request rate limits, and Prometheus metrics.
+- Register, log in, and keep your session.
+- Upload and delete PDFs. Upload finishes after text extraction and vector indexing.
+- Select which PDFs to use for a question.
+- Get one answer grounded in retrieved PDF passages, with file and page references.
+- Keep each user's files and vector data separate.
 
 ## Project Structure
 
 ```text
 app/
-  clients/       LLM providers, prompt templates, and vector database client
-  controllers/   Chat, data, user, and vector workflows
-  core/          Settings, authentication, dependencies, and application startup
-  models/        API schemas, database models, migrations, and enums
-  routes/app/    Authentication, file, and chat endpoints
-  static/        Frontend CSS and JavaScript
-  templates/     Chat page
+  clients/       Model providers, prompt template, and pgvector client
+  controllers/   PDF preparation, retrieval, and Q&A
+  core/          Settings, authentication, and startup
+  models/        API and database schemas, migrations
+  routes/app/    Authentication, file, and Q&A endpoints
+  static/        CSS and JavaScript
+  templates/     Single-page interface
   main.py        FastAPI entry point
-docker/          Compose stack, Dockerfile, service config, and env examples
-run.sh           Docker startup script
+docker/          Compose stack and service configuration
 ```
 
-## Project Technology
+## Technology
 
-- **Backend:** Python, FastAPI, Uvicorn, SQLAlchemy, Alembic
-- **Frontend:** HTML, CSS, JavaScript
-- **Storage:** PostgreSQL with pgvector for documents and embeddings; Redis for sessions
-- **AI and retrieval:** Groq, Google GenAI, or Hugging Face clients; Tavily web search
-- **Deployment and monitoring:** Docker Compose, Nginx, Prometheus, Grafana
+Python, FastAPI, SQLAlchemy, Alembic, PostgreSQL with pgvector, Redis, PyMuPDF, HTML, CSS, and JavaScript. The answer and embedding providers are selected in the app environment file.
 
-## Setup the Project
+## Setup
 
-Docker is the simplest way to run the complete stack. From the project root, create the configuration files:
-
-```bash
-cp docker/env/.env.example.app docker/env/.env.app
-cp docker/env/.env.example.postgres docker/env/.env.postgres
-cp docker/env/.env.example.postgres-exporter docker/env/.env.postgres-exporter
-cp docker/env/.env.example.grafana docker/env/.env.grafana
-cp docker/config/nginx/default.example.conf docker/config/nginx/default.conf
-cp docker/config/prometheus/prometheus.yml.example docker/config/prometheus/prometheus.yml
-```
-
-Set matching PostgreSQL credentials in the app and Postgres env files, replace `CSRF_SECRET`, and provide API keys for the configured model, embedding, and Tavily providers. Then start the stack:
+Copy the example environment files and configure PostgreSQL, Redis, a generation provider, an embedding provider, and `CSRF_SECRET`. Then start the stack:
 
 ```bash
 docker compose -f docker/docker-compose.yml up -d --build
 ```
 
-The app is available at `http://localhost` through Nginx or `http://localhost:8000` directly. API docs are at `http://localhost:8000/docs`. The container runs Alembic migrations at startup.
+The app is available through Nginx at `http://localhost`. For local development, install `app/requirements.txt`, copy `app/.env.example` to `app/.env`, run the Alembic migrations, and start `uvicorn main:app --reload` from `app/`.
 
-For local Python development, install `app/requirements.txt`, copy `app/.env.example` to `app/.env`, and run `uvicorn main:app --reload` from `app/`. PostgreSQL and Redis must also be running; apply the Alembic migrations under `app/models/db_schemas/fullrag_db` before starting the app.
+The new migration removes saved chats, messages, runs, and run steps. Back up the database first if you need that history.

@@ -28,15 +28,12 @@ class LLMsHuggingfaceEmbeddingQueryTypes(Enum):
 class LLMsGenerationMessageTypes(Enum):
     GROQ_SYSTEM_MESSAGE    = "system"
     GROQ_USER_MESSAGE      = "user"
-    GROQ_ASSISTANT_MESSAGE = "assistant"
 
     GOOGLE_SYSTEM_MESSAGE    = "system"
     GOOGLE_USER_MESSAGE      = "user"
-    GOOGLE_ASSISTANT_MESSAGE = "model"
 
     HF_SYSTEM_MESSAGE    = "system"
     HF_USER_MESSAGE      = "user"
-    HF_ASSISTANT_MESSAGE = "assistant"
 
 
 # Models
@@ -48,9 +45,7 @@ class LLMsEmbeddingModels(Enum):
 
 
 class AgentTasks(Enum):
-    SEARCH = "search"
     ANSWER = "answer"
-    QUERY_ANALYZER = "query_analyzer"
 
 
 class PromptTypes(Enum):

@@ -1,4 +1,3 @@
-from models.db_schemas import Message
 
 
 from .base_llm_client import BaseLLMClient
@@ -103,7 +102,7 @@ class GoogleLLMClient(BaseLLMClient):
 
         return self.client.models.embed_content(
             model = LLMsEmbeddingModels.GOOGLE_EMBEDDINGS_2.value,
-            contents = text,
+            contents = [Content(parts = [Part.from_text(text = item)]) for item in text],
             config = EmbedContentConfig(
                 output_dimensionality = self.embedding_size
             )
@@ -154,7 +153,7 @@ class GoogleLLMClient(BaseLLMClient):
 
         # parse response
         if not self.validate_embedding_response(response, expected_count = len(text)):
-            self.logger.error(f"Invalid Embedding Response.")
+            self.logger.error(f"Invalid Embedding Response. {response}")
             return None
         
         embeddings = []
@@ -191,7 +190,6 @@ class GoogleLLMClient(BaseLLMClient):
     def generate_text(
         self, 
         user_prompt      : str,
-        messages         : list[Message] | None = None,
         max_output_tokens: int | None = None, 
         temperature      : float | None = None
     ) -> str | None:
@@ -199,7 +197,6 @@ class GoogleLLMClient(BaseLLMClient):
         """
         Args:
             user_prompt  (str)
-            messages (list[Message])
             max_output_tokens (int)
             temperature (float)
 
@@ -207,14 +204,7 @@ class GoogleLLMClient(BaseLLMClient):
             if success -> model response
             if failure -> None
         """
-        messages = [
-            self.create_prompt(
-                prompt = m.content,
-                role = "model" if m.role == "assistant" else m.role
-            )[0] for m in messages
-        ] if messages else []
- 
-        messages.extend(self.create_prompt(prompt=user_prompt, role="user"))
+        messages = self.create_prompt(prompt=user_prompt, role="user")
         
         config = {
             "temperature": temperature if temperature is not None else self.default_temperature,

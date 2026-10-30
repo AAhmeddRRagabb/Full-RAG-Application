@@ -8,7 +8,6 @@ import {
     SUCCESS_MESSAGE,
     ERROR_MESSAGE,
 
-    LOGIN_BUTTON,
     LOGOUT_BUTTON,
 
     LOGIN_FORM,
@@ -31,7 +30,6 @@ import {
     updateCsrfToken,
 } from "./utils.js";
 
-const closeFormBtns = document.querySelectorAll(".close-form");
 
 const loginMessage = LOGIN_FORM.querySelector(".form-message");
 const registerMessage = REGISTER_FORM.querySelector(".form-message");
@@ -217,7 +215,6 @@ async function logoutUser() {
 
 /* Wire Logic */
 function bindAuthEvents() {
-    LOGIN_BUTTON?.addEventListener("click", activateLoginForm);
     LOGOUT_BUTTON?.addEventListener("click", logoutUser);
     loginForm?.addEventListener("submit", loginUser);
     registerForm?.addEventListener("submit", registerUser);
@@ -232,9 +229,6 @@ function bindAuthEvents() {
         activateLoginForm();
     });
 
-    closeFormBtns.forEach((button) => {
-        button.addEventListener("click", activateLoginForm);
-    });
 }
 
 bindAuthEvents();

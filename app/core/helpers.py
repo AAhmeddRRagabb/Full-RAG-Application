@@ -1,8 +1,7 @@
 from fastapi import status, HTTPException
-from redis.asyncio import Redis, RedisError
 from models.enums import ResponsesEnum
-from models.api_schemas import ChatPublic, MessagePublic, UserPublic
-from models.db_schemas import Chat, Message, User
+from models.api_schemas import UserPublic
+from models.db_schemas import User
 import logging
 import traceback
 from pydantic import ValidationError
@@ -56,55 +55,10 @@ def raise_internal_server_error():
 
 
 
-def log_title(title: str) -> None:
-    title = f" {title} ".center(100, "=")
-    logger.info(title)
-
-
-
-
 def build_public_user(user: User) -> UserPublic:
     return UserPublic(
         user_name = user.user_name,
         user_email = user.user_email,
         user_uuid_prefix = user.user_uuid.hex[:3],
-    )
-
-
-async def check_rate_limit(redis: Redis, key: str, limit: int, window_seconds: int) -> None:
-    try:
-        count = await redis.incr(key)
-        if count == 1:
-            await redis.expire(key, window_seconds)
-
-    except RedisError:
-        raise HTTPException(
-            status_code = status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail = ResponsesEnum.RATE_LIMIT_NOT_AVAILABLE.value,
-        )
-
-    if count > limit:
-        raise HTTPException(
-            status_code = status.HTTP_429_TOO_MANY_REQUESTS,
-            detail = ResponsesEnum.RATE_LIMIT_EXCEEDED.value,
-        )
-
-
-
-def build_public_chat(chat: Chat) -> ChatPublic:
-    return ChatPublic(
-        chat_id   = chat.chat_id,
-        chat_name = chat.chat_name,
-    )
-
-
-def build_public_message(message: Message) -> MessagePublic:
-    return MessagePublic(
-        message_id = message.message_id,
-        chat_id = message.chat_id,
-        role = message.role,
-        content = message.content,
-        llm_resources = message.llm_resources,
-        created_at = message.created_at,
     )
 

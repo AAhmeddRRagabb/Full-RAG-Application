@@ -1,8 +1,5 @@
 
 
-from .chat_controller import ChatController
-
-
 from .base_controller import BaseController
 
 from .vector_db_controller import VectorDBController
