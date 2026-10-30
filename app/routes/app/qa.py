@@ -42,3 +42,5 @@ async def ask_question(
         vector_controller = VectorDBController(vector_db_client, embedding_client),
     )
     return await controller.answer(auth.user, question.query.strip(), question.files)
+
+

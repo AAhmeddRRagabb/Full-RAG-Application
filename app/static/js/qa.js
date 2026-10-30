@@ -135,6 +135,8 @@ function renderAnswer(answer, sources = [], loading = false) {
 // Ask one question using the checked PDFs.
 async function askQuestion(event) {
     event.preventDefault();
+    answerSources.replaceChildren();
+    answerSources.hidden = true;
     const files = [...list.querySelectorAll("input:checked")].map((input) => Number(input.value));
     if (!files.length) {
         showAlert("Select at least one PDF.", ERROR_MESSAGE);

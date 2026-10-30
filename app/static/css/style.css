@@ -122,17 +122,20 @@ button:disabled { opacity: .5; cursor: default; }
 .file-delete {
     display: grid;
     place-items: center;
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
+    flex: none;
+    padding: 0;
     border: 0;
     border-radius: 6px;
     color: var(--muted);
     background: transparent;
+    font-size: .72rem;
     opacity: 0;
     transition: opacity var(--ease), color var(--ease), background-color var(--ease);
 }
-.file-row:hover .file-delete, .file-delete:focus-visible { opacity: 1; }
-.file-delete:hover { color: var(--danger); background: var(--danger-soft); }
+.file-row:hover .file-delete, .file-delete:focus-visible { opacity: .7; }
+.file-delete:hover { opacity: 1; color: var(--danger); background: var(--hover); }
 .empty-files { margin: 0 .35rem; color: var(--muted); font-size: .85rem; }
 
 /* ==========================================================================
