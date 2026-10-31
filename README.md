@@ -2,15 +2,22 @@
 
 A web app for asking questions about uploaded PDFs. It retrieves relevant passages from selected files and generates a concise answer grounded in those passages.
 
-## Features
+## App features
 
 - Register, log in, and keep a session across visits.
-- Upload and delete PDFs; text is extracted and indexed on upload.
-- Choose which uploaded files to use for each question.
-- Compare two PDFs using passages retrieved from both.
-- Choose English or Arabic for answers and comparisons.
-- See the files used as sources beneath each answer.
-- Keep each user's files and search index separate.
+- Upload, select, and delete PDFs.
+- Ask questions about selected files or compare two PDFs.
+- Choose English or Arabic for each answer.
+- View the files used as sources beneath the answer.
+- Keep each user's files and vector data separate.
+
+## AI features
+
+- Extract PDF text, split it into chunks, and create embeddings when files are uploaded.
+- Embed each question and retrieve relevant chunks from pgvector, limited to the selected PDFs.
+- Generate answers from retrieved passages, with prompts that tell the model to acknowledge missing information instead of inventing it.
+- Retrieve passages from both PDFs in parallel for question-based comparisons.
+- Use language-specific prompts for English and Arabic answers.
 
 ## Project structure
 
