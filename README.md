@@ -8,6 +8,7 @@ A small web app for asking questions about your uploaded PDFs. It retrieves rele
 - Upload and delete PDFs. Upload finishes after text extraction and vector indexing.
 - Select which PDFs to use for a question.
 - Get one answer grounded in retrieved PDF passages, with file and page references.
+- Compare two selected PDFs against a question using relevant passages from each.
 - Keep each user's files and vector data separate.
 
 ## Project Structure

@@ -7,8 +7,14 @@ const uploadButton = document.getElementById("uploadButton");
 const questionForm = document.getElementById("questionForm");
 const questionInput = document.getElementById("questionInput");
 const askButton = document.getElementById("askButton");
+const compareButton = document.getElementById("compareButton");
+const compareDialog = document.getElementById("compareDialog");
+const compareForm = document.getElementById("compareForm");
+const compareFirst = document.getElementById("compareFirst");
+const compareSecond = document.getElementById("compareSecond");
 const answerContent = document.getElementById("answerContent");
 const answerSources = document.getElementById("answerSources");
+let availableFiles = [];
 
 
 // Render the user's PDFs with their current selection.
@@ -58,7 +64,8 @@ async function loadFiles() {
         const response = await fetch(`${DATA_ROUTES_PATH}/get_user_files`, { credentials: "include" });
         const data = await parseJsonResponse(response);
         if (!response.ok) throw new Error(getErrorMessage(response, data));
-        renderFiles(data.user_files || []);
+        availableFiles = data.user_files || [];
+        renderFiles(availableFiles);
     } catch (error) {
         showAlert(error.message || "Could not load PDFs.", ERROR_MESSAGE);
     }
@@ -144,6 +151,7 @@ async function askQuestion(event) {
     }
 
     askButton.disabled = true;
+    compareButton.disabled = true;
     renderAnswer("Reading your PDFs...", [], true);
     try {
         const response = await fetch("/api/v1/qa/ask", {
@@ -160,6 +168,64 @@ async function askQuestion(event) {
         showAlert(error.message || "Could not answer the question.", ERROR_MESSAGE);
     } finally {
         askButton.disabled = false;
+        compareButton.disabled = false;
+    }
+}
+
+
+// Open a file picker for a two-PDF comparison.
+function openCompare() {
+    if (!questionInput.value.trim()) {
+        showAlert("Enter a comparison question first.", ERROR_MESSAGE);
+        return;
+    }
+    if (availableFiles.length < 2) {
+        showAlert("Upload at least two PDFs to compare.", ERROR_MESSAGE);
+        return;
+    }
+    for (const select of [compareFirst, compareSecond]) {
+        select.replaceChildren(new Option("Select a PDF", ""));
+        availableFiles.forEach((file) => select.add(new Option(file.filename, file.file_id)));
+        select.value = "";
+    }
+    compareDialog.showModal();
+}
+
+
+// Compare the two PDFs selected in the dialog.
+async function compareFiles(event) {
+    event.preventDefault();
+    const query = questionInput.value.trim();
+    const files = [Number(compareFirst.value), Number(compareSecond.value)];
+    if (!query) {
+        showAlert("Enter a comparison question first.", ERROR_MESSAGE);
+        return;
+    }
+    if (files[0] === files[1]) {
+        showAlert("Select two different PDFs.", ERROR_MESSAGE);
+        return;
+    }
+
+    compareDialog.close();
+    askButton.disabled = true;
+    compareButton.disabled = true;
+    renderAnswer("Comparing your PDFs...", [], true);
+    try {
+        const response = await fetch("/api/v1/qa/compare", {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json", ...csrfHeaders() },
+            body: JSON.stringify({ query, files }),
+        });
+        const data = await parseJsonResponse(response);
+        if (!response.ok) throw new Error(getErrorMessage(response, data));
+        renderAnswer(data.answer, data.sources || []);
+    } catch (error) {
+        renderAnswer("I couldn't compare those PDFs. Please try again.");
+        showAlert(error.message || "Could not compare PDFs.", ERROR_MESSAGE);
+    } finally {
+        askButton.disabled = false;
+        compareButton.disabled = false;
     }
 }
 
@@ -168,6 +234,8 @@ async function askQuestion(event) {
 document.addEventListener("app-shell-ready", (event) => {
     if (event.detail?.user) loadFiles();
     else {
+        availableFiles = [];
+        if (compareDialog.open) compareDialog.close();
         list.replaceChildren();
         answerContent.textContent = "Select a PDF, then ask a question.";
         answerContent.classList.add("empty");
@@ -178,6 +246,9 @@ document.addEventListener("app-shell-ready", (event) => {
 uploadButton.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", uploadFile);
 questionForm.addEventListener("submit", askQuestion);
+compareButton.addEventListener("click", openCompare);
+compareForm.addEventListener("submit", compareFiles);
+document.getElementById("cancelCompare").addEventListener("click", () => compareDialog.close());
 questionInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) questionForm.requestSubmit();
 });

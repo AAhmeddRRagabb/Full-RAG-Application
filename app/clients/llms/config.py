@@ -46,6 +46,7 @@ class LLMsEmbeddingModels(Enum):
 
 class AgentTasks(Enum):
     ANSWER = "answer"
+    COMPARE = "compare"
 
 
 class PromptTypes(Enum):

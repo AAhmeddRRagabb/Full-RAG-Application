@@ -180,8 +180,9 @@ button:disabled { opacity: .5; cursor: default; }
 .question-input-wrap textarea::placeholder { color: var(--muted); opacity: .8; }
 .composer-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .composer-hint { color: var(--muted); font-size: .75rem; }
+.composer-actions { display: flex; align-items: center; gap: .5rem; margin-left: auto; }
 
-.question-input-wrap button[type="submit"], .auth-submit {
+.question-input-wrap button[type="submit"], .auth-submit, .compare-actions button[type="submit"] {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -196,7 +197,9 @@ button:disabled { opacity: .5; cursor: default; }
     font-size: .9rem;
     transition: background-color var(--ease);
 }
-.question-input-wrap button[type="submit"]:hover:not(:disabled), .auth-submit:hover:not(:disabled) { background: var(--accent-hover); }
+.question-input-wrap button[type="submit"]:hover:not(:disabled), .auth-submit:hover:not(:disabled), .compare-actions button[type="submit"]:hover:not(:disabled) { background: var(--accent-hover); }
+.secondary-button { min-height: 36px; padding: .4rem .8rem; border: 1px solid var(--line); border-radius: 9px; color: var(--text); background: transparent; font-size: .9rem; }
+.secondary-button:hover { background: var(--hover); }
 
 .answer-card { padding: 0; }
 .answer-heading { margin: 0 0 .6rem; color: var(--muted); font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
@@ -218,6 +221,16 @@ button:disabled { opacity: .5; cursor: default; }
 .answer-sources li { padding: .2rem .65rem; border-radius: 999px; color: var(--muted); background: var(--hover); font-size: .78rem; }
 @keyframes pulse { 50% { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* Compare dialog */
+.compare-dialog { width: min(430px, calc(100% - 2rem)); padding: 1.5rem; border: 1px solid var(--line); border-radius: 12px; color: var(--text); background: var(--surface); box-shadow: var(--shadow); }
+.compare-dialog::backdrop { background: rgba(0, 0, 0, .65); }
+.compare-dialog form { display: grid; gap: .6rem; }
+.compare-dialog h2 { margin: 0; font-size: 1.2rem; font-weight: 600; }
+.compare-dialog p { margin: 0 0 .6rem; color: var(--muted); font-size: .85rem; }
+.compare-dialog label { margin-top: .35rem; color: var(--muted); font-size: .82rem; }
+.compare-dialog select { width: 100%; min-height: 40px; padding: .5rem .7rem; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--bg); }
+.compare-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1rem; }
 
 /* ==========================================================================
    Authentication

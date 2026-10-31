@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ page_title }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}?v=6">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/style.css') }}?v=7">
     <link rel="stylesheet" href="{{ url_for('static', path='css/all.min.css') }}">
 </head>
 <body>
@@ -49,7 +49,10 @@
                         <textarea id="questionInput" rows="3" placeholder="Ask about your files..." required></textarea>
                         <div class="composer-bar">
                             <span class="composer-hint">Press Ctrl/⌘ + Enter to send</span>
-                            <button id="askButton" type="submit">Ask</button>
+                            <div class="composer-actions">
+                                <button id="compareButton" type="button" class="secondary-button">Compare</button>
+                                <button id="askButton" type="submit">Ask</button>
+                            </div>
                         </div>
                     </div>
                 </form>
@@ -62,6 +65,22 @@
             </main>
         </div>
     </div>
+
+    <!-- Compare PDFs dialog -->
+    <dialog id="compareDialog" class="compare-dialog" aria-labelledby="compareTitle">
+        <form id="compareForm">
+            <h2 id="compareTitle">Compare two PDFs</h2>
+            <p>Uses the question entered above.</p>
+            <label for="compareFirst">First PDF</label>
+            <select id="compareFirst" required></select>
+            <label for="compareSecond">Second PDF</label>
+            <select id="compareSecond" required></select>
+            <div class="compare-actions">
+                <button type="button" id="cancelCompare" class="secondary-button">Cancel</button>
+                <button type="submit" id="submitCompare">Compare</button>
+            </div>
+        </form>
+    </dialog>
 
     <!-- Registration -->
     <div class="register-form auth-card">
@@ -96,6 +115,6 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
     <script type="module" src="{{ url_for('static', path='js/auth.js') }}"></script>
-    <script type="module" src="{{ url_for('static', path='js/qa.js') }}?v=5"></script>
+    <script type="module" src="{{ url_for('static', path='js/qa.js') }}?v=6"></script>
 </body>
 </html>

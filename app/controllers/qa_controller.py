@@ -10,7 +10,7 @@ from clients.llms.prompt_templates import PromptTemplateParser
 from controllers import VectorDBController
 from models.db_models import AssetModel, ChunkModel
 
-from models.db_schemas import User
+from models.db_schemas import User, DataChunk
 
 class QAController:
     def __init__(
@@ -94,3 +94,79 @@ class QAController:
             "answer": answer,
             "sources": list(dict.fromkeys(item["source"] for item in excerpts))[:3],
         }
+
+
+    # ----------- Comparing ------------------ #
+    async def retrieve(self, query: str, user: User, file_id: int, chunks: list[DataChunk]) -> list[str]:
+        ids = [chunk.chunk_id for chunk in chunks if chunk.asset_id == file_id]
+        if not ids:
+            return []
+        matches = await self.vector_controller.search_vector_db_collection(
+            user_key  = user.user_uuid,
+            text      = query,
+            limit     = 3,
+            chunk_ids = ids,
+        ) or []
+        
+        return [match.text for match in matches if match.text]
+
+
+    async def compare(self, user: User, query: str, file_ids: list[int]) -> dict:
+        if len(file_ids) != 2 or len(set(file_ids)) != 2:
+            raise HTTPException(400, "Select two different PDFs.")
+
+        # -- get chunks
+        assets = await self.asset_model.get_user_assets(user.user_id, "file")
+        if assets is None:
+            raise HTTPException(500, ResponsesEnum.INTERNAL_SERVER_ERROR.value)
+        names = {
+            asset.asset_id: asset.asset_name
+            for asset in assets
+            if asset.asset_id in file_ids and asset.asset_name.lower().endswith(".pdf")
+        }
+        if len(names) != 2:
+            raise HTTPException(400, "Select two uploaded PDFs.")
+
+
+        chunks = await self.chunk_model.get_user_chunks(user.user_id, file_ids)
+        if chunks is None:
+            raise HTTPException(500, ResponsesEnum.INTERNAL_SERVER_ERROR.value)
+
+        # -- retrieving
+        results = await asyncio.gather(*(
+            self.retrieve(
+                query   = query,
+                user    = user,
+                file_id = file_id,
+                chunks  = chunks
+            ) for file_id in file_ids)
+        )
+        if not any(results):
+            return {"answer": "I couldn't find relevant information in either PDF.", "sources": []}
+
+
+        files = [
+            {"name": names[file_id], "excerpts": excerpts}
+            for file_id, excerpts in zip(file_ids, results)
+        ]
+
+        # -- comparing
+        prompt = self.prompt_parser.get_prompt(
+            task = AgentTasks.COMPARE.value,
+            key  = PromptTypes.TASK_PROMPT.value,
+            vars = {"query": query, "files": files},
+        )
+
+        if not prompt:
+            raise HTTPException(500, ResponsesEnum.INTERNAL_SERVER_ERROR.value)
+        
+        answer = await asyncio.to_thread(
+            self.llm_client.generate_text,
+            user_prompt       = prompt,
+            max_output_tokens = 1500,
+            temperature       = 0.2,
+        )
+
+        if not answer:
+            raise HTTPException(503, ResponsesEnum.INTERNAL_SERVER_ERROR.value)
+        return {"answer": answer, "sources": [file["name"] for file in files if file["excerpts"]]}

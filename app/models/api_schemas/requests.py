@@ -18,3 +18,8 @@ class LoginRequest(BaseModel):
 class QuestionRequest(BaseModel):
     query: str
     files: list[int]
+
+
+class CompareRequest(BaseModel):
+    query: str
+    files: list[int]

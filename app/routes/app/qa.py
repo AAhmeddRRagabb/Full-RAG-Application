@@ -14,7 +14,7 @@ from core.system_settings import QA_ROUTER_PATH
 from clients.llms.config import AgentTasks
 from controllers.qa_controller import QAController
 from controllers.vector_db_controller import VectorDBController
-from models.api_schemas import QuestionRequest
+from models.api_schemas import CompareRequest, QuestionRequest
 from models.db_models import AssetModel, ChunkModel
 from models.db_schemas.redis_data import AuthContext
 
@@ -42,5 +42,27 @@ async def ask_question(
         vector_controller = VectorDBController(vector_db_client, embedding_client),
     )
     return await controller.answer(auth.user, question.query.strip(), question.files)
+
+
+@qa_router.post("/compare")
+async def compare_files(
+    request          : CompareRequest,
+    auth             : Annotated[AuthContext, Depends(require_csrf)],
+    db_client        = Depends(get_db_client),
+    vector_db_client = Depends(get_vector_db_client),
+    embedding_client = Depends(get_embedding_client),
+    llm_clients      = Depends(get_llm_clients),
+    prompt_parser    = Depends(get_prompt_template_parser),
+):
+    if not request.query.strip():
+        raise HTTPException(400, "Enter a comparison question first.")
+    controller = QAController(
+        llm_client        = llm_clients[AgentTasks.COMPARE.value],
+        prompt_parser     = prompt_parser,
+        asset_model       = AssetModel(db_client),
+        chunk_model       = ChunkModel(db_client),
+        vector_controller = VectorDBController(vector_db_client, embedding_client),
+    )
+    return await controller.compare(auth.user, request.query.strip(), request.files)
 
 

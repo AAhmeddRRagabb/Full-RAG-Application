@@ -107,6 +107,15 @@ async def lifespan(app: FastAPI):
             key  = PromptTypes.SYSTEM_PROMPT.value
         )
     )
+    app.state.llm_clients[AgentTasks.COMPARE.value] = llm_clients_factory.create_agent(
+        reasoning_effort = "medium",
+        provider = app.state.settings.ANSWER_BACKEND,
+        generation_model_id = app.state.settings.ANSWER_AGENT,
+        system_prompt = app.state.prompt_template_parser.get_prompt(
+            task = AgentTasks.COMPARE.value,
+            key = PromptTypes.SYSTEM_PROMPT.value,
+        ),
+    )
 
     if any(client is None for client in app.state.llm_clients.values()):
         logger.error(f"Error While Initiating LLMs Agents: {app.state.llm_clients}")
