@@ -21,13 +21,14 @@ Inspired by: [Mini RAG by Abubakr Soliman](https://www.youtube.com/playlist?list
 - Generate answers from retrieved passages, with prompts that tell the model to acknowledge missing information instead of inventing it.
 - Retrieve passages from both PDFs in parallel for question-based comparisons.
 - Use language-specific prompts for English and Arabic answers.
+- Configure generation and embedding models through multiple AI providers.
 
 ## Tools used
 
 - **Backend:** Python, FastAPI, SQLAlchemy, Alembic
 - **Data and retrieval:** PostgreSQL, pgvector, Redis, PyMuPDF
 - **Frontend:** HTML, CSS, JavaScript
-- **AI:** Configurable generation and embedding providers
+- **AI providers:** Groq, Google Gemini, Hugging Face
 - **Deployment:** Docker Compose, Nginx
 
 ## Project structure
