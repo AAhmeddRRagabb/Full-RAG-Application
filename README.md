@@ -2,10 +2,12 @@
 
 A PDF question-answering app built with retrieval-augmented generation (RAG). It retrieves relevant passages from selected documents and uses them to generate grounded answers.
 
+Inspired by: [Mini RAG by Abubakr Soliman](https://www.youtube.com/playlist?list=PLvLvlVqNQGHCUR2p0b8a0QpVjDUg50wQj)
+
 ## App features
 
 - Register, log in, and keep a session across visits.
-- Upload, select, and delete PDFs.
+- Upload and save PDFs, then select or delete them as needed.
 - Ask questions about selected files or compare two PDFs.
 - Choose English or Arabic for each answer.
 - View the files used as sources beneath the answer.
