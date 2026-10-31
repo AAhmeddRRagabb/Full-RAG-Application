@@ -22,7 +22,11 @@ A PDF question-answering app built with retrieval-augmented generation (RAG). It
 
 ## Tools used
 
-FastAPI, SQLAlchemy, Alembic, PostgreSQL with pgvector, Redis, PyMuPDF, HTML, CSS, and JavaScript. The generation and embedding providers are configured through environment variables.
+- **Backend:** Python, FastAPI, SQLAlchemy, Alembic
+- **Data and retrieval:** PostgreSQL, pgvector, Redis, PyMuPDF
+- **Frontend:** HTML, CSS, JavaScript
+- **AI:** Configurable generation and embedding providers
+- **Deployment:** Docker Compose, Nginx
 
 ## Project structure
 
