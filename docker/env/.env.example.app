@@ -8,8 +8,8 @@ DEFAULT_LANGUAGE="en"
 # Agent models
 ANSWER_BACKEND="groq"
 ANSWER_AGENT="openai/gpt-oss-120b"
-EMBEDDING_BACKEND="hugging_face"
-EMBEDDING_MODEL_ID="sentence-transformers/all-MiniLM-L6-v2"
+EMBEDDING_BACKEND="google_genai"
+EMBEDDING_MODEL_ID="gemini-embedding-2"
 EMBEDDING_SIZE=384
 
 # Providers
