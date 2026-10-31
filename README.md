@@ -1,6 +1,6 @@
 # Document Q&A
 
-A web app for asking questions about uploaded PDFs. It retrieves relevant passages from selected files and generates a concise answer grounded in those passages.
+A PDF question-answering app built with retrieval-augmented generation (RAG). It retrieves relevant passages from selected documents and uses them to generate grounded answers.
 
 ## App features
 
@@ -13,11 +13,16 @@ A web app for asking questions about uploaded PDFs. It retrieves relevant passag
 
 ## AI features
 
-- Extract PDF text, split it into chunks, and create embeddings when files are uploaded.
+- RAG pipeline: PDF text extraction, chunking, embeddings, vector retrieval, and answer generation.
+- Build the document index during upload so passages are searchable later.
 - Embed each question and retrieve relevant chunks from pgvector, limited to the selected PDFs.
 - Generate answers from retrieved passages, with prompts that tell the model to acknowledge missing information instead of inventing it.
 - Retrieve passages from both PDFs in parallel for question-based comparisons.
 - Use language-specific prompts for English and Arabic answers.
+
+## Tools used
+
+FastAPI, SQLAlchemy, Alembic, PostgreSQL with pgvector, Redis, PyMuPDF, HTML, CSS, and JavaScript. The generation and embedding providers are configured through environment variables.
 
 ## Project structure
 
@@ -33,10 +38,6 @@ app/
   main.py        FastAPI entry point
 docker/          Compose stack and service configuration
 ```
-
-## Technology
-
-FastAPI, SQLAlchemy, Alembic, PostgreSQL with pgvector, Redis, PyMuPDF, HTML, CSS, and JavaScript. The generation and embedding providers are configured through environment variables.
 
 ## Setup
 
