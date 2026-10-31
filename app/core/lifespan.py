@@ -97,27 +97,22 @@ async def lifespan(app: FastAPI):
     app.state.llm_clients_factory = llm_clients_factory
     app.state.llm_clients = {}
 
-    # -- answer agent
-    app.state.llm_clients[AgentTasks.ANSWER.value] = llm_clients_factory.create_agent(
-        reasoning_effort = "medium",
-        provider            = app.state.settings.ANSWER_BACKEND,
-        generation_model_id = app.state.settings.ANSWER_AGENT,
-        system_prompt       = app.state.prompt_template_parser.get_prompt(
-            task = AgentTasks.ANSWER.value,
-            key  = PromptTypes.SYSTEM_PROMPT.value
-        )
-    )
-    app.state.llm_clients[AgentTasks.COMPARE.value] = llm_clients_factory.create_agent(
-        reasoning_effort = "medium",
-        provider = app.state.settings.ANSWER_BACKEND,
-        generation_model_id = app.state.settings.ANSWER_AGENT,
-        system_prompt = app.state.prompt_template_parser.get_prompt(
-            task = AgentTasks.COMPARE.value,
-            key = PromptTypes.SYSTEM_PROMPT.value,
-        ),
-    )
+    for task in (AgentTasks.ANSWER.value, AgentTasks.COMPARE.value):
+        app.state.llm_clients[task] = {}
+        for language in ("en", "ar"):
+            prompt = app.state.prompt_template_parser.get_prompt(
+                task=task,
+                key=PromptTypes.SYSTEM_PROMPT.value,
+                language=language,
+            )
+            app.state.llm_clients[task][language] = llm_clients_factory.create_agent(
+                reasoning_effort="medium",
+                provider=app.state.settings.ANSWER_BACKEND,
+                generation_model_id=app.state.settings.ANSWER_AGENT,
+                system_prompt=prompt,
+            ) if prompt else None
 
-    if any(client is None for client in app.state.llm_clients.values()):
+    if any(client is None for clients in app.state.llm_clients.values() for client in clients.values()):
         logger.error(f"Error While Initiating LLMs Agents: {app.state.llm_clients}")
         exit()
 

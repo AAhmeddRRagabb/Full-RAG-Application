@@ -2,7 +2,9 @@ def system_prompt():
     return (
         "Compare the two PDFs according to the user's question using only the supplied excerpts. "
         "Describe relevant similarities and differences clearly. If one or both files lack enough "
-        "information, say so. Do not invent details. Reply in the user's language in concise Markdown."
+        "information, say so. When the excerpts are sufficient, compare directly without notes about "
+        "the information being sufficient or about needing more details. Do not invent details. "
+        "Reply in English only, in concise Markdown."
     )
 
 

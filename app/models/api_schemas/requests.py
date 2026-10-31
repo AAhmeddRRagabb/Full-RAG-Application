@@ -1,6 +1,7 @@
 
 from pydantic import BaseModel, EmailStr
 from pydantic import SecretStr
+from typing import Literal
 
 
 # -- Auth
@@ -18,8 +19,10 @@ class LoginRequest(BaseModel):
 class QuestionRequest(BaseModel):
     query: str
     files: list[int]
+    language: Literal["en", "ar"] = "en"
 
 
 class CompareRequest(BaseModel):
     query: str
     files: list[int]
+    language: Literal["en", "ar"] = "en"

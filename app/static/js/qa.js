@@ -6,6 +6,7 @@ const fileInput = document.getElementById("fileInput");
 const uploadButton = document.getElementById("uploadButton");
 const questionForm = document.getElementById("questionForm");
 const questionInput = document.getElementById("questionInput");
+const languageSelect = document.getElementById("answerLanguage");
 const askButton = document.getElementById("askButton");
 const compareButton = document.getElementById("compareButton");
 const compareDialog = document.getElementById("compareDialog");
@@ -121,9 +122,10 @@ async function deleteFile(fileId) {
 
 
 // Show one answer and its PDF pages.
-function renderAnswer(answer, sources = [], loading = false) {
+function renderAnswer(answer, sources = [], loading = false, language = languageSelect.value) {
     answerContent.classList.remove("empty");
     answerContent.classList.toggle("loading", loading);
+    answerContent.dir = language === "ar" ? "rtl" : "ltr";
     answerContent.innerHTML = window.DOMPurify && window.marked
         ? DOMPurify.sanitize(marked.parse(answer))
         : "";
@@ -142,6 +144,7 @@ function renderAnswer(answer, sources = [], loading = false) {
 // Ask one question using the checked PDFs.
 async function askQuestion(event) {
     event.preventDefault();
+    const language = languageSelect.value;
     answerSources.replaceChildren();
     answerSources.hidden = true;
     const files = [...list.querySelectorAll("input:checked")].map((input) => Number(input.value));
@@ -152,19 +155,19 @@ async function askQuestion(event) {
 
     askButton.disabled = true;
     compareButton.disabled = true;
-    renderAnswer("Reading your PDFs...", [], true);
+    renderAnswer("Reading your PDFs...", [], true, language);
     try {
         const response = await fetch("/api/v1/qa/ask", {
             method: "POST",
             credentials: "include",
             headers: { "Content-Type": "application/json", ...csrfHeaders() },
-            body: JSON.stringify({ query: questionInput.value.trim(), files }),
+            body: JSON.stringify({ query: questionInput.value.trim(), files, language }),
         });
         const data = await parseJsonResponse(response);
         if (!response.ok) throw new Error(getErrorMessage(response, data));
-        renderAnswer(data.answer, data.sources || []);
+        renderAnswer(data.answer, data.sources || [], false, language);
     } catch (error) {
-        renderAnswer("I couldn't answer that question. Please try again.");
+        renderAnswer("I couldn't answer that question. Please try again.", [], false, language);
         showAlert(error.message || "Could not answer the question.", ERROR_MESSAGE);
     } finally {
         askButton.disabled = false;
@@ -195,6 +198,7 @@ function openCompare() {
 // Compare the two PDFs selected in the dialog.
 async function compareFiles(event) {
     event.preventDefault();
+    const language = languageSelect.value;
     const query = questionInput.value.trim();
     const files = [Number(compareFirst.value), Number(compareSecond.value)];
     if (!query) {
@@ -209,19 +213,19 @@ async function compareFiles(event) {
     compareDialog.close();
     askButton.disabled = true;
     compareButton.disabled = true;
-    renderAnswer("Comparing your PDFs...", [], true);
+    renderAnswer("Comparing your PDFs...", [], true, language);
     try {
         const response = await fetch("/api/v1/qa/compare", {
             method: "POST",
             credentials: "include",
             headers: { "Content-Type": "application/json", ...csrfHeaders() },
-            body: JSON.stringify({ query, files }),
+            body: JSON.stringify({ query, files, language }),
         });
         const data = await parseJsonResponse(response);
         if (!response.ok) throw new Error(getErrorMessage(response, data));
-        renderAnswer(data.answer, data.sources || []);
+        renderAnswer(data.answer, data.sources || [], false, language);
     } catch (error) {
-        renderAnswer("I couldn't compare those PDFs. Please try again.");
+        renderAnswer("I couldn't compare those PDFs. Please try again.", [], false, language);
         showAlert(error.message || "Could not compare PDFs.", ERROR_MESSAGE);
     } finally {
         askButton.disabled = false;

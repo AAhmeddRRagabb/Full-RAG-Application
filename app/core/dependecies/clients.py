@@ -20,7 +20,7 @@ def get_vector_db_client(request: Request) -> PGVectorVDBClient:
     return request.app.state.vector_db_client
 
 
-def get_llm_clients(request: Request) -> dict[str, HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient | list[HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient]]:
+def get_llm_clients(request: Request) -> dict[str, dict[str, HuggingfaceLLMClient | GoogleLLMClient | GroqLLMClient]]:
     return request.app.state.llm_clients
 
 def get_embedding_client(request: Request) -> HuggingfaceLLMClient | GoogleLLMClient:

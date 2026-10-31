@@ -27,7 +27,8 @@ class PromptTemplateParser:
         self,
         task: str,
         key  : str,
-        vars : dict | None = None
+        vars : dict | None = None,
+        language: str | None = None,
     ) -> str | None:
         """
         Retrieve the required prompt
@@ -47,8 +48,8 @@ class PromptTemplateParser:
             self.logger.error(f"Error While Getting System Prompt in task | key.\n>>Task: {task}.\n>>Key: {key}")
             return None
         
-        targeted_language = self.language
-        task_path = os.path.join(self.current_path, "locales", self.language, f"{task}.py")
+        targeted_language = language or self.language
+        task_path = os.path.join(self.current_path, "locales", targeted_language, f"{task}.py")
 
         if not os.path.exists(task_path):
             task_path = os.path.join(self.current_path, "locales", self.default_language, f"{task}.py" )

@@ -27,7 +27,7 @@ class QAController:
         self.chunk_model       = chunk_model
         self.vector_controller = vector_controller
 
-    async def answer(self, user: User, query: str, file_ids: list[int]) -> dict:
+    async def answer(self, user: User, query: str, file_ids: list[int], language: str = "en") -> dict:
         assets = await self.asset_model.get_user_assets(user.user_id, "file")
 
         if assets is None:
@@ -76,6 +76,7 @@ class QAController:
             task = AgentTasks.ANSWER.value,
             key  = PromptTypes.TASK_PROMPT.value,
             vars = {"query": query, "excerpts": excerpts},
+            language = language,
         )
 
         if not prompt:
@@ -111,7 +112,7 @@ class QAController:
         return [match.text for match in matches if match.text]
 
 
-    async def compare(self, user: User, query: str, file_ids: list[int]) -> dict:
+    async def compare(self, user: User, query: str, file_ids: list[int], language: str = "en") -> dict:
         if len(file_ids) != 2 or len(set(file_ids)) != 2:
             raise HTTPException(400, "Select two different PDFs.")
 
@@ -155,6 +156,7 @@ class QAController:
             task = AgentTasks.COMPARE.value,
             key  = PromptTypes.TASK_PROMPT.value,
             vars = {"query": query, "files": files},
+            language = language,
         )
 
         if not prompt:

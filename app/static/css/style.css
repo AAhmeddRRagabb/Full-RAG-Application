@@ -147,7 +147,7 @@ button:disabled { opacity: .5; cursor: default; }
     flex-direction: column;
     gap: 1.75rem;
     width: 100%;
-    max-width: 780px;
+    max-width: 1040px;
     margin: 0 auto;
     padding: 1.5rem clamp(1.25rem, 3vw, 2.5rem) 3rem;
 }
@@ -179,7 +179,29 @@ button:disabled { opacity: .5; cursor: default; }
 }
 .question-input-wrap textarea::placeholder { color: var(--muted); opacity: .8; }
 .composer-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.composer-hint { color: var(--muted); font-size: .75rem; }
+.language-control { position: relative; display: inline-flex; align-items: center; color: var(--muted); }
+.language-control i { position: absolute; left: .75rem; font-size: .8rem; pointer-events: none; }
+.language-control select {
+    height: 36px;
+    padding: 0 2rem 0 2.15rem;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    color: var(--text);
+    background-color: transparent;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238f929b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right .75rem center;
+    background-size: 9px;
+    font: inherit;
+    font-size: .9rem;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    transition: background-color var(--ease), border-color var(--ease);
+}
+.language-control select:hover { background-color: var(--hover); }
+.language-control select option { color: var(--text); background: var(--surface); }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .composer-actions { display: flex; align-items: center; gap: .5rem; margin-left: auto; }
 
 .question-input-wrap button[type="submit"], .auth-submit, .compare-actions button[type="submit"] {
@@ -289,5 +311,4 @@ button:disabled { opacity: .5; cursor: default; }
     .welcome-message { display: none; }
     .files-panel { position: static; height: auto; max-height: 36vh; padding: 1rem .75rem; border-right: 0; border-bottom: 1px solid var(--line); }
     .file-delete { opacity: 1; }
-    .composer-hint { display: none; }
 }
